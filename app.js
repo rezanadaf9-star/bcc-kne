@@ -293,7 +293,7 @@
         ${dashboardCard("fa-solid fa-circle-question","Active Quizzes","Attempt your available quizzes","quizzes")}
         ${dashboardCard("fa-solid fa-chart-simple","Recent Quiz Score",`${avg}% average across recent attempts`,"quizzes")}
         ${dashboardCard("fa-solid fa-book-open","Homework","Open subject-wise homework","homework")}
-        ${dashboardCard("fa-solid fa-sparkles","AI Study Hub","NotebookLM resources, notes, lectures and doubt-solving links","notebooklm")}
+        ${dashboardCard("fa-solid fa-wand-magic-sparkles","AI Study Hub","NotebookLM resources, notes, lectures and doubt-solving links","notebooklm")}
       </div>`;
     $$(`[data-go]`,el).forEach(x=>x.onclick=()=>navigate(x.dataset.go));
   }
