@@ -83,3 +83,16 @@ html,body{overflow-x:hidden}
   .login-footer{margin-top:17px;}
   .quiz-run-shell{padding-top:14px;}
 }
+
+
+/* Final quiz layout: keep the sticky quiz header near the top and start the first question lower down. */
+.quiz-run-shell{padding-top:0;}
+.quiz-topbar{top:5px;margin-top:5px;margin-bottom:0;}
+.quiz-run-shell #quiz-form{padding-top:200px;}
+@media (max-width:900px) and (pointer:coarse){
+  .quiz-topbar{top:5px;}
+  .quiz-run-shell #quiz-form{padding-top:200px;}
+}
+@media (max-width:480px){
+  .quiz-run-shell #quiz-form{padding-top:200px;}
+}

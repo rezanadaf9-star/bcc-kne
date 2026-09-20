@@ -310,14 +310,16 @@
       <div class="page-head"><div><h1>AI Study Hub</h1><p>Open the NotebookLM / Gemini study resources published for your class.</p></div></div>
       <div class="notebook-banner"><div><span class="pill active">BCC AI LEARNING</span><h2>Study smarter with your class resources</h2><p>Notes, lectures, doubt-solving and AI study links are selected by BCC for your class.</p></div><i class="fa-solid fa-wand-magic-sparkles"></i></div>
       <div class="resource-grid">
-        ${groups.map(([type,icon,label]) => { const items=rows.filter(r=>r.resource_type===type); return `<section class="resource-group"><div class="resource-group-head"><h2><i class="${icon}"></i> ${label}</h2><span>${items.length}</span></div><div class="resource-list">${items.map(r=>`<article class="resource-card"><div class="resource-card-head"><div><span class="pill">${esc(r.subjects?.name || "Class resource")}</span><h3>${esc(r.title)}</h3></div><i class="${icon}"></i></div>${r.description?`<p>${esc(r.description)}</p>`:""}<button class="resource-link" type="button" data-open-resource="${esc(r.id)}" data-resource-title="${esc(r.title)}" data-resource-url="${esc(r.url)}"><i class="fa-solid fa-display"></i> Open inside BCC</button></article>`).join("") || emptyInline("No resources in this category yet.")}</div></section>`; }).join("")}
+        ${groups.map(([type,icon,label]) => { const items=rows.filter(r=>r.resource_type===type); return `<section class="resource-group"><div class="resource-group-head"><h2><i class="${icon}"></i> ${label}</h2><span>${items.length}</span></div><div class="resource-list">${items.map(r=>`<article class="resource-card"><div class="resource-card-head"><div><span class="pill">${esc(r.subjects?.name || "Class resource")}</span><h3>${esc(r.title)}</h3></div><i class="${icon}"></i></div>${r.description?`<p>${esc(r.description)}</p>`:""}<button class="resource-link" type="button" data-open-resource="${esc(r.id)}" data-resource-title="${esc(r.title)}" data-resource-url="${esc(r.url)}"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open Gemini</button></article>`).join("") || emptyInline("No resources in this category yet.")}</div></section>`; }).join("")}
       </div>`;
     $$("[data-open-resource]", el).forEach(b=>b.onclick=()=>openStudyResource(b.dataset.resourceTitle,b.dataset.resourceUrl));
   }
   function openStudyResource(title, url) {
     if (!url) return toast("This AI resource has no URL.", "error");
-    modal(`<div class="modal-head"><div><h2>${esc(title || "AI Study Resource")}</h2><span class="mini-label">Opened inside BCC AI Study Hub</span></div><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div><div class="embedded-resource"><iframe src="${esc(url)}" title="${esc(title || "AI Study Resource")}" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe></div><div class="notice" style="margin-top:12px">The resource is being displayed inside BCC. If the provider blocks embedding, its content cannot be displayed in an iframe from this website.</div>`);
-    $$("[data-close]").forEach(x=>x.onclick=closeModal);
+    // NotebookLM/Gemini pages may block iframe embedding. Open the exact
+    // resource in its own Gemini/NotebookLM page instead of showing a broken
+    // blank frame inside BCC.
+    window.location.href = url;
   }
 
   async function renderLectures(el) {
