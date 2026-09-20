@@ -288,7 +288,7 @@
         ${dashboardCard("fa-solid fa-circle-question","Active Quizzes","Attempt your available quizzes","quizzes")}
         ${dashboardCard("fa-solid fa-chart-simple","Recent Quiz Score",`${avg}% average across recent attempts`,"quizzes")}
         ${dashboardCard("fa-solid fa-book-open","Homework","Open subject-wise homework","homework")}
-        ${dashboardCard("fa-solid fa-sparkles","AI Study Hub","NotebookLM resources, notes, lectures and doubt-solving links","notebooklm")}
+        ${dashboardCard("fa-solid fa-wand-magic-sparkles","AI Study Hub","NotebookLM resources, notes, lectures and doubt-solving links","notebooklm")}
       </div>`;
     $$(`[data-go]`,el).forEach(x=>x.onclick=()=>navigate(x.dataset.go));
   }
@@ -311,7 +311,7 @@
     ];
     el.innerHTML = `
       <div class="page-head"><div><h1>AI Study Hub</h1><p>Open the NotebookLM / Gemini study resources published for your class.</p></div></div>
-      <div class="notebook-banner"><div><span class="pill active">BCC AI LEARNING</span><h2>Study smarter with your class resources</h2><p>Notes, lectures, doubt-solving and AI study links are selected by BCC for your class.</p></div><i class="fa-solid fa-sparkles"></i></div>
+      <div class="notebook-banner"><div><span class="pill active">BCC AI LEARNING</span><h2>Study smarter with your class resources</h2><p>Notes, lectures, doubt-solving and AI study links are selected by BCC for your class.</p></div><i class="fa-solid fa-wand-magic-sparkles"></i></div>
       <div class="resource-grid">
         ${groups.map(([type,icon,label]) => { const items=rows.filter(r=>r.resource_type===type); return `<section class="resource-group"><div class="resource-group-head"><h2><i class="${icon}"></i> ${label}</h2><span>${items.length}</span></div><div class="resource-list">${items.map(r=>`<article class="resource-card"><div class="resource-card-head"><div><span class="pill">${esc(r.subjects?.name || "Class resource")}</span><h3>${esc(r.title)}</h3></div><i class="${icon}"></i></div>${r.description?`<p>${esc(r.description)}</p>`:""}<a class="resource-link" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open resource</a></article>`).join("") || emptyInline("No resources in this category yet.")}</div></section>`; }).join("")}
       </div>`;
@@ -551,7 +551,7 @@
         <div id="content-extra" style="margin-top:13px"></div><div class="modal-actions"><button class="small-btn primary" id="save-content">Save content</button></div>
       </div>
       <div class="admin-card"><h3>Recent content</h3><div id="recent-content" class="list-stack" style="margin-top:12px"></div></div></div>
-      <div class="admin-card notebook-admin-card" style="margin-top:16px"><h3><i class="fa-solid fa-sparkles"></i> AI Study Hub / NotebookLM</h3><p class="mini-label" style="margin:4px 0 15px">Publish a NotebookLM or Gemini resource link for Class 10 or Class 12 Arts students.</p>
+      <div class="admin-card notebook-admin-card" style="margin-top:16px"><h3><i class="fa-solid fa-wand-magic-sparkles"></i> AI Study Hub / NotebookLM</h3><p class="mini-label" style="margin:4px 0 15px">Publish a NotebookLM or Gemini resource link for Class 10 or Class 12 Arts students.</p>
         <div class="form-grid"><div class="form-group"><label>Class</label><select id="nl-class"><option value="10">Class 10</option><option value="12">Class 12</option></select></div><div class="form-group"><label>Subject</label><select id="nl-subject"></select></div><div class="form-group"><label>Resource type</label><select id="nl-type"><option value="notes">Notes &amp; summaries</option><option value="lecture">Lecture</option><option value="doubt">Doubt solving</option><option value="ai">AI study assistant</option></select></div><div class="form-group"><label>Title</label><input id="nl-title" placeholder="e.g. History Chapter 1 AI Notes"></div><div class="form-group" style="grid-column:1/-1"><label>NotebookLM / Gemini URL</label><input id="nl-url" type="url" placeholder="https://notebooklm.google.com/... or your Gemini resource link"></div><div class="form-group" style="grid-column:1/-1"><label>Description</label><textarea id="nl-description" placeholder="What should students use this resource for?"></textarea></div></div>
         <div class="modal-actions"><button class="small-btn primary" id="save-notebooklm"><i class="fa-solid fa-paper-plane"></i> Publish AI resource</button></div>
         <div id="notebooklm-admin-list" class="list-stack" style="margin-top:14px"></div>
