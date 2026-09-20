@@ -89,9 +89,19 @@
   }
 
   function authEmail(id) {
-    const domain = C.AUTH_EMAIL_DOMAIN || "students.bcc-portal.invalid";
-    return `${String(id).trim().toLowerCase().replace(/[^a-z0-9._-]/g, "")}@${domain}`;
+  const cleanId = String(id).trim();
+
+  // Existing BCC admin account
+  if (cleanId.toUpperCase() === "ADMIN") {
+    return "rezanadaf9@gmail.com";
   }
+
+  const domain = C.AUTH_EMAIL_DOMAIN || "students.bcc-portal.invalid";
+
+  return `${cleanId
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, "")}@${domain}`;
+}
 
   async function q(table, select = "*") {
     const { data, error } = await sb.from(table).select(select);
