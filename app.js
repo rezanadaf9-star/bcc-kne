@@ -198,7 +198,7 @@
   async function renderView() {
     syncNav();
     const el = $("#view-container");
-    el.innerHTML = "";
+    const previous = el.innerHTML;
     try {
       if (state.profile.role === "student") {
         if (state.view === "dashboard") return await renderStudentDashboard(el);
@@ -237,7 +237,8 @@
       }
     } catch (e) {
       console.error(e);
-      el.innerHTML = `<div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i><h3>Could not load this page</h3><p>${esc(e.message)}</p></div>`;
+      if (!el.innerHTML.trim()) el.innerHTML = previous || `<div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i><h3>Could not load this page</h3><p>${esc(e.message)}</p></div>`;
+      else toast(e.message || "Something went wrong.", "error");
       toast(e.message || "Something went wrong.", "error");
     }
   }
@@ -309,8 +310,14 @@
       <div class="page-head"><div><h1>AI Study Hub</h1><p>Open the NotebookLM / Gemini study resources published for your class.</p></div></div>
       <div class="notebook-banner"><div><span class="pill active">BCC AI LEARNING</span><h2>Study smarter with your class resources</h2><p>Notes, lectures, doubt-solving and AI study links are selected by BCC for your class.</p></div><i class="fa-solid fa-wand-magic-sparkles"></i></div>
       <div class="resource-grid">
-        ${groups.map(([type,icon,label]) => { const items=rows.filter(r=>r.resource_type===type); return `<section class="resource-group"><div class="resource-group-head"><h2><i class="${icon}"></i> ${label}</h2><span>${items.length}</span></div><div class="resource-list">${items.map(r=>`<article class="resource-card"><div class="resource-card-head"><div><span class="pill">${esc(r.subjects?.name || "Class resource")}</span><h3>${esc(r.title)}</h3></div><i class="${icon}"></i></div>${r.description?`<p>${esc(r.description)}</p>`:""}<a class="resource-link" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open resource</a></article>`).join("") || emptyInline("No resources in this category yet.")}</div></section>`; }).join("")}
+        ${groups.map(([type,icon,label]) => { const items=rows.filter(r=>r.resource_type===type); return `<section class="resource-group"><div class="resource-group-head"><h2><i class="${icon}"></i> ${label}</h2><span>${items.length}</span></div><div class="resource-list">${items.map(r=>`<article class="resource-card"><div class="resource-card-head"><div><span class="pill">${esc(r.subjects?.name || "Class resource")}</span><h3>${esc(r.title)}</h3></div><i class="${icon}"></i></div>${r.description?`<p>${esc(r.description)}</p>`:""}<button class="resource-link" type="button" data-open-resource="${esc(r.id)}" data-resource-title="${esc(r.title)}" data-resource-url="${esc(r.url)}"><i class="fa-solid fa-display"></i> Open inside BCC</button></article>`).join("") || emptyInline("No resources in this category yet.")}</div></section>`; }).join("")}
       </div>`;
+    $$("[data-open-resource]", el).forEach(b=>b.onclick=()=>openStudyResource(b.dataset.resourceTitle,b.dataset.resourceUrl));
+  }
+  function openStudyResource(title, url) {
+    if (!url) return toast("This AI resource has no URL.", "error");
+    modal(`<div class="modal-head"><div><h2>${esc(title || "AI Study Resource")}</h2><span class="mini-label">Opened inside BCC AI Study Hub</span></div><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div><div class="embedded-resource"><iframe src="${esc(url)}" title="${esc(title || "AI Study Resource")}" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe></div><div class="notice" style="margin-top:12px">The resource is being displayed inside BCC. If the provider blocks embedding, its content cannot be displayed in an iframe from this website.</div>`);
+    $$("[data-close]").forEach(x=>x.onclick=closeModal);
   }
 
   async function renderLectures(el) {
@@ -454,7 +461,7 @@
     const qz=state.quiz;if(!qz){writeRoute("quizzes", {}, false);return renderView()}
     const questions=Array.isArray(state.quizQuestions)?state.quizQuestions:[];
     if(!questions.length){return toast("This quiz has no questions yet.","error")}
-    el.innerHTML=`<div class="quiz-topbar"><div><strong>${esc(qz.title)}</strong><span class="mini-label"> • ${questions.length} question${questions.length===1?"":"s"}</span></div><div class="timer" id="quiz-timer"></div></div><form id="quiz-form">${questions.map((q,i)=>`<div class="question-card"><h3>${i+1}. ${esc(q.question_text)}</h3>${["A","B","C","D"].map(letter=>{const key=`option_${letter.toLowerCase()}`;return q[key]?`<label class="option"><input type="radio" name="q_${q.id}" value="${letter}"><span><strong>${letter}.</strong> ${esc(q[key])}</span></label>`:""}).join("")}</div>`).join("")}<button class="primary-btn" type="submit" style="width:100%">Submit Quiz</button></form>`;
+    el.innerHTML=`<div class="quiz-run-shell"><div class="quiz-topbar"><div><strong>${esc(qz.title)}</strong><span class="mini-label"> • ${questions.length} question${questions.length===1?"":"s"}</span></div><div class="timer" id="quiz-timer"></div></div><form id="quiz-form">${questions.map((q,i)=>`<div class="question-card"><h3>${i+1}. ${esc(q.question_text)}</h3>${["A","B","C","D"].map(letter=>{const key=`option_${letter.toLowerCase()}`;return q[key]?`<label class="option"><input type="radio" name="q_${q.id}" value="${letter}"><span><strong>${letter}.</strong> ${esc(q[key])}</span></label>`:""}).join("")}</div>`).join("")}<button class="primary-btn" type="submit" style="width:100%">Submit Quiz</button></form></div>`;
     startTimer(qz.duration_minutes*60);
     $("#quiz-form").onsubmit=async e=>{e.preventDefault();if(!confirm("Submit this quiz now?"))return;await submitQuiz()};
   }
@@ -603,9 +610,24 @@
   }
 
   async function renderRecentContent(){
-    const [l,n,h]=await Promise.all([sb.from("lectures").select("id,title,created_at,class_no,subjects(name)").order("created_at",{ascending:false}).limit(5),sb.from("notes").select("id,title,created_at,class_no,subjects(name)").order("created_at",{ascending:false}).limit(5),sb.from("homework").select("id,title,created_at,class_no,subjects(name)").order("created_at",{ascending:false}).limit(5)]);
+    const [l,n,h]=await Promise.all([sb.from("lectures").select("id,title,created_at,class_no,file_path,subjects(name)").order("created_at",{ascending:false}).limit(5),sb.from("notes").select("id,title,created_at,class_no,file_path,subjects(name)").order("created_at",{ascending:false}).limit(5),sb.from("homework").select("id,title,created_at,class_no,file_path,subjects(name)").order("created_at",{ascending:false}).limit(5)]);
     const rows=[...(l.data||[]).map(x=>({...x,type:"Lecture"})),...(n.data||[]).map(x=>({...x,type:"Note"})),...(h.data||[]).map(x=>({...x,type:"Homework"}))].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,8);
-    $("#recent-content").innerHTML=rows.map(x=>`<div class="list-item"><div class="list-main"><strong>${esc(x.title)}</strong><span>${x.type} • Class ${x.class_no} • ${esc(x.subjects?.name||"")}</span></div></div>`).join("")||emptyInline("No content yet.");
+    $("#recent-content").innerHTML=rows.map(x=>`<div class="list-item"><div class="list-main"><strong>${esc(x.title)}</strong><span>${x.type} • Class ${x.class_no} • ${esc(x.subjects?.name||"")}</span></div><button class="small-btn danger" data-delete-content="${esc(x.id)}" data-content-type="${x.type.toLowerCase()}" data-content-path="${esc(x.file_path||"")}"><i class="fa-solid fa-trash"></i> Delete</button></div>`).join("")||emptyInline("No content yet.");
+    $$('[data-delete-content]').forEach(b=>b.onclick=()=>deleteContentItem(b.dataset.deleteContent,b.dataset.contentType,b.dataset.contentPath));
+  }
+
+  async function deleteContentItem(id,type,path){
+    if(!confirm("Delete this content permanently?")) return;
+    const table=type==="lecture"?"lectures":type==="note"?"notes":"homework";
+    loading(true,"Deleting content...");
+    try {
+      const {error}=await sb.from(table).delete().eq("id",id);
+      if(error) throw error;
+      if(path){ const {error:e}=await sb.storage.from("bcc-content").remove([path]); if(e) console.warn("Storage cleanup failed:",e.message); }
+      toast("Content deleted.","success");
+      await renderRecentContent();
+    } catch(e){ toast(e.message||"Could not delete content.","error"); }
+    finally{ loading(false); }
   }
 
   async function uploadFile(file,path){const {error}=await sb.storage.from("bcc-content").upload(path,file,{upsert:false,contentType:file.type});if(error)throw error;return path}
@@ -635,8 +657,13 @@
     const [qzs,subs10,subs12]=await Promise.all([sb.from("quizzes").select("*,subjects(name)").order("created_at",{ascending:false}),subjectsForClass(10),subjectsForClass(12)]);
     if(qzs.error)throw qzs.error;
     el.innerHTML=`<div class="page-head"><div><h1>Quiz Manager</h1><p>Create weekly, monthly and chapter-wise quizzes with configurable scoring.</p></div><button class="small-btn primary" id="new-quiz"><i class="fa-solid fa-plus"></i> New quiz</button></div>
-      <div class="list-stack">${(qzs.data||[]).map(x=>`<div class="quiz-card"><div class="inline" style="justify-content:space-between"><div><h3>${esc(x.title)}</h3><div class="quiz-meta"><span class="pill">${esc(x.quiz_type)}</span><span class="pill">${esc(x.subjects?.name||"All")}</span><span class="pill">${x.total_marks} marks</span><span class="pill">${x.duration_minutes} min</span>${x.is_active?`<span class="pill active">Active</span>`:`<span class="pill">Inactive</span>`}</div></div><button class="small-btn" data-edit-quiz="${x.id}">Edit</button></div></div>`).join("")||emptyInline("No quizzes yet.")}</div>`;
-    $("#new-quiz").onclick=()=>showQuizEditor(null,[...subs10,...subs12]);$$("[data-edit-quiz]").forEach(b=>b.onclick=()=>showQuizEditor(b.dataset.editQuiz,[...subs10,...subs12]));
+      <div class="list-stack">${(qzs.data||[]).map(x=>`<div class="quiz-card"><div class="inline" style="justify-content:space-between"><div><h3>${esc(x.title)}</h3><div class="quiz-meta"><span class="pill">${esc(x.quiz_type)}</span><span class="pill">${esc(x.subjects?.name||"All")}</span><span class="pill">${x.total_marks} marks</span><span class="pill">${x.duration_minutes} min</span>${x.is_active?`<span class="pill active">Active</span>`:`<span class="pill">Inactive</span>`}</div></div><div class="inline"><button class="small-btn" data-edit-quiz="${x.id}">Edit</button><button class="small-btn danger" data-delete-quiz="${x.id}"><i class="fa-solid fa-trash"></i> Delete</button></div></div></div>`).join("")||emptyInline("No quizzes yet.")}</div>`;
+    $("#new-quiz").onclick=()=>showQuizEditor(null,[...subs10,...subs12]);$$("[data-edit-quiz]").forEach(b=>b.onclick=()=>showQuizEditor(b.dataset.editQuiz,[...subs10,...subs12]));$$('[data-delete-quiz]').forEach(b=>b.onclick=()=>deleteQuiz(b.dataset.deleteQuiz));
+  }
+  async function deleteQuiz(id){
+    if(!confirm("Delete this quiz permanently? Its questions and submitted attempts will also be deleted.")) return;
+    loading(true,"Deleting quiz...");
+    try{const {error}=await sb.from("quizzes").delete().eq("id",id);if(error)throw error;toast("Quiz deleted.","success");await renderQuizManager($("#view-container"));}catch(e){toast(e.message||"Could not delete quiz.","error")}finally{loading(false)}
   }
   async function showQuizEditor(id,subjects){
     let quiz=null,questions=[];
@@ -742,6 +769,18 @@
     $("#login-screen")?.classList.remove("hidden");
     $("#app-shell")?.classList.add("hidden");
   }
-  function toggleSidebar(open){$("#sidebar").classList.toggle("open",open);$("#mobile-overlay").classList.toggle("open",open)}
-  document.addEventListener("DOMContentLoaded",setup);
+  function toggleSidebar(open){
+    const mobile=window.matchMedia("(max-width:900px) and (pointer: coarse), (max-width:760px)").matches;
+    if(!mobile){ $("#sidebar").classList.remove("open"); $("#mobile-overlay").classList.remove("open"); return; }
+    $("#sidebar").classList.toggle("open",open);
+    $("#mobile-overlay").classList.toggle("open",open);
+  }
+  function syncResponsiveLayout(){
+    const mobile=window.matchMedia("(max-width:900px) and (pointer: coarse), (max-width:760px)").matches;
+    if(!mobile){ $("#sidebar").classList.remove("open"); $("#mobile-overlay").classList.remove("open"); }
+    document.body.classList.toggle("is-mobile",mobile);
+  }
+  window.addEventListener("resize",syncResponsiveLayout,{passive:true});
+  window.addEventListener("orientationchange",()=>setTimeout(syncResponsiveLayout,80),{passive:true});
+  document.addEventListener("DOMContentLoaded",()=>{syncResponsiveLayout();setup();});
 })();
