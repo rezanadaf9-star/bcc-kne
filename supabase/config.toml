@@ -1,0 +1,12 @@
+# Supabase CLI configuration for BCC Portal.
+# The default JWT verification is kept enabled for protected functions.
+project_id = "bcc-portal"
+
+[functions.admin-create-user]
+verify_jwt = true
+
+[functions.submit-quiz]
+verify_jwt = true
+
+[functions.attempt-result]
+verify_jwt = true

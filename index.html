@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Brilliant Coaching Centre student and teacher portal">
+  <title>BCC Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <section id="boot-screen" class="boot-screen">
+    <div class="boot-card">
+      <img src="assets/logo.png" alt="BCC logo">
+      <strong>Brilliant Coaching Centre</strong>
+      <span>Opening your portal…</span>
+      <div class="boot-spinner"></div>
+    </div>
+  </section>
+  <div id="toast-root"></div>
+
+  <section id="login-screen" class="screen login-screen">
+    <div class="login-glow"></div>
+    <div class="login-card glass">
+      <div class="brand-lockup">
+        <img src="assets/logo.png" alt="Brilliant Coaching Centre logo" class="login-logo">
+        <h1>Brilliant Coaching Centre</h1>
+        <p>Student &amp; Teacher Portal</p>
+      </div>
+
+      <div class="portal-tabs" role="tablist">
+        <button class="portal-tab active" data-portal="student"><i class="fa-solid fa-user-graduate"></i> Student</button>
+        <button class="portal-tab" data-portal="teacher"><i class="fa-solid fa-chalkboard-user"></i> Teacher</button>
+      </div>
+
+      <form id="login-form" autocomplete="on">
+        <label for="login-id">Enter ID</label>
+        <div class="input-wrap">
+          <i class="fa-regular fa-id-card"></i>
+          <input id="login-id" name="username" type="text" placeholder="Enter your BCC ID" required autocomplete="username">
+        </div>
+
+        <label for="login-password">Enter password</label>
+        <div class="input-wrap">
+          <i class="fa-solid fa-lock"></i>
+          <input id="login-password" name="password" type="password" placeholder="Enter your password" required autocomplete="current-password">
+          <button type="button" class="input-action" data-toggle-password="#login-password" aria-label="Show password"><i class="fa-regular fa-eye"></i></button>
+        </div>
+
+        <button class="primary-btn login-btn" type="submit"><span>Login</span><i class="fa-solid fa-arrow-right"></i></button>
+        <p class="login-hint" id="login-hint">Student login: use the Student ID given by BCC.</p>
+      </form>
+
+      <p class="login-footer">Brilliant Coaching Centre • Estd. 2009</p>
+    </div>
+  </section>
+
+  <div id="app-shell" class="app-shell hidden">
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-brand">
+        <img src="assets/logo.png" alt="BCC logo">
+        <div>
+          <strong>BRILLIANT</strong>
+          <span>COACHING CENTRE</span>
+          <small>ESTD. 2009</small>
+        </div>
+      </div>
+
+      <button id="sidebar-close" class="mobile-icon-btn" aria-label="Close menu"><i class="fa-solid fa-xmark"></i></button>
+
+      <nav class="side-nav" id="student-nav">
+        <button class="nav-item active" data-view="dashboard"><i class="fa-solid fa-house"></i><span>Dashboard</span></button>
+        <button class="nav-item" data-view="lectures"><i class="fa-solid fa-video"></i><span>Lectures</span></button>
+        <button class="nav-item" data-view="notes"><i class="fa-solid fa-note-sticky"></i><span>Notes</span></button>
+        <button class="nav-item" data-view="homework"><i class="fa-solid fa-book-open"></i><span>Homework</span></button>
+        <button class="nav-item" data-view="quizzes"><i class="fa-solid fa-circle-question"></i><span>Quizzes</span></button>
+        <button class="nav-item" data-view="notebooklm"><i class="fa-solid fa-sparkles"></i><span>AI Study Hub</span></button>
+      </nav>
+
+      <nav class="side-nav hidden" id="admin-nav">
+        <button class="nav-item active" data-view="admin-dashboard"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span></button>
+        <button class="nav-item" data-view="students"><i class="fa-solid fa-users"></i><span>Students</span></button>
+        <button class="nav-item" data-view="content"><i class="fa-solid fa-cloud-arrow-up"></i><span>Content</span></button>
+        <button class="nav-item" data-view="quiz-manager"><i class="fa-solid fa-list-check"></i><span>Quiz Manager</span></button>
+        <button class="nav-item" data-view="marks"><i class="fa-solid fa-chart-column"></i><span>Marks</span></button>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <button class="nav-item logout-btn"><i class="fa-solid fa-right-from-bracket"></i><span>Logout</span></button>
+        <div class="sidebar-location">Kairi Birpur, Dist- Kishanganj, Bihar</div>
+      </div>
+    </aside>
+
+    <div id="mobile-overlay" class="mobile-overlay"></div>
+
+    <main class="main-content">
+      <header class="topbar">
+        <button id="sidebar-open" class="mobile-icon-btn" aria-label="Open menu"><i class="fa-solid fa-bars"></i></button>
+        <div class="topbar-title">
+          <span id="topbar-section">Dashboard</span>
+          <small id="topbar-context">Brilliant Coaching Centre</small>
+        </div>
+        <div class="profile-menu-wrap">
+          <button id="profile-button" class="profile-button" aria-expanded="false">
+            <span id="profile-avatar" class="avatar">B</span>
+            <span class="profile-meta"><strong id="profile-name">BCCian</strong><small id="profile-role">Student</small></span>
+            <i class="fa-solid fa-chevron-down"></i>
+          </button>
+          <div id="profile-menu" class="profile-menu hidden">
+            <div class="profile-menu-head"><strong id="menu-name">BCCian</strong><span id="menu-id">—</span></div>
+            <button class="menu-logout logout-btn"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+          </div>
+        </div>
+      </header>
+
+      <section id="view-container" class="view-container"></section>
+    </main>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="loader" class="loader hidden"><div class="spinner"></div><span>Loading...</span></div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
