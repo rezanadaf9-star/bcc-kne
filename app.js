@@ -213,11 +213,6 @@
         if (state.view === "homework") return await renderHomework(el);
         if (state.view === "homework-subject") return await renderHomeworkList(state.route.subjectId, false);
         if (state.view === "quizzes") return await renderQuizzes(el);
-        if (state.view === "quizzes-subject")
-          return await renderQuizzesForSubject(
-            state.route.subjectId,
-            false
-          );
         if (state.view === "notebooklm") return await renderNotebookLM(el);
         if (state.view === "lecture-player") {
           if (!state.currentLecture || state.currentLecture.id !== state.route.lectureId) {
@@ -293,7 +288,7 @@
         ${dashboardCard("fa-solid fa-circle-question","Active Quizzes","Attempt your available quizzes","quizzes")}
         ${dashboardCard("fa-solid fa-chart-simple","Recent Quiz Score",`${avg}% average across recent attempts`,"quizzes")}
         ${dashboardCard("fa-solid fa-book-open","Homework","Open subject-wise homework","homework")}
-        ${dashboardCard("fa-solid fa-wand-magic-sparkles","AI Study Hub","NotebookLM resources, notes, lectures and doubt-solving links","notebooklm")}
+        ${dashboardCard("fa-solid fa-sparkles","AI Study Hub","NotebookLM resources, notes, lectures and doubt-solving links","notebooklm")}
       </div>`;
     $$(`[data-go]`,el).forEach(x=>x.onclick=()=>navigate(x.dataset.go));
   }
@@ -323,109 +318,16 @@
   }
 
   async function renderLectures(el) {
-  const { data, error } = await sb
-    .from("lectures")
-    .select("*,subjects(name)")
-    .eq("class_no", state.classNo)
-    .order("is_live", { ascending: false })
-    .order("created_at", { ascending: false });
-
-  if (error) throw error;
-
-  const rows = data || [];
-
-  // Group lectures by subject
-  const subjectMap = new Map();
-
-  rows.forEach(lecture => {
-    const subjectId = lecture.subject_id;
-    const subjectName = lecture.subjects?.name || "Other";
-
-    if (!subjectMap.has(subjectId)) {
-      subjectMap.set(subjectId, {
-        id: subjectId,
-        name: subjectName,
-        count: 0,
-        live: 0,
-        recorded: 0
-      });
-    }
-
-    const subject = subjectMap.get(subjectId);
-    subject.count++;
-
-    if (lecture.is_live) {
-      subject.live++;
-    } else {
-      subject.recorded++;
-    }
-  });
-
-  const subjects = [...subjectMap.values()];
-
-  el.innerHTML = `
-    <div class="page-head">
-      <div>
-        <h1>Lectures</h1>
-        <p>Choose a subject to view its lectures.</p>
-      </div>
-    </div>
-
-    ${
-      subjects.length
-        ? `
-          <section>
-            <div class="section-head">
-              <div>
-                <h2>Subject-wise Lectures</h2>
-                <p class="mini-label">
-                  Select a subject to view its lectures.
-                </p>
-              </div>
-            </div>
-
-            <div class="subject-grid">
-              ${subjects.map(subject => `
-                <div
-                  class="subject-card"
-                  data-lecture-subject="${esc(subject.id)}"
-                >
-                  <div class="feature-icon">
-                    <i class="fa-solid fa-book-open"></i>
-                  </div>
-
-                  <h3>${esc(subject.name)}</h3>
-
-                  <p>
-                    ${subject.count}
-                    ${subject.count === 1 ? "lecture" : "lectures"}
-                  </p>
-
-                  <span class="subject-count">
-                    ${subject.live ? `${subject.live} live` : ""}
-                    ${subject.live && subject.recorded ? " • " : ""}
-                    ${subject.recorded ? `${subject.recorded} recorded` : ""}
-                  </span>
-                </div>
-              `).join("")}
-            </div>
-          </section>
-        `
-        : empty(
-            "fa-solid fa-video",
-            "No lectures yet",
-            "Your class lectures will appear here."
-          )
-    }
-  `;
-
-  $$("[data-lecture-subject]", el).forEach(card => {
-    card.onclick = () =>
-      navigate("lectures-subject", {
-        subjectId: card.dataset.lectureSubject
-      });
-  });
-}
+    const { data, error } = await sb.from("lectures").select("*,subjects(name)").eq("class_no",state.classNo).order("is_live",{ascending:false}).order("created_at",{ascending:false});
+    if(error) throw error;
+    const rows = data || [];
+    const subjects = [...new Map(rows.map(x=>[x.subject_id, x.subjects?.name || "Other"])).entries()];
+    el.innerHTML = `<div class="page-head"><div><h1>Lectures</h1><p>Choose a subject to view live and recorded lectures.</p></div></div>
+      ${subjects.length ? `<div class="subject-grid">${subjects.map(([id,name])=>`<div class="subject-card" data-subject="${esc(id)}"><h3>${esc(name)}</h3><p>Open lectures for ${esc(name)}.</p><span class="subject-count">${rows.filter(x=>x.subject_id===id).length} lecture(s)</span></div>`).join("")}</div>
+      <h2 class="section-title">All Lectures</h2><div class="list-stack">${rows.map(lectureRow).join("")}</div>` : empty("fa-solid fa-video","No lectures yet","Your class lectures will appear here.")}`;
+    $$(".subject-card",el).forEach(c=>c.onclick=()=>renderLectureListForSubject(c.dataset.subject, true));
+    $$("[data-lecture]",el).forEach(b=>b.onclick=()=>openLecture(b.dataset.lecture));
+  }
 
   async function renderLectureListForSubject(subjectId, pushHistory = true) {
     const { data, error } = await sb.from("lectures").select("*,subjects(name)").eq("class_no",state.classNo).eq("subject_id",subjectId).order("created_at",{ascending:false});
@@ -520,159 +422,17 @@
   }
   async function openHomework(id){const {data,error}=await sb.from("homework").select("*").eq("id",id).single();if(error)return toast(error.message,"error");const url=await signedUrl(data.file_path,3600);if(!url)return toast("Could not open file.","error");const ext=(data.file_path||"").split(".").pop().toLowerCase();const viewer=ext==="pdf"?`<iframe class="pdf-frame" src="${esc(url)}"></iframe>`:`<img class="image-preview" src="${esc(url)}" alt="">`;modal(`<div class="modal-head"><h2>${esc(data.title)}</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>${viewer}<div class="modal-actions"><button class="small-btn" data-download="${esc(data.file_path)}" data-name="${esc(data.title)}">Download</button></div>`);$("[data-close]").onclick=closeModal;$("[data-download]").onclick=()=>downloadFile(data.file_path,data.title)}
 
-  async function renderQuizzesForSubject(subjectId, pushHistory = true) {
-  const { data: subject, error: subjectError } = await sb
-    .from("subjects")
-    .select("*")
-    .eq("id", subjectId)
-    .single();
-
-  if (subjectError) {
-    toast(subjectError.message, "error");
-    return;
+  async function renderQuizzes(el){
+    const {data,error}=await sb.from("quizzes").select("*,subjects(name)").eq("class_no",state.classNo).eq("is_active",true).order("start_at",{ascending:false});if(error)throw error;
+    const rows=data||[];
+    const attempts=await sb.from("quiz_attempts").select("quiz_id,score,total_marks,submitted_at").eq("student_id",state.profile.id);
+    const done=new Map((attempts.data||[]).map(a=>[a.quiz_id,a]));
+    el.innerHTML=`<div class="page-head"><div><h1>Quizzes</h1><p>Weekly, monthly and chapter-wise quizzes currently active.</p></div></div>${rows.length?`<div class="list-stack">${rows.map(x=>{const a=done.get(x.id);return `<div class="quiz-card"><h3>${esc(x.title)}</h3><div class="quiz-meta"><span class="pill">${esc(x.quiz_type)}</span><span class="pill">${esc(x.subjects?.name||"All subjects")}</span><span class="pill">${x.duration_minutes} min</span><span class="pill">${x.total_marks} marks</span>${a?`<span class="pill active">Attempted: ${a.score}/${a.total_marks}</span>`:""}</div><p class="mini-label">${x.start_at?`Starts ${fmtDateTime(x.start_at)} • `:""}${x.end_at?`Ends ${fmtDateTime(x.end_at)}`:""}</p><div style="margin-top:12px">${a?`<button class="small-btn" data-result="${x.id}">View result</button>`:`<button class="small-btn primary" data-start-quiz="${x.id}">Start quiz</button>`}</div></div>`}).join("")}</div>`:empty("fa-solid fa-circle-question","No active quiz","There is no active quiz for your class right now.")}`;
+    $$("[data-start-quiz]",el).forEach(b=>b.onclick=()=>startQuiz(b.dataset.startQuiz, true));$$(`[data-result]`,el).forEach(b=>b.onclick=()=>showAttemptResult(b.dataset.result, true));
   }
+  // Keep quiz renderer available even if the page or another script calls it directly.
+  window.renderQuizzes = renderQuizzes;
 
-  const { data, error } = await sb
-    .from("quizzes")
-    .select("*,subjects(name)")
-    .eq("class_no", state.classNo)
-    .eq("subject_id", subjectId)
-    .eq("is_active", true)
-    .order("start_at", { ascending: false });
-
-  if (error) throw error;
-
-  const rows = data || [];
-
-  const attempts = await sb
-    .from("quiz_attempts")
-    .select("quiz_id,score,total_marks,submitted_at")
-    .eq("student_id", state.profile.id);
-
-  const done = new Map(
-    (attempts.data || []).map(a => [a.quiz_id, a])
-  );
-
-  if (pushHistory) {
-    navigate("quizzes-subject", { subjectId });
-    return;
-  }
-
-  const el = $("#view-container");
-
-  el.innerHTML = `
-    <div class="back-row">
-      <button class="small-btn" id="back-quizzes">
-        <i class="fa-solid fa-arrow-left"></i>
-        Back to Subjects
-      </button>
-    </div>
-
-    <div class="page-head">
-      <div>
-        <h1>${esc(subject.name)} Quizzes</h1>
-        <p>
-          ${classText(state.classNo)} •
-          ${rows.length} ${rows.length === 1 ? "quiz" : "quizzes"}
-        </p>
-      </div>
-    </div>
-
-    ${
-      rows.length
-        ? `
-          <div class="list-stack">
-            ${rows.map(x => {
-              const a = done.get(x.id);
-
-              return `
-                <div class="quiz-card">
-                  <h3>${esc(x.title)}</h3>
-
-                  <div class="quiz-meta">
-                    <span class="pill">
-                      ${esc(x.quiz_type)}
-                    </span>
-
-                    <span class="pill">
-                      ${x.duration_minutes} min
-                    </span>
-
-                    <span class="pill">
-                      ${x.total_marks} marks
-                    </span>
-
-                    ${
-                      a
-                        ? `
-                          <span class="pill active">
-                            Attempted:
-                            ${a.score}/${a.total_marks}
-                          </span>
-                        `
-                        : ""
-                    }
-                  </div>
-
-                  <p class="mini-label">
-                    ${
-                      x.start_at
-                        ? `Starts ${fmtDateTime(x.start_at)} • `
-                        : ""
-                    }
-                    ${
-                      x.end_at
-                        ? `Ends ${fmtDateTime(x.end_at)}`
-                        : ""
-                    }
-                  </p>
-
-                  <div style="margin-top:12px">
-                    ${
-                      a
-                        ? `
-                          <button
-                            class="small-btn"
-                            data-result="${x.id}"
-                          >
-                            View result
-                          </button>
-                        `
-                        : `
-                          <button
-                            class="small-btn primary"
-                            data-start-quiz="${x.id}"
-                          >
-                            Start quiz
-                          </button>
-                        `
-                    }
-                  </div>
-                </div>
-              `;
-            }).join("")}
-          </div>
-        `
-        : empty(
-            "fa-solid fa-circle-question",
-            "No quizzes yet",
-            `There are no active ${esc(subject.name)} quizzes right now.`
-          )
-    }
-  `;
-
-  $("#back-quizzes").onclick = () => history.back();
-
-  $$("[data-start-quiz]", el).forEach(button => {
-    button.onclick = () =>
-      startQuiz(button.dataset.startQuiz, true);
-  });
-
-  $$("[data-result]", el).forEach(button => {
-    button.onclick = () =>
-      showAttemptResult(button.dataset.result, true);
-  });
-}
   async function startQuiz(id, pushHistory = true){
     const {data,error}=await sb.from("quizzes").select("*,subjects(name)").eq("id",id).single();if(error)return toast(error.message,"error");
     if(data.start_at && new Date(data.start_at)>new Date())return toast("This quiz has not started yet.","error");
