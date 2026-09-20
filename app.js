@@ -89,8 +89,10 @@
   }
 
   function authEmail(id) {
+    const cleanId = String(id).trim();
+    if (cleanId.toUpperCase() === "ADMIN") return "rezanadaf9@gmail.com";
     const domain = C.AUTH_EMAIL_DOMAIN || "students.bcc-portal.invalid";
-    return `${String(id).trim().toLowerCase().replace(/[^a-z0-9._-]/g, "")}@${domain}`;
+    return `${cleanId.toLowerCase().replace(/[^a-z0-9._-]/g, "")}@${domain}`;
   }
 
   async function q(table, select = "*") {
@@ -135,7 +137,7 @@
     } finally { loading(false); }
   }
 
-  async function enterApp() {
+  async function enterApp(options = {}) {
     $("#boot-screen")?.classList.add("hidden");
     $("#login-screen").classList.add("hidden");
     $("#app-shell").classList.remove("hidden");
@@ -148,11 +150,11 @@
     $("#menu-id").textContent = state.profile.login_id || "—";
     let homeView;
     if (state.profile.role === "student") {
-      const sp = await getStudentProfile();
+      const sp = options.skipStudentFetch && state.student ? state.student : await getStudentProfile();
       state.classNo = sp.class_no;
       state.student = sp;
       $("#topbar-context").textContent = `${classText(sp.class_no)} • Batch ${sp.batch}`;
-      homeView = "dashboard";
+      homeView = options.preserveRoute && state.view ? state.view : "dashboard";
     } else {
       state.classNo = null;
       $("#topbar-context").textContent = "Teacher & Administration Portal";
@@ -162,11 +164,14 @@
     // Create portal history entries as soon as login succeeds. This is what
     // makes the Android/iPhone browser Back button navigate between portal
     // screens instead of immediately leaving the page.
-    history.pushState({ bccPortal: true, view: homeView, route: {} }, "", `${location.pathname}${location.search}#${encodeURIComponent(homeView)}`);
-    state.view = homeView;
-    state.route = {};
+    if (!options.preserveRoute) {
+      history.replaceState({ bccPortal: true, view: homeView, route: {} }, "", `${location.pathname}${location.search}#${encodeURIComponent(homeView)}`);
+      state.view = homeView;
+      state.route = {};
+    }
 
     syncNav();
+    saveIdentityCache();
     await renderView();
   }
 
@@ -174,6 +179,7 @@
     if (state.quizTimer) clearInterval(state.quizTimer);
     if (sb) await sb.auth.signOut();
     state.session = null; state.profile = null; state.student = null;
+    try { sessionStorage.removeItem("bcc_identity_cache"); } catch (_) {}
     state.route = {};
     history.replaceState(null, "", `${location.pathname}${location.search}`);
     $("#app-shell").classList.add("hidden");
@@ -278,7 +284,7 @@
         ${dashboardCard("fa-solid fa-circle-question","Active Quizzes","Attempt your available quizzes","quizzes")}
         ${dashboardCard("fa-solid fa-chart-simple","Recent Quiz Score",`${avg}% average across recent attempts`,"quizzes")}
         ${dashboardCard("fa-solid fa-book-open","Homework","Open subject-wise homework","homework")}
-        ${dashboardCard("fa-solid fa-sparkles","AI Study Hub","NotebookLM resources, notes, lectures and doubt-solving links","notebooklm")}
+        ${dashboardCard("fa-solid fa-wand-magic-sparkles","AI Study Hub","NotebookLM resources, notes, lectures and doubt-solving links","notebooklm")}
       </div>`;
     $$(`[data-go]`,el).forEach(x=>x.onclick=()=>navigate(x.dataset.go));
   }
@@ -301,7 +307,7 @@
     ];
     el.innerHTML = `
       <div class="page-head"><div><h1>AI Study Hub</h1><p>Open the NotebookLM / Gemini study resources published for your class.</p></div></div>
-      <div class="notebook-banner"><div><span class="pill active">BCC AI LEARNING</span><h2>Study smarter with your class resources</h2><p>Notes, lectures, doubt-solving and AI study links are selected by BCC for your class.</p></div><i class="fa-solid fa-sparkles"></i></div>
+      <div class="notebook-banner"><div><span class="pill active">BCC AI LEARNING</span><h2>Study smarter with your class resources</h2><p>Notes, lectures, doubt-solving and AI study links are selected by BCC for your class.</p></div><i class="fa-solid fa-wand-magic-sparkles"></i></div>
       <div class="resource-grid">
         ${groups.map(([type,icon,label]) => { const items=rows.filter(r=>r.resource_type===type); return `<section class="resource-group"><div class="resource-group-head"><h2><i class="${icon}"></i> ${label}</h2><span>${items.length}</span></div><div class="resource-list">${items.map(r=>`<article class="resource-card"><div class="resource-card-head"><div><span class="pill">${esc(r.subjects?.name || "Class resource")}</span><h3>${esc(r.title)}</h3></div><i class="${icon}"></i></div>${r.description?`<p>${esc(r.description)}</p>`:""}<a class="resource-link" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open resource</a></article>`).join("") || emptyInline("No resources in this category yet.")}</div></section>`; }).join("")}
       </div>`;
@@ -426,8 +432,20 @@
     if(data.end_at && new Date(data.end_at)<new Date())return toast("This quiz has ended.","error");
     const {data:questions,error:qerr}=await sb.rpc("get_quiz_questions_public",{p_quiz_id:id});
     if(qerr) return toast(qerr.message,"error");
-    const publicQuestions=(questions||[]).sort((a,b)=>Number(a.position)-Number(b.position));
+    // The secure RPC deliberately uses non-conflicting output names. Normalize
+    // them here so the rest of the quiz UI always works with id/position.
+    const publicQuestions=(questions||[]).map(q=>({
+      id:q.id ?? q.question_id,
+      quiz_id:q.quiz_id,
+      position:q.position ?? q.question_position,
+      question_text:q.question_text,
+      option_a:q.option_a,
+      option_b:q.option_b,
+      option_c:q.option_c,
+      option_d:q.option_d
+    })).sort((a,b)=>Number(a.position)-Number(b.position));
     if(!publicQuestions.length)return toast("This quiz has no questions yet.","error");
+    if(publicQuestions.some(q=>!q.id))return toast("Quiz question data is incomplete. Please contact BCC staff.","error");
     state.quiz=data;state.quizQuestions=publicQuestions;state.quizAnswers={};state.quizStartedAt=Date.now();
     if (pushHistory) writeRoute("quiz-run", { quizId: id });
     await renderView();
@@ -543,7 +561,7 @@
         <div id="content-extra" style="margin-top:13px"></div><div class="modal-actions"><button class="small-btn primary" id="save-content">Save content</button></div>
       </div>
       <div class="admin-card"><h3>Recent content</h3><div id="recent-content" class="list-stack" style="margin-top:12px"></div></div></div>
-      <div class="admin-card notebook-admin-card" style="margin-top:16px"><h3><i class="fa-solid fa-sparkles"></i> AI Study Hub / NotebookLM</h3><p class="mini-label" style="margin:4px 0 15px">Publish a NotebookLM or Gemini resource link for Class 10 or Class 12 Arts students.</p>
+      <div class="admin-card notebook-admin-card" style="margin-top:16px"><h3><i class="fa-solid fa-wand-magic-sparkles"></i> AI Study Hub / NotebookLM</h3><p class="mini-label" style="margin:4px 0 15px">Publish a NotebookLM or Gemini resource link for Class 10 or Class 12 Arts students.</p>
         <div class="form-grid"><div class="form-group"><label>Class</label><select id="nl-class"><option value="10">Class 10</option><option value="12">Class 12</option></select></div><div class="form-group"><label>Subject</label><select id="nl-subject"></select></div><div class="form-group"><label>Resource type</label><select id="nl-type"><option value="notes">Notes &amp; summaries</option><option value="lecture">Lecture</option><option value="doubt">Doubt solving</option><option value="ai">AI study assistant</option></select></div><div class="form-group"><label>Title</label><input id="nl-title" placeholder="e.g. History Chapter 1 AI Notes"></div><div class="form-group" style="grid-column:1/-1"><label>NotebookLM / Gemini URL</label><input id="nl-url" type="url" placeholder="https://notebooklm.google.com/... or your Gemini resource link"></div><div class="form-group" style="grid-column:1/-1"><label>Description</label><textarea id="nl-description" placeholder="What should students use this resource for?"></textarea></div></div>
         <div class="modal-actions"><button class="small-btn primary" id="save-notebooklm"><i class="fa-solid fa-paper-plane"></i> Publish AI resource</button></div>
         <div id="notebooklm-admin-list" class="list-stack" style="margin-top:14px"></div>
@@ -574,6 +592,7 @@
     const payload={class_no:Number($("#nl-class").value),subject_id:$("#nl-subject").value||null,resource_type:$("#nl-type").value,title:$("#nl-title").value.trim(),url:$("#nl-url").value.trim(),description:$("#nl-description").value.trim()||null,is_active:true,created_by:state.profile.id};
     if(!payload.title||!payload.url)return toast("Title and resource URL are required.","error");
     if(!/^https?:\/\//i.test(payload.url))return toast("Enter a valid http/https resource URL.","error");
+    try { new URL(payload.url); } catch { return toast("Enter a valid NotebookLM/Gemini URL.","error"); }
     loading(true,"Publishing AI resource...");
     try{const {error}=await sb.from("notebooklm_resources").insert(payload);if(error)throw error;$("#nl-title").value="";$("#nl-url").value="";$("#nl-description").value="";toast("AI resource published.","success");await renderNotebookLMAdmin()}catch(e){toast(e.message||"Could not publish AI resource.","error")}finally{loading(false)}
   }
@@ -650,6 +669,41 @@
 
   function closeProfileMenu(){const m=$("#profile-menu");m.classList.add("hidden");$("#profile-button").setAttribute("aria-expanded","false")}
   function toggleProfile(){const m=$("#profile-menu"),show=m.classList.contains("hidden");m.classList.toggle("hidden",!show);$("#profile-button").setAttribute("aria-expanded",String(show))}
+  function saveIdentityCache() {
+    try {
+      if (!state.session?.user?.id || !state.profile) return;
+      sessionStorage.setItem("bcc_identity_cache", JSON.stringify({
+        userId: state.session.user.id,
+        profile: state.profile,
+        student: state.student || null
+      }));
+    } catch (_) {}
+  }
+
+  function readIdentityCache(userId) {
+    try {
+      const raw = sessionStorage.getItem("bcc_identity_cache");
+      if (!raw) return null;
+      const cached = JSON.parse(raw);
+      return cached?.userId === userId && cached?.profile ? cached : null;
+    } catch (_) { return null; }
+  }
+
+  async function refreshIdentityInBackground() {
+    try {
+      const freshProfile = await currentProfile();
+      if (!freshProfile) return;
+      let freshStudent = null;
+      if (freshProfile.role === "student") freshStudent = await getStudentProfile();
+      const changed = JSON.stringify(freshProfile) !== JSON.stringify(state.profile) || JSON.stringify(freshStudent) !== JSON.stringify(state.student);
+      state.profile = freshProfile;
+      state.student = freshStudent;
+      state.classNo = freshStudent?.class_no ?? null;
+      saveIdentityCache();
+      if (changed && document.visibilityState !== "hidden") await enterApp({ preserveRoute: true, skipStudentFetch: true });
+    } catch (e) { console.warn("Background identity refresh failed", e); }
+  }
+
   async function setup(){
     window.addEventListener("popstate", handlePopState);
     $$(".portal-tab").forEach(b=>b.onclick=()=>{$$(".portal-tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");state.portal=b.dataset.portal;$("#login-hint").textContent=state.portal==="student"?"Student login: use the Student ID given by BCC.":"Teacher login: use the teacher/admin ID given by BCC."});
@@ -665,6 +719,17 @@
         const {data}=await sb.auth.getSession();
         if(data.session){
           state.session=data.session;
+          const cached = readIdentityCache(data.session.user.id);
+          if(cached){
+            state.profile = cached.profile;
+            state.student = cached.student;
+            state.classNo = cached.student?.class_no ?? null;
+            await enterApp({ preserveRoute: false, skipStudentFetch: true });
+            // The cached identity makes refresh feel immediate; the server copy
+            // is still checked in the background for correctness.
+            refreshIdentityInBackground();
+            return;
+          }
           state.profile=await currentProfile();
           if(state.profile){await enterApp();return;}
         }
