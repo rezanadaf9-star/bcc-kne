@@ -89,19 +89,9 @@
   }
 
   function authEmail(id) {
-  const cleanId = String(id).trim();
-
-  // Existing BCC admin account
-  if (cleanId.toUpperCase() === "ADMIN") {
-    return "rezanadaf9@gmail.com";
+    const domain = C.AUTH_EMAIL_DOMAIN || "students.bcc-portal.invalid";
+    return `${String(id).trim().toLowerCase().replace(/[^a-z0-9._-]/g, "")}@${domain}`;
   }
-
-  const domain = C.AUTH_EMAIL_DOMAIN || "students.bcc-portal.invalid";
-
-  return `${cleanId
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]/g, "")}@${domain}`;
-}
 
   async function q(table, select = "*") {
     const { data, error } = await sb.from(table).select(select);
@@ -288,7 +278,7 @@
         ${dashboardCard("fa-solid fa-circle-question","Active Quizzes","Attempt your available quizzes","quizzes")}
         ${dashboardCard("fa-solid fa-chart-simple","Recent Quiz Score",`${avg}% average across recent attempts`,"quizzes")}
         ${dashboardCard("fa-solid fa-book-open","Homework","Open subject-wise homework","homework")}
-        ${dashboardCard("fa-solid fa-wand-magic-sparkles","AI Study Hub","NotebookLM resources, notes, lectures and doubt-solving links","notebooklm")}
+        ${dashboardCard("fa-solid fa-sparkles","AI Study Hub","NotebookLM resources, notes, lectures and doubt-solving links","notebooklm")}
       </div>`;
     $$(`[data-go]`,el).forEach(x=>x.onclick=()=>navigate(x.dataset.go));
   }
@@ -311,7 +301,7 @@
     ];
     el.innerHTML = `
       <div class="page-head"><div><h1>AI Study Hub</h1><p>Open the NotebookLM / Gemini study resources published for your class.</p></div></div>
-      <div class="notebook-banner"><div><span class="pill active">BCC AI LEARNING</span><h2>Study smarter with your class resources</h2><p>Notes, lectures, doubt-solving and AI study links are selected by BCC for your class.</p></div><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+      <div class="notebook-banner"><div><span class="pill active">BCC AI LEARNING</span><h2>Study smarter with your class resources</h2><p>Notes, lectures, doubt-solving and AI study links are selected by BCC for your class.</p></div><i class="fa-solid fa-sparkles"></i></div>
       <div class="resource-grid">
         ${groups.map(([type,icon,label]) => { const items=rows.filter(r=>r.resource_type===type); return `<section class="resource-group"><div class="resource-group-head"><h2><i class="${icon}"></i> ${label}</h2><span>${items.length}</span></div><div class="resource-list">${items.map(r=>`<article class="resource-card"><div class="resource-card-head"><div><span class="pill">${esc(r.subjects?.name || "Class resource")}</span><h3>${esc(r.title)}</h3></div><i class="${icon}"></i></div>${r.description?`<p>${esc(r.description)}</p>`:""}<a class="resource-link" href="${esc(r.url)}" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open resource</a></article>`).join("") || emptyInline("No resources in this category yet.")}</div></section>`; }).join("")}
       </div>`;
@@ -430,26 +420,28 @@
     el.innerHTML=`<div class="page-head"><div><h1>Quizzes</h1><p>Weekly, monthly and chapter-wise quizzes currently active.</p></div></div>${rows.length?`<div class="list-stack">${rows.map(x=>{const a=done.get(x.id);return `<div class="quiz-card"><h3>${esc(x.title)}</h3><div class="quiz-meta"><span class="pill">${esc(x.quiz_type)}</span><span class="pill">${esc(x.subjects?.name||"All subjects")}</span><span class="pill">${x.duration_minutes} min</span><span class="pill">${x.total_marks} marks</span>${a?`<span class="pill active">Attempted: ${a.score}/${a.total_marks}</span>`:""}</div><p class="mini-label">${x.start_at?`Starts ${fmtDateTime(x.start_at)} • `:""}${x.end_at?`Ends ${fmtDateTime(x.end_at)}`:""}</p><div style="margin-top:12px">${a?`<button class="small-btn" data-result="${x.id}">View result</button>`:`<button class="small-btn primary" data-start-quiz="${x.id}">Start quiz</button>`}</div></div>`}).join("")}</div>`:empty("fa-solid fa-circle-question","No active quiz","There is no active quiz for your class right now.")}`;
     $$("[data-start-quiz]",el).forEach(b=>b.onclick=()=>startQuiz(b.dataset.startQuiz, true));$$(`[data-result]`,el).forEach(b=>b.onclick=()=>showAttemptResult(b.dataset.result, true));
   }
-  // Keep quiz renderer available even if the page or another script calls it directly.
-  window.renderQuizzes = renderQuizzes;
-
   async function startQuiz(id, pushHistory = true){
     const {data,error}=await sb.from("quizzes").select("*,subjects(name)").eq("id",id).single();if(error)return toast(error.message,"error");
     if(data.start_at && new Date(data.start_at)>new Date())return toast("This quiz has not started yet.","error");
     if(data.end_at && new Date(data.end_at)<new Date())return toast("This quiz has ended.","error");
-    const {data:questions,error:qerr}=await sb.from("quiz_questions_public").select("*").eq("quiz_id",id).order("position");
+    const {data:questions,error:qerr}=await sb.rpc("get_quiz_questions_public",{p_quiz_id:id});
     if(qerr) return toast(qerr.message,"error");
-    if(!questions?.length)return toast("This quiz has no questions yet.","error");
-    state.quiz=data;state.quizQuestions=questions;state.quizAnswers={};state.quizStartedAt=Date.now();
+    const publicQuestions=(questions||[]).sort((a,b)=>Number(a.position)-Number(b.position));
+    if(!publicQuestions.length)return toast("This quiz has no questions yet.","error");
+    state.quiz=data;state.quizQuestions=publicQuestions;state.quizAnswers={};state.quizStartedAt=Date.now();
     if (pushHistory) writeRoute("quiz-run", { quizId: id });
     await renderView();
   }
   async function renderQuizRun(el){
     const qz=state.quiz;if(!qz){writeRoute("quizzes", {}, false);return renderView()}
-    el.innerHTML=`<div class="quiz-topbar"><div><strong>${esc(qz.title)}</strong><span class="mini-label"> • ${qz.quiz_questions.length} questions</span></div><div class="timer" id="quiz-timer"></div></div><form id="quiz-form">${qz.quiz_questions.map((q,i)=>`<div class="question-card"><h3>${i+1}. ${esc(q.question_text)}</h3>${["A","B","C","D"].map(letter=>{const key=`option_${letter.toLowerCase()}`;return q[key]?`<label class="option"><input type="radio" name="q_${q.id}" value="${letter}"><span><strong>${letter}.</strong> ${esc(q[key])}</span></label>`:""}).join("")}</div>`).join("")}<button class="primary-btn" type="submit" style="width:100%">Submit Quiz</button></form>`;
+    const questions=Array.isArray(state.quizQuestions)?state.quizQuestions:[];
+    if(!questions.length){return toast("This quiz has no questions yet.","error")}
+    el.innerHTML=`<div class="quiz-topbar"><div><strong>${esc(qz.title)}</strong><span class="mini-label"> • ${questions.length} question${questions.length===1?"":"s"}</span></div><div class="timer" id="quiz-timer"></div></div><form id="quiz-form">${questions.map((q,i)=>`<div class="question-card"><h3>${i+1}. ${esc(q.question_text)}</h3>${["A","B","C","D"].map(letter=>{const key=`option_${letter.toLowerCase()}`;return q[key]?`<label class="option"><input type="radio" name="q_${q.id}" value="${letter}"><span><strong>${letter}.</strong> ${esc(q[key])}</span></label>`:""}).join("")}</div>`).join("")}<button class="primary-btn" type="submit" style="width:100%">Submit Quiz</button></form>`;
     startTimer(qz.duration_minutes*60);
     $("#quiz-form").onsubmit=async e=>{e.preventDefault();if(!confirm("Submit this quiz now?"))return;await submitQuiz()};
   }
+  window.renderQuizzes = renderQuizzes;
+
   function startTimer(seconds){if(state.quizTimer)clearInterval(state.quizTimer);let left=seconds;const tick=()=>{const m=Math.floor(left/60),s=left%60;$("#quiz-timer").textContent=`${m}:${String(s).padStart(2,"0")}`;if(left<=0){clearInterval(state.quizTimer);submitQuiz(true)}left--};tick();state.quizTimer=setInterval(tick,1000)}
   async function submitQuiz(auto=false){
     if(!state.quiz)return;
@@ -551,7 +543,7 @@
         <div id="content-extra" style="margin-top:13px"></div><div class="modal-actions"><button class="small-btn primary" id="save-content">Save content</button></div>
       </div>
       <div class="admin-card"><h3>Recent content</h3><div id="recent-content" class="list-stack" style="margin-top:12px"></div></div></div>
-      <div class="admin-card notebook-admin-card" style="margin-top:16px"><h3><i class="fa-solid fa-wand-magic-sparkles"></i> AI Study Hub / NotebookLM</h3><p class="mini-label" style="margin:4px 0 15px">Publish a NotebookLM or Gemini resource link for Class 10 or Class 12 Arts students.</p>
+      <div class="admin-card notebook-admin-card" style="margin-top:16px"><h3><i class="fa-solid fa-sparkles"></i> AI Study Hub / NotebookLM</h3><p class="mini-label" style="margin:4px 0 15px">Publish a NotebookLM or Gemini resource link for Class 10 or Class 12 Arts students.</p>
         <div class="form-grid"><div class="form-group"><label>Class</label><select id="nl-class"><option value="10">Class 10</option><option value="12">Class 12</option></select></div><div class="form-group"><label>Subject</label><select id="nl-subject"></select></div><div class="form-group"><label>Resource type</label><select id="nl-type"><option value="notes">Notes &amp; summaries</option><option value="lecture">Lecture</option><option value="doubt">Doubt solving</option><option value="ai">AI study assistant</option></select></div><div class="form-group"><label>Title</label><input id="nl-title" placeholder="e.g. History Chapter 1 AI Notes"></div><div class="form-group" style="grid-column:1/-1"><label>NotebookLM / Gemini URL</label><input id="nl-url" type="url" placeholder="https://notebooklm.google.com/... or your Gemini resource link"></div><div class="form-group" style="grid-column:1/-1"><label>Description</label><textarea id="nl-description" placeholder="What should students use this resource for?"></textarea></div></div>
         <div class="modal-actions"><button class="small-btn primary" id="save-notebooklm"><i class="fa-solid fa-paper-plane"></i> Publish AI resource</button></div>
         <div id="notebooklm-admin-list" class="list-stack" style="margin-top:14px"></div>
@@ -599,7 +591,26 @@
 
   async function uploadFile(file,path){const {error}=await sb.storage.from("bcc-content").upload(path,file,{upsert:false,contentType:file.type});if(error)throw error;return path}
   async function signedUrl(path,seconds=3600){if(!path)return null;const {data,error}=await sb.storage.from("bcc-content").createSignedUrl(path,seconds);if(error){console.error(error);return null}return data?.signedUrl||null}
-  async function downloadFile(path,name){const url=await signedUrl(path,120);if(!url)return toast("Could not create download link.","error");const a=document.createElement("a");a.href=url;a.download=name||"bcc-file";a.target="_blank";document.body.appendChild(a);a.click();a.remove()}
+  async function downloadFile(path,name){
+    const url=await signedUrl(path,300);
+    if(!url)return toast("Could not create download link. Check BCC storage access.","error");
+    try{
+      const res=await fetch(url);
+      if(!res.ok)throw new Error(`Download failed (${res.status})`);
+      const blob=await res.blob();
+      const objectUrl=URL.createObjectURL(blob);
+      const a=document.createElement("a");
+      a.href=objectUrl;
+      a.download=name||path.split("/").pop()||"bcc-file";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(objectUrl),1000);
+    }catch(e){
+      console.error(e);
+      toast(e.message||"Could not download file.","error");
+    }
+  }
 
   async function renderQuizManager(el){
     const [qzs,subs10,subs12]=await Promise.all([sb.from("quizzes").select("*,subjects(name)").order("created_at",{ascending:false}),subjectsForClass(10),subjectsForClass(12)]);
