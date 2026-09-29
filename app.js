@@ -330,10 +330,11 @@
     return `${n}${n%10===1?"st":n%10===2?"nd":n%10===3?"rd":"th"}`;
   }
 
-  function leaderboardRow(r, showClass=false){
-    return `<tr>
+  function leaderboardRow(r, showClass=false, currentStudentId=null){
+    const isMe=Boolean(currentStudentId && r.student_id===currentStudentId);
+    return `<tr class="${isMe?"leaderboard-me-row":""}">
       <td><strong class="rank-badge">${esc(rankLabel(r.rank))}</strong></td>
-      <td><strong>${esc(r.full_name)}</strong><span class="table-sub">${esc(r.login_id)}</span></td>
+      <td><strong>${esc(r.full_name)}${isMe?' <span class="you-badge">YOU</span>':''}</strong><span class="table-sub">${esc(r.login_id)}</span></td>
       ${showClass?`<td>Class ${esc(r.class_no)}</td>`:""}
       <td>${esc(r.score ?? r.total_score ?? 0)}${r.total_marks != null?` / ${esc(r.total_marks)}`:""}</td>
       ${r.percentage != null?`<td>${Number(r.percentage).toFixed(2)}%</td>`:""}
@@ -406,15 +407,23 @@
             <div><span class="mini-label">Your latest quiz position</span><strong>${latestMe?rankLabel(latestMe.rank):"Not attempted"}</strong><small>${latestMe?`${esc(latestMe.score)}/${esc(latestMe.total_marks)} marks`:"You have not attempted this quiz."}</small></div>
             <div><i class="fa-solid fa-chart-line"></i></div>
           </div>
-          <div class="table-card"><table class="data-table leaderboard-table"><thead><tr><th>Rank</th><th>Student</th><th>Marks</th><th>Date</th></tr></thead><tbody>${(full?latestRows:top).map(r=>leaderboardRow(r)).join("")}</tbody></table></div>
+          <div class="table-card"><table class="data-table leaderboard-table"><thead><tr><th>Rank</th><th>Student</th><th>Marks</th><th>Date</th></tr></thead><tbody>${(full?latestRows:top).map(r=>leaderboardRow(r,false,state.profile.id)).join("")}</tbody></table></div>
           ${!full&&latestRows.length>5?`<div class="leaderboard-more"><button class="small-btn" id="see-full-class-bottom">See full class</button></div>`:""}
         `:empty("fa-solid fa-ranking-star","No leaderboard yet","The latest quiz has no submitted attempts yet.")}</section>
 
-      ${full?`
-        <section class="leaderboard-panel">
-          <div class="leaderboard-panel-head"><div><span class="pill">CUMULATIVE</span><h2>${classText(state.classNo)} overall ranking</h2><p>Ranking is based on cumulative score percentage across submitted quizzes.</p></div></div>
-          <div class="table-card"><table class="data-table leaderboard-table"><thead><tr><th>Rank</th><th>Student</th><th>Total marks</th><th>Percentage</th><th>Quizzes</th><th>Last submission</th></tr></thead><tbody>${(cumulative.data||[]).map(r=>leaderboardRow(r)).join("")}</tbody></table></div>
-        </section>`:""}
+      <section class="leaderboard-panel">
+        <div class="leaderboard-panel-head">
+          <div><span class="pill">CUMULATIVE</span><h2>${classText(state.classNo)} overall ranking</h2><p>Overall ranking across all submitted quizzes, using cumulative percentage.</p></div>
+          ${(cumulative.data||[]).length&&!full?`<button class="small-btn primary" id="see-full-cumulative"><i class="fa-solid fa-users"></i> See full ranking</button>`:""}
+        </div>
+        ${(() => {
+          const all=cumulative.data||[];
+          const top=all.slice(0,5);
+          const meRow=all.find(r=>r.student_id===state.profile.id);
+          const visible=full?all:(meRow&&!top.some(r=>r.student_id===meRow.student_id)?[...top,meRow]:top);
+          return all.length ? `<div class="table-card"><table class="data-table leaderboard-table"><thead><tr><th>Rank</th><th>Student</th><th>Total marks</th><th>Percentage</th><th>Quizzes</th><th>Last submission</th></tr></thead><tbody>${visible.map(r=>leaderboardRow(r,false,state.profile.id)).join("")}</tbody></table></div>` : empty("fa-solid fa-ranking-star","No overall ranking yet","No submitted quiz attempts yet.");
+        })()}
+      </section>
 
       <section class="leaderboard-panel">
         <div class="leaderboard-panel-head"><div><span class="pill">HISTORY</span><h2>Your quiz history</h2><p>Your position is calculated within your class for each quiz you have submitted.</p></div></div>
@@ -423,6 +432,7 @@
 
     $("#see-full-class")?.addEventListener("click",()=>navigate("leaderboard",{full:true}));
     $("#see-full-class-bottom")?.addEventListener("click",()=>navigate("leaderboard",{full:true}));
+    $("#see-full-cumulative")?.addEventListener("click",()=>navigate("leaderboard",{full:true}));
     $("#leaderboard-summary")?.addEventListener("click",()=>navigate("leaderboard",{full:false}));
   }
 
