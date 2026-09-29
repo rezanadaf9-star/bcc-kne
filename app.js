@@ -30,6 +30,31 @@
   const fmtDate = v => v ? new Date(v).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) : "—";
   const fmtDateTime = v => v ? new Date(v).toLocaleString("en-IN", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" }) : "—";
   const initials = n => (n || "B").trim().split(/\s+/).map(x => x[0]).join("").slice(0,2).toUpperCase();
+  async function addPhotoUrls(rows) {
+    const list = rows || [];
+    const paths = [...new Set(list.map(r => r.photo_path).filter(Boolean))];
+    if (!paths.length) return list;
+    try {
+      const { data, error } = await sb.storage.from("student-photos").createSignedUrls(paths, 3600);
+      if (error) throw error;
+      const map = new Map(paths.map((p,i) => [p, data?.[i]?.signedUrl || ""]));
+      return list.map(r => ({ ...r, photo_url: map.get(r.photo_path) || "" }));
+    } catch (e) {
+      console.warn("Student photo URLs could not be generated", e);
+      return list;
+    }
+  }
+  async function studentPhotoUrl(path) {
+    if (!path) return "";
+    try {
+      const { data, error } = await sb.storage.from("student-photos").createSignedUrl(path, 3600);
+      if (error) throw error;
+      return data?.signedUrl || "";
+    } catch (e) {
+      console.warn("Student photo URL could not be generated", e);
+      return "";
+    }
+  }
   const slug = s => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   const classText = c => c ? `Class ${c}` : "Class";
   const roleLabel = p => p?.role === "admin" ? "Administrator" : "Teacher";
@@ -165,7 +190,7 @@
     $("#admin-nav").classList.toggle("hidden", state.profile.role === "student");
     $("#profile-name").textContent = state.profile.full_name || "BCCian";
     $("#profile-role").textContent = state.profile.role === "student" ? "Student" : roleLabel(state.profile);
-    $("#profile-avatar").textContent = initials(state.profile.full_name);
+    $("#profile-avatar").innerHTML = esc(initials(state.profile.full_name));
     $("#menu-name").textContent = state.profile.full_name || "BCCian";
     $("#menu-id").textContent = state.profile.login_id || "—";
     let homeView;
@@ -173,6 +198,10 @@
       const sp = options.skipStudentFetch && state.student ? state.student : await getStudentProfile();
       state.classNo = sp.class_no;
       state.student = sp;
+      const profilePhoto = await studentPhotoUrl(sp.photo_path);
+      $("#profile-avatar").innerHTML = profilePhoto
+        ? `<img src="${esc(profilePhoto)}" alt="${esc(state.profile.full_name || "Student")}" class="avatar-image">`
+        : esc(initials(state.profile.full_name));
       $("#topbar-context").textContent = `${classText(sp.class_no)} • Batch ${sp.batch}`;
       homeView = options.preserveRoute && state.view ? state.view : "dashboard";
     } else {
@@ -334,7 +363,7 @@
     const isMe=Boolean(currentStudentId && r.student_id===currentStudentId);
     return `<tr class="${isMe?"leaderboard-me-row":""}">
       <td><strong class="rank-badge">${esc(rankLabel(r.rank))}</strong></td>
-      <td><strong>${esc(r.full_name)}${isMe?' <span class="you-badge">YOU</span>':''}</strong><span class="table-sub">${esc(r.login_id)}</span></td>
+      <td><div class="leader-student"><span class="leader-avatar">${r.photo_url?`<img src="${esc(r.photo_url)}" alt="">`:esc(initials(r.full_name))}</span><span><strong>${esc(r.full_name)}${isMe?' <span class="you-badge">YOU</span>':''}</strong><span class="table-sub">${esc(r.login_id)}</span></span></div></td>
       ${showClass?`<td>Class ${esc(r.class_no)}</td>`:""}
       <td>${esc(r.score ?? r.total_score ?? 0)}${r.total_marks != null?` / ${esc(r.total_marks)}`:""}</td>
       ${r.percentage != null?`<td>${Number(r.percentage).toFixed(2)}%</td>`:""}
@@ -368,8 +397,9 @@
     if(latestQuiz){
       const {data,error}=await sb.rpc("get_quiz_leaderboard",{p_quiz_id:latestQuiz.id});
       if(error)throw error;
-      latestRows=data||[];
+      latestRows=await addPhotoUrls(data||[]);
     }
+    cumulative.data = await addPhotoUrls(cumulative.data||[]);
 
     const me=(cumulative.data||[]).find(x=>x.student_id===state.profile.id);
     const latestMe=latestRows.find(x=>x.student_id===state.profile.id);
@@ -453,11 +483,12 @@
       fetchLatestClassQuiz(classNo)
     ]);
     if(cumulative.error)throw cumulative.error;
+    cumulative.data = await addPhotoUrls(cumulative.data||[]);
     let latestRows=[];
     if(latestQuiz){
       const {data,error}=await sb.rpc("get_quiz_leaderboard",{p_quiz_id:latestQuiz.id});
       if(error)throw error;
-      latestRows=data||[];
+      latestRows=await addPhotoUrls(data||[]);
     }
     const rows=cumulative.data||[];
     el.innerHTML=`
@@ -860,24 +891,56 @@
 
   function showCreateStudent(){
     modal(`<div class="modal-head"><h2>Create student</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>
-      <div class="form-grid"><div class="form-group"><label>Full name</label><input id="new-name" required></div><div class="form-group"><label>Class</label><select id="new-class"><option value="10">10</option><option value="12">12</option></select></div><div class="form-group"><label>Roll number</label><input id="new-roll"></div><div class="form-group"><label>Batch</label><select id="new-batch"><option value="26">26</option><option value="27">27</option></select></div><div class="form-group"><label>Initial password</label><input id="new-password" type="password" minlength="8"></div></div>
+      <div class="form-grid"><div class="form-group"><label>Full name</label><input id="new-name" required></div><div class="form-group"><label>Class</label><select id="new-class"><option value="10">10</option><option value="12">12</option></select></div><div class="form-group"><label>Roll number</label><input id="new-roll"></div><div class="form-group"><label>Batch</label><select id="new-batch"><option value="26">26</option><option value="27">27</option></select></div><div class="form-group"><label>Phone number <span class="mini-label">(optional)</span></label><input id="new-phone" type="tel" inputmode="numeric" placeholder="Optional"></div><div class="form-group"><label>Student photo <span class="mini-label">(optional)</span></label><input id="new-photo" type="file" accept="image/*" capture="environment"></div><div class="form-group"><label>Initial password</label><input id="new-password" type="password" minlength="8"></div></div>
       <p class="notice" style="margin-top:14px">The system generates the ID as batch + BCC + class + first two letters of the name + random 3 digits. Passwords are handled by Supabase Auth and are not stored in plaintext by this portal.</p>
       <div class="modal-actions"><button class="small-btn" data-close>Cancel</button><button class="small-btn primary" id="save-student">Create</button></div>`);
     $$("[data-close]").forEach(x=>x.onclick=closeModal);$("#save-student").onclick=createStudent;
   }
   async function createStudent(){
-    const payload={full_name:$("#new-name").value.trim(),class_no:Number($("#new-class").value),roll_number:$("#new-roll").value.trim(),batch:$("#new-batch").value,password:$("#new-password").value};
+    const payload={full_name:$("#new-name").value.trim(),class_no:Number($("#new-class").value),roll_number:$("#new-roll").value.trim(),batch:$("#new-batch").value,password:$("#new-password").value,phone:$("#new-phone").value.trim()||null};
+    const photo=$("#new-photo")?.files?.[0]||null;
     if(!payload.full_name||!payload.password||payload.password.length<8)return toast("Name and an 8+ character password are required.","error");
+    if(photo && photo.size>5*1024*1024)return toast("Photo must be 5 MB or smaller.","error");
     loading(true,"Creating student...");
-    try{const {data,error}=await sb.functions.invoke("admin-create-user",{body:{type:"student",...payload}});if(error)throw error;if(data?.error)throw new Error(data.error);closeModal();toast(`Student created. ID: ${data.login_id}`,"success");await renderStudents($("#view-container"))}catch(e){toast(e.message||"Could not create student.","error")}finally{loading(false)}
+    try{
+      const {data,error}=await sb.functions.invoke("admin-create-user",{body:{type:"student",...payload}});
+      if(error)throw error;if(data?.error)throw new Error(data.error);
+      if(photo && data?.user_id){
+        const ext=(photo.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
+        const path=`${data.user_id}/profile.${ext}`;
+        const upload=await sb.storage.from("student-photos").upload(path,photo,{upsert:true,contentType:photo.type||"image/jpeg"});
+        if(upload.error)throw upload.error;
+        const update=await sb.from("student_profiles").update({photo_path:path}).eq("user_id",data.user_id);
+        if(update.error)throw update.error;
+      }
+      closeModal();toast(`Student created. ID: ${data.login_id}`,"success");await renderStudents($("#view-container"));
+    }catch(e){toast(e.message||"Could not create student.","error")}finally{loading(false)}
   }
   async function viewStudent(id){
     const {data,error}=await sb.from("student_profiles").select("*,profiles(full_name,login_id)").eq("id",id).single();if(error)return toast(error.message,"error");
     const attempts=await sb.from("quiz_attempts").select("*,quizzes(title)").eq("student_id",data.user_id).order("submitted_at",{ascending:false}).limit(20);
     modal(`<div class="modal-head"><h2>${esc(data.profiles?.full_name)}</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>
-      <div class="stats-grid"><div class="content-card"><span class="mini-label">Student ID</span><h3>${esc(data.profiles?.login_id)}</h3></div><div class="content-card"><span class="mini-label">Class</span><h3>${data.class_no}</h3></div><div class="content-card"><span class="mini-label">Roll / Batch</span><h3>${esc(data.roll_number)} / ${esc(data.batch)}</h3></div></div>
+      <div class="student-admin-profile">${data.photo_path?`<span class="student-admin-avatar" id="student-photo-preview"></span>`:`<span class="student-admin-avatar" id="student-photo-preview">${esc(initials(data.profiles?.full_name))}</span>`}<div><strong>${esc(data.profiles?.full_name)}</strong><span>${esc(data.phone||"No phone number")}</span></div></div><div class="student-photo-upload"><label for="student-photo-file">Profile photo <span class="mini-label">(optional)</span></label><input id="student-photo-file" type="file" accept="image/*" capture="environment"><button class="small-btn primary" id="upload-student-photo"><i class="fa-solid fa-camera"></i> ${data.photo_path?"Replace photo":"Add photo"}</button><span class="mini-label">Photo is saved using this student's Supabase User ID.</span></div><div class="stats-grid"><div class="content-card"><span class="mini-label">Student ID</span><h3>${esc(data.profiles?.login_id)}</h3></div><div class="content-card"><span class="mini-label">Class</span><h3>${data.class_no}</h3></div><div class="content-card"><span class="mini-label">Roll / Batch</span><h3>${esc(data.roll_number)} / ${esc(data.batch)}</h3></div></div>
       <h3 class="section-title">Quiz history</h3><div class="table-card"><table class="data-table"><thead><tr><th>Quiz</th><th>Score</th><th>Correct</th><th>Wrong</th><th>Date</th></tr></thead><tbody>${(attempts.data||[]).map(a=>`<tr><td>${esc(a.quizzes?.title)}</td><td>${a.score}/${a.total_marks}</td><td>${a.correct_count}</td><td>${a.wrong_count}</td><td>${fmtDate(a.submitted_at)}</td></tr>`).join("")||`<tr><td colspan="5">No attempts yet.</td></tr>`}</tbody></table></div>`);
     $("[data-close]").onclick=closeModal;
+    if(data.photo_path){ const u=await studentPhotoUrl(data.photo_path); const p=$("#student-photo-preview"); if(p&&u)p.innerHTML=`<img src="${esc(u)}" alt="">`; }
+    $("#upload-student-photo").onclick=()=>uploadStudentPhoto(data.user_id, data.id);
+  }
+  async function uploadStudentPhoto(userId, studentProfileId){
+    const input=$("#student-photo-file"); const photo=input?.files?.[0];
+    if(!photo)return toast("Select a photo first.","error");
+    if(photo.size>5*1024*1024)return toast("Photo must be 5 MB or smaller.","error");
+    loading(true,"Uploading photo...");
+    try{
+      const ext=(photo.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
+      const path=`${userId}/profile.${ext}`;
+      const upload=await sb.storage.from("student-photos").upload(path,photo,{upsert:true,contentType:photo.type||"image/jpeg"});
+      if(upload.error)throw upload.error;
+      const update=await sb.from("student_profiles").update({photo_path:path}).eq("user_id",userId);
+      if(update.error)throw update.error;
+      toast("Student photo saved.","success");
+      await viewStudent(studentProfileId);
+    }catch(e){toast(e.message||"Could not upload photo.","error")}finally{loading(false)}
   }
 
   async function subjectsForClass(classNo){
