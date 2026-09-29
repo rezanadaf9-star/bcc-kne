@@ -16,6 +16,10 @@
     quizAnswers: {},
     quizStartedAt: null,
     quizTimer: null,
+    quizSessionId: null,
+    quizExpiresAt: null,
+    quizSecurity: { active: false, submitting: false, allowExit: false, reason: null },
+    quizGuardInstalled: false,
     currentLecture: null,
     route: {}
   };
@@ -65,12 +69,28 @@
   }
 
   async function navigate(view, route = {}, replace = false) {
+    if (state.profile?.role === "student" && state.quizSecurity?.active && state.view === "quiz-run") {
+      const submitted = await submitQuiz(true, "navigation");
+      if (!submitted) return;
+      if (state.quizSecurity) state.quizSecurity.allowExit = true;
+    }
     writeRoute(view, route, replace);
     toggleSidebar(false);
     await renderView();
   }
 
   async function handlePopState(event) {
+    // A running quiz is a locked navigation state. If the browser Back button
+    // fires, immediately restore the quiz entry and submit before leaving it.
+    if (state.profile?.role === "student" && state.quizSecurity?.active && state.view === "quiz-run" && !state.quizSecurity.allowExit) {
+      history.replaceState(
+        { bccPortal: true, view: "quiz-run", route: { quizId: state.quiz?.id } },
+        "",
+        `${location.pathname}${location.search}#quiz-run`
+      );
+      await submitQuiz(true, "browser_back");
+      return;
+    }
     // Before login there is no portal route to restore.
     if (!state.profile) return;
 
@@ -176,9 +196,15 @@
   }
 
   async function logout() {
+    if (state.profile?.role === "student" && state.quizSecurity?.active) {
+      const submitted = await submitQuiz(true, "logout");
+      if (!submitted) return;
+    }
     if (state.quizTimer) clearInterval(state.quizTimer);
     if (sb) await sb.auth.signOut();
     state.session = null; state.profile = null; state.student = null;
+    state.quizSessionId = null; state.quizExpiresAt = null;
+    state.quizSecurity = { active:false, submitting:false, allowExit:false, reason:null };
     try { sessionStorage.removeItem("bcc_identity_cache"); } catch (_) {}
     state.route = {};
     history.replaceState(null, "", `${location.pathname}${location.search}`);
@@ -192,7 +218,7 @@
   function syncNav() {
     $$(".nav-item[data-view]").forEach(b => b.classList.toggle("active", b.dataset.view === state.view));
     const active = $(`.nav-item[data-view="${state.view}"]`);
-    $("#topbar-section").textContent = active ? active.querySelector("span").textContent : "Dashboard";
+    $("#topbar-section").textContent = state.view === "leaderboard-class" ? "Leaderboard" : (active ? active.querySelector("span").textContent : "Dashboard");
   }
 
   async function renderView() {
@@ -209,6 +235,7 @@
         if (state.view === "homework") return await renderHomework(el);
         if (state.view === "homework-subject") return await renderHomeworkList(state.route.subjectId, false);
         if (state.view === "quizzes") return await renderQuizzes(el);
+        if (state.view === "leaderboard") return await renderStudentLeaderboard(el);
         if (state.view === "notebooklm") return await renderNotebookLM(el);
         if (state.view === "lecture-player") {
           if (!state.currentLecture || state.currentLecture.id !== state.route.lectureId) {
@@ -234,6 +261,8 @@
         if (state.view === "content") return await renderContent(el);
         if (state.view === "quiz-manager") return await renderQuizManager(el);
         if (state.view === "marks") return await renderMarks(el);
+        if (state.view === "leaderboard") return await renderAdminLeaderboard(el);
+        if (state.view === "leaderboard-class") return await renderAdminLeaderboardClass(el, Number(state.route.classNo));
       }
     } catch (e) {
       console.error(e);
@@ -291,6 +320,154 @@
   }
 
   function metric(label,value,sub){return `<div class="feature-card metric-card"><div><small>${label}</small><div class="metric-value">${esc(value)}</div><div class="metric-sub">${sub}</div></div></div>`}
+
+
+  function rankLabel(rank){
+    const n=Number(rank);
+    if(!Number.isFinite(n))return "—";
+    const mod100=n%100;
+    if(mod100>=11&&mod100<=13)return `${n}th`;
+    return `${n}${n%10===1?"st":n%10===2?"nd":n%10===3?"rd":"th"}`;
+  }
+
+  function leaderboardRow(r, showClass=false){
+    return `<tr>
+      <td><strong class="rank-badge">${esc(rankLabel(r.rank))}</strong></td>
+      <td><strong>${esc(r.full_name)}</strong><span class="table-sub">${esc(r.login_id)}</span></td>
+      ${showClass?`<td>Class ${esc(r.class_no)}</td>`:""}
+      <td>${esc(r.score ?? r.total_score ?? 0)}${r.total_marks != null?` / ${esc(r.total_marks)}`:""}</td>
+      ${r.percentage != null?`<td>${Number(r.percentage).toFixed(2)}%</td>`:""}
+      ${r.attempted_quizzes != null?`<td>${esc(r.attempted_quizzes)}</td>`:""}
+      <td>${r.submitted_at?fmtDate(r.submitted_at):"—"}</td>
+    </tr>`;
+  }
+
+  async function fetchLatestClassQuiz(classNo){
+    const {data,error}=await sb.from("quizzes")
+      .select("id,title,quiz_type,total_marks,duration_minutes,created_at,start_at,class_no")
+      .eq("class_no",classNo)
+      .order("created_at",{ascending:false})
+      .limit(1)
+      .maybeSingle();
+    if(error)throw error;
+    return data||null;
+  }
+
+  async function renderStudentLeaderboard(el){
+    const full=state.route?.full===true;
+    const [cumulative,history,latestQuiz]=await Promise.all([
+      sb.rpc("get_class_leaderboard",{p_class_no:state.classNo}),
+      sb.rpc("get_my_quiz_history"),
+      fetchLatestClassQuiz(state.classNo)
+    ]);
+    if(cumulative.error)throw cumulative.error;
+    if(history.error)throw history.error;
+
+    let latestRows=[];
+    if(latestQuiz){
+      const {data,error}=await sb.rpc("get_quiz_leaderboard",{p_quiz_id:latestQuiz.id});
+      if(error)throw error;
+      latestRows=data||[];
+    }
+
+    const me=(cumulative.data||[]).find(x=>x.student_id===state.profile.id);
+    const latestMe=latestRows.find(x=>x.student_id===state.profile.id);
+    const top=latestRows.slice(0,5);
+    const historyRows=history.data||[];
+
+    el.innerHTML=`
+      <div class="page-head">
+        <div><h1>Leaderboard</h1><p>${classText(state.classNo)} rankings, latest quiz performance and your quiz history.</p></div>
+        ${full?`<button class="small-btn" id="leaderboard-summary"><i class="fa-solid fa-arrow-left"></i> Overview</button>`:""}
+      </div>
+
+      <div class="leaderboard-summary-grid">
+        <div class="leader-stat-card">
+          <span class="leader-stat-icon"><i class="fa-solid fa-ranking-star"></i></span>
+          <div><span class="mini-label">Your class rank</span><strong>${me?rankLabel(me.rank):"—"}</strong><small>${me?`${Number(me.percentage).toFixed(2)}% overall`:"No quiz attempts yet"}</small></div>
+        </div>
+        <div class="leader-stat-card">
+          <span class="leader-stat-icon"><i class="fa-solid fa-medal"></i></span>
+          <div><span class="mini-label">Total marks</span><strong>${me?`${esc(me.total_score)} / ${esc(me.total_marks)}`:"0 / 0"}</strong><small>${me?`${esc(me.attempted_quizzes)} quiz${Number(me.attempted_quizzes)===1?"":"zes"} attempted`:"No attempts yet"}</small></div>
+        </div>
+        <div class="leader-stat-card">
+          <span class="leader-stat-icon"><i class="fa-solid fa-users"></i></span>
+          <div><span class="mini-label">Class size</span><strong>${(cumulative.data||[]).length}</strong><small>${classText(state.classNo)}</small></div>
+        </div>
+      </div>
+
+      <section class="leaderboard-panel">
+        <div class="leaderboard-panel-head">
+          <div><span class="pill active">LATEST QUIZ</span><h2>${esc(latestQuiz?.title||"No quiz yet")}</h2><p>${latestQuiz?`${esc(latestQuiz.quiz_type)} • ${esc(latestQuiz.total_marks)} marks • ${fmtDate(latestQuiz.created_at)}`:"A published quiz leaderboard will appear here."}</p></div>
+          ${latestQuiz&&latestRows.length?`<button class="small-btn primary" id="see-full-class"><i class="fa-solid fa-users"></i> ${full?"Class leaderboard":"See full class"}</button>`:""}
+        </div>
+        ${latestQuiz&&latestRows.length?`
+          <div class="leaderboard-me-card">
+            <div><span class="mini-label">Your latest quiz position</span><strong>${latestMe?rankLabel(latestMe.rank):"Not attempted"}</strong><small>${latestMe?`${esc(latestMe.score)}/${esc(latestMe.total_marks)} marks`:"You have not attempted this quiz."}</small></div>
+            <div><i class="fa-solid fa-chart-line"></i></div>
+          </div>
+          <div class="table-card"><table class="data-table leaderboard-table"><thead><tr><th>Rank</th><th>Student</th><th>Marks</th><th>Date</th></tr></thead><tbody>${(full?latestRows:top).map(r=>leaderboardRow(r)).join("")}</tbody></table></div>
+          ${!full&&latestRows.length>5?`<div class="leaderboard-more"><button class="small-btn" id="see-full-class-bottom">See full class</button></div>`:""}
+        `:empty("fa-solid fa-ranking-star","No leaderboard yet","The latest quiz has no submitted attempts yet.")}</section>
+
+      ${full?`
+        <section class="leaderboard-panel">
+          <div class="leaderboard-panel-head"><div><span class="pill">CUMULATIVE</span><h2>${classText(state.classNo)} overall ranking</h2><p>Ranking is based on cumulative score percentage across submitted quizzes.</p></div></div>
+          <div class="table-card"><table class="data-table leaderboard-table"><thead><tr><th>Rank</th><th>Student</th><th>Total marks</th><th>Percentage</th><th>Quizzes</th><th>Last submission</th></tr></thead><tbody>${(cumulative.data||[]).map(r=>leaderboardRow(r)).join("")}</tbody></table></div>
+        </section>`:""}
+
+      <section class="leaderboard-panel">
+        <div class="leaderboard-panel-head"><div><span class="pill">HISTORY</span><h2>Your quiz history</h2><p>Your position is calculated within your class for each quiz you have submitted.</p></div></div>
+        <div class="table-card"><table class="data-table leaderboard-table"><thead><tr><th>Quiz</th><th>Score</th><th>Rank</th><th>Date</th></tr></thead><tbody>${historyRows.map(r=>`<tr><td><strong>${esc(r.quiz_title)}</strong><span class="table-sub">${esc(r.quiz_type)}</span></td><td>${esc(r.score)} / ${esc(r.total_marks)}</td><td><strong class="rank-badge">${esc(rankLabel(r.rank))}</strong></td><td>${fmtDate(r.submitted_at)}</td></tr>`).join("")||`<tr><td colspan="4">No quiz history yet.</td></tr>`}</tbody></table></div>
+      </section>`;
+
+    $("#see-full-class")?.addEventListener("click",()=>navigate("leaderboard",{full:true}));
+    $("#see-full-class-bottom")?.addEventListener("click",()=>navigate("leaderboard",{full:true}));
+    $("#leaderboard-summary")?.addEventListener("click",()=>navigate("leaderboard",{full:false}));
+  }
+
+  async function renderAdminLeaderboard(el){
+    el.innerHTML=`
+      <div class="page-head"><div><h1>Leaderboard</h1><p>Open the cumulative ranking and quiz performance for each class.</p></div></div>
+      <div class="leader-class-grid">
+        <article class="leader-class-card" data-leader-class="10"><span><i class="fa-solid fa-graduation-cap"></i></span><div><h2>Class 10</h2><p>View Class 10 student ranks, marks and quiz performance.</p></div><i class="fa-solid fa-arrow-right"></i></article>
+        <article class="leader-class-card" data-leader-class="12"><span><i class="fa-solid fa-graduation-cap"></i></span><div><h2>Class 12</h2><p>View Class 12 student ranks, marks and quiz performance.</p></div><i class="fa-solid fa-arrow-right"></i></article>
+      </div>`;
+    $$("[data-leader-class]",el).forEach(c=>c.onclick=()=>navigate("leaderboard-class",{classNo:Number(c.dataset.leaderClass)}));
+  }
+
+  async function renderAdminLeaderboardClass(el,classNo){
+    if(![10,12].includes(classNo))return navigate("leaderboard",{},true);
+    const [cumulative,latestQuiz]=await Promise.all([
+      sb.rpc("get_class_leaderboard",{p_class_no:classNo}),
+      fetchLatestClassQuiz(classNo)
+    ]);
+    if(cumulative.error)throw cumulative.error;
+    let latestRows=[];
+    if(latestQuiz){
+      const {data,error}=await sb.rpc("get_quiz_leaderboard",{p_quiz_id:latestQuiz.id});
+      if(error)throw error;
+      latestRows=data||[];
+    }
+    const rows=cumulative.data||[];
+    el.innerHTML=`
+      <div class="back-row"><button class="small-btn" id="back-leaderboard"><i class="fa-solid fa-arrow-left"></i> Back to Classes</button></div>
+      <div class="page-head"><div><h1>Class ${classNo} Leaderboard</h1><p>All students, cumulative rank, marks and latest quiz performance.</p></div></div>
+      <div class="stats-grid">
+        ${metric("Students",rows.length,"Class ${classNo}")}
+        ${metric("Quiz attempts",rows.reduce((n,x)=>n+Number(x.attempted_quizzes||0),0),"Submitted attempts")}
+        ${metric("Top percentage",rows[0]?`${Number(rows[0].percentage).toFixed(2)}%`:"—","Current cumulative leader")}
+      </div>
+      <section class="leaderboard-panel">
+        <div class="leaderboard-panel-head"><div><span class="pill">CUMULATIVE</span><h2>All Class ${classNo} students</h2><p>Overall percentage across all submitted quizzes.</p></div></div>
+        <div class="table-card"><table class="data-table leaderboard-table"><thead><tr><th>Rank</th><th>Student</th><th>Total score</th><th>Percentage</th><th>Quizzes</th></tr></thead><tbody>${rows.map(r=>`<tr><td><strong class="rank-badge">${esc(rankLabel(r.rank))}</strong></td><td><strong>${esc(r.full_name)}</strong><span class="table-sub">${esc(r.login_id)}</span></td><td>${esc(r.total_score)} / ${esc(r.total_marks)}</td><td>${Number(r.percentage).toFixed(2)}%</td><td>${esc(r.attempted_quizzes)}</td></tr>`).join("")||`<tr><td colspan="5">No students found.</td></tr>`}</tbody></table></div>
+      </section>
+      <section class="leaderboard-panel">
+        <div class="leaderboard-panel-head"><div><span class="pill active">LATEST QUIZ</span><h2>${esc(latestQuiz?.title||"No quiz yet")}</h2><p>${latestQuiz?"Latest published quiz leaderboard for this class.":"No quiz has been published for this class yet."}</p></div></div>
+        <div class="table-card"><table class="data-table leaderboard-table"><thead><tr><th>Rank</th><th>Student</th><th>Marks</th><th>Date</th></tr></thead><tbody>${latestRows.map(r=>leaderboardRow(r)).join("")||`<tr><td colspan="4">No submitted attempts for the latest quiz.</td></tr>`}</tbody></table></div>
+      </section>`;
+    $("#back-leaderboard").onclick=()=>history.back();
+  }
 
   async function renderNotebookLM(el) {
     const { data, error } = await sb.from("notebooklm_resources")
@@ -436,57 +613,198 @@
     $$("[data-start-quiz]",el).forEach(b=>b.onclick=()=>startQuiz(b.dataset.startQuiz, true));$$(`[data-result]`,el).forEach(b=>b.onclick=()=>showAttemptResult(b.dataset.result, true));
   }
   async function startQuiz(id, pushHistory = true){
-    const {data,error}=await sb.from("quizzes").select("*,subjects(name)").eq("id",id).single();if(error)return toast(error.message,"error");
+    const {data,error}=await sb.from("quizzes").select("*,subjects(name)").eq("id",id).single();
+    if(error)return toast(error.message,"error");
+    if(data.class_no !== state.classNo)return toast("This quiz is not for your class.","error");
     if(data.start_at && new Date(data.start_at)>new Date())return toast("This quiz has not started yet.","error");
     if(data.end_at && new Date(data.end_at)<new Date())return toast("This quiz has ended.","error");
-    const {data:questions,error:qerr}=await sb.rpc("get_quiz_questions_public",{p_quiz_id:id});
-    if(qerr) return toast(qerr.message,"error");
-    // The secure RPC deliberately uses non-conflicting output names. Normalize
-    // them here so the rest of the quiz UI always works with id/position.
-    const publicQuestions=(questions||[]).map(q=>({
-      id:q.id ?? q.question_id,
-      quiz_id:q.quiz_id,
-      position:q.position ?? q.question_position,
-      question_text:q.question_text,
-      option_a:q.option_a,
-      option_b:q.option_b,
-      option_c:q.option_c,
-      option_d:q.option_d
-    })).sort((a,b)=>Number(a.position)-Number(b.position));
-    if(!publicQuestions.length)return toast("This quiz has no questions yet.","error");
-    if(publicQuestions.some(q=>!q.id))return toast("Quiz question data is incomplete. Please contact BCC staff.","error");
-    state.quiz=data;state.quizQuestions=publicQuestions;state.quizAnswers={};state.quizStartedAt=Date.now();
-    if (pushHistory) writeRoute("quiz-run", { quizId: id });
-    await renderView();
+
+    loading(true,"Starting secure quiz...");
+    try {
+      const {data:sessionData,error:sessionError}=await sb.functions.invoke("start-quiz",{body:{quiz_id:id}});
+      if(sessionError)throw sessionError;
+      if(sessionData?.error)throw new Error(sessionData.error);
+
+      const publicQuestions=(sessionData?.questions||[]).map(q=>({
+        id:q.id ?? q.question_id,
+        quiz_id:q.quiz_id,
+        position:q.position ?? q.question_position,
+        question_text:q.question_text,
+        option_a:q.option_a,
+        option_b:q.option_b,
+        option_c:q.option_c,
+        option_d:q.option_d
+      })).sort((a,b)=>Number(a.position)-Number(b.position));
+
+      if(!publicQuestions.length)return toast("This quiz has no questions yet.","error");
+      if(publicQuestions.some(q=>!q.id))return toast("Quiz question data is incomplete. Please contact BCC staff.","error");
+
+      state.quiz=data;
+      state.quizQuestions=publicQuestions;
+      state.quizAnswers={};
+      state.quizStartedAt=sessionData.started_at ? new Date(sessionData.started_at).getTime() : Date.now();
+      state.quizSessionId=sessionData.session_id;
+      state.quizExpiresAt=sessionData.expires_at ? new Date(sessionData.expires_at).getTime() : null;
+      state.quizSecurity={active:true,submitting:false,allowExit:false,reason:null};
+      if (pushHistory) writeRoute("quiz-run", { quizId: id });
+      await renderView();
+    } catch(e) {
+      toast(e.message||"Could not start the quiz.","error");
+    } finally {
+      loading(false);
+    }
   }
   async function renderQuizRun(el){
     const qz=state.quiz;if(!qz){writeRoute("quizzes", {}, false);return renderView()}
     const questions=Array.isArray(state.quizQuestions)?state.quizQuestions:[];
     if(!questions.length){return toast("This quiz has no questions yet.","error")}
-    el.innerHTML=`<div class="quiz-run-shell"><div class="quiz-topbar"><div><strong>${esc(qz.title)}</strong><span class="mini-label"> • ${questions.length} question${questions.length===1?"":"s"}</span></div><div class="timer" id="quiz-timer"></div></div><form id="quiz-form">${questions.map((q,i)=>`<div class="question-card"><h3>${i+1}. ${esc(q.question_text)}</h3>${["A","B","C","D"].map(letter=>{const key=`option_${letter.toLowerCase()}`;return q[key]?`<label class="option"><input type="radio" name="q_${q.id}" value="${letter}"><span><strong>${letter}.</strong> ${esc(q[key])}</span></label>`:""}).join("")}</div>`).join("")}<button class="primary-btn" type="submit" style="width:100%">Submit Quiz</button></form></div>`;
-    startTimer(qz.duration_minutes*60);
-    $("#quiz-form").onsubmit=async e=>{e.preventDefault();if(!confirm("Submit this quiz now?"))return;await submitQuiz()};
+    document.body.classList.add("quiz-active");
+    el.innerHTML=`<div class="quiz-run-shell">
+      <div class="quiz-lock-notice"><i class="fa-solid fa-shield-halved"></i><span><strong>Quiz mode is active.</strong> Leaving this page, switching tabs/apps, or using browser Back will submit the quiz automatically.</span></div>
+      <div class="quiz-topbar"><div><strong>${esc(qz.title)}</strong><span class="mini-label"> • ${questions.length} question${questions.length===1?"":"s"}</span></div><div class="timer" id="quiz-timer"></div></div>
+      <form id="quiz-form">${questions.map((q,i)=>`<div class="question-card"><h3>${i+1}. ${esc(q.question_text)}</h3>${["A","B","C","D"].map(letter=>{const key=`option_${letter.toLowerCase()}`;return q[key]?`<label class="option"><input type="radio" name="q_${q.id}" value="${letter}"><span><strong>${letter}.</strong> ${esc(q[key])}</span></label>`:""}).join("")}</div>`).join("")}<button class="primary-btn" type="submit" style="width:100%">Submit Quiz</button></form></div>`;
+    const secondsRemaining=state.quizExpiresAt
+      ? Math.max(1,Math.ceil((state.quizExpiresAt-Date.now())/1000))
+      : Number(qz.duration_minutes)*60;
+    startTimer(secondsRemaining);
+    $("#quiz-form").onsubmit=async e=>{e.preventDefault();if(!confirm("Submit this quiz now?"))return;await submitQuiz(false,"manual");};
+    installQuizGuards();
   }
   window.renderQuizzes = renderQuizzes;
 
-  function startTimer(seconds){if(state.quizTimer)clearInterval(state.quizTimer);let left=seconds;const tick=()=>{const m=Math.floor(left/60),s=left%60;$("#quiz-timer").textContent=`${m}:${String(s).padStart(2,"0")}`;if(left<=0){clearInterval(state.quizTimer);submitQuiz(true)}left--};tick();state.quizTimer=setInterval(tick,1000)}
-  async function submitQuiz(auto=false){
-    if(!state.quiz)return;
+  function startTimer(seconds){
+    if(state.quizTimer)clearInterval(state.quizTimer);
+    let left=Math.max(1,Number(seconds)||1);
+    const tick=()=>{
+      const timer=$("#quiz-timer");
+      if(timer){const m=Math.floor(left/60),s=left%60;timer.textContent=`${m}:${String(s).padStart(2,"0")}`;}
+      if(left<=0){clearInterval(state.quizTimer);submitQuiz(true,"time_expired");return}
+      left--;
+    };
+    tick();
+    state.quizTimer=setInterval(tick,1000);
+  }
+
+  function installQuizGuards(){
+    if(state.quizGuardInstalled)return;
+    state.quizGuardInstalled=true;
+
+    document.addEventListener("visibilitychange",handleQuizVisibility,{capture:true});
+    window.addEventListener("pagehide",handleQuizPageHide,{capture:true});
+    window.addEventListener("blur",handleQuizBlur,{capture:true});
+    window.addEventListener("keydown",handleQuizKeydown,{capture:true});
+    document.addEventListener("contextmenu",handleQuizContextMenu,{capture:true});
+    document.addEventListener("copy",handleQuizClipboard,{capture:true});
+    document.addEventListener("cut",handleQuizClipboard,{capture:true});
+    document.addEventListener("paste",handleQuizClipboard,{capture:true});
+    document.addEventListener("selectstart",handleQuizSelectStart,{capture:true});
+  }
+
+  function handleQuizVisibility(){
+    if(document.visibilityState==="hidden" && state.quizSecurity?.active && !state.quizSecurity.submitting){
+      submitQuiz(true,"tab_switch");
+    }
+  }
+
+  function handleQuizPageHide(){
+    // visibilitychange normally handles tab/app switches. pagehide is a final
+    // best-effort fallback for navigation/closing; it never blocks the browser.
+    if(state.quizSecurity?.active && !state.quizSecurity.submitting && navigator.sendBeacon){
+      sendQuizBeacon("page_exit");
+    }
+  }
+
+  function handleQuizBlur(){
+    if(!state.quizSecurity?.active || state.quizSecurity.submitting)return;
+    setTimeout(()=>{
+      if(state.quizSecurity?.active && !state.quizSecurity.submitting && !document.hasFocus()){
+        submitQuiz(true,"window_blur");
+      }
+    },300);
+  }
+
+  function handleQuizKeydown(e){
+    if(!state.quizSecurity?.active)return;
+    const k=String(e.key||"").toLowerCase();
+    const blocked=e.key==="F12" ||
+      (e.ctrlKey||e.metaKey) && ["c","u","s","p"].includes(k) ||
+      (e.ctrlKey||e.metaKey) && e.shiftKey && ["i","j","c"].includes(k);
+    if(blocked){e.preventDefault();e.stopPropagation();}
+  }
+  function handleQuizContextMenu(e){if(state.quizSecurity?.active){e.preventDefault();}}
+  function handleQuizClipboard(e){if(state.quizSecurity?.active){e.preventDefault();}}
+  function handleQuizSelectStart(e){if(state.quizSecurity?.active && !e.target.closest("input"))e.preventDefault();}
+
+  function collectQuizAnswers(){
+    state.quizQuestions.forEach(q=>{
+      const r=document.querySelector(`input[name="q_${q.id}"]:checked`);
+      state.quizAnswers[q.id]=r?.value||null;
+    });
+    return state.quizAnswers;
+  }
+
+  async function submitQuiz(auto=false, reason=auto?"auto":"manual"){
+    if(!state.quiz || !state.quizSessionId || state.quizSecurity?.submitting) return false;
+    state.quizSecurity.submitting=true;
     clearInterval(state.quizTimer);
-    state.quizQuestions.forEach(q=>{const r=document.querySelector(`input[name="q_${q.id}"]:checked`);state.quizAnswers[q.id]=r?.value||null});
-    loading(true,"Saving result...");
+    collectQuizAnswers();
+    loading(true, reason==="manual"?"Saving result...":"Submitting quiz...");
+
     try{
-      const {data,error}=await sb.functions.invoke("submit-quiz",{body:{quiz_id:state.quiz.id,answers:state.quizAnswers}});
+      const {data,error}=await sb.functions.invoke("submit-quiz",{
+        body:{
+          quiz_id:state.quiz.id,
+          session_id:state.quizSessionId,
+          answers:state.quizAnswers,
+          submission_reason:reason
+        }
+      });
       if(error)throw error;
       if(data?.error)throw new Error(data.error);
       state.lastAttempt={attempt:data.attempt,answers:data.answers||[]};
       state.quizQuestions=data.questions||state.quizQuestions;
+      state.quizSecurity.allowExit=true;
+      state.quizSecurity.active=false;
+      document.body.classList.remove("quiz-active");
       writeRoute("quiz-result", { quizId: state.quiz.id }, true);
       await renderQuizResult();
-      toast(auto?"Time ended. Your quiz was submitted.":"Quiz submitted successfully.","success");
-    }catch(e){toast(e.message||"Could not submit quiz.","error")}finally{loading(false)}
+      toast(
+        reason==="time_expired" ? "Time ended. Your quiz was submitted." :
+        reason==="tab_switch" ? "You left the quiz tab. Your quiz was submitted." :
+        reason==="browser_back" ? "Browser Back was detected. Your quiz was submitted." :
+        reason==="page_exit" ? "You left the quiz. Your quiz was submitted." :
+        reason==="window_blur" ? "The quiz window lost focus. Your quiz was submitted." :
+        "Quiz submitted successfully.",
+        "success"
+      );
+      return true;
+    }catch(e){
+      // If the network fails during a visibility/page-exit event, do not
+      // silently unlock the quiz. The pagehide beacon is the last fallback.
+      state.quizSecurity.submitting=false;
+      toast(e.message||"Could not submit quiz.","error");
+      return false;
+    }finally{loading(false)}
+  }
+
+  function sendQuizBeacon(reason){
+    try{
+      const session=state.session;
+      if(!session?.access_token || !state.quizSessionId || !state.quizSecurity?.active)return;
+      collectQuizAnswers();
+      const url=`${C.SUPABASE_URL}/functions/v1/submit-quiz`;
+      const payload=JSON.stringify({
+        quiz_id:state.quiz.id,
+        session_id:state.quizSessionId,
+        answers:state.quizAnswers,
+        submission_reason:reason,
+        access_token:session.access_token
+      });
+      navigator.sendBeacon(url,new Blob([payload],{type:"text/plain;charset=UTF-8"}));
+    }catch(e){console.warn("Quiz exit beacon failed",e);}
   }
   async function renderQuizResult(){
+    document.body.classList.remove("quiz-active");
     const el=$("#view-container"),a=state.lastAttempt.attempt,qz=state.quiz;
     el.innerHTML=`<div class="back-row"><button class="small-btn" id="back-quizzes"><i class="fa-solid fa-arrow-left"></i> Back to Quizzes</button></div><div class="result-card"><p class="mini-label">Quiz submitted</p><div class="score-big">${a.score}/${a.total_marks}</div><p>${a.correct_count} correct • ${a.wrong_count} wrong • ${a.unattempted_count} unattempted</p><div class="analysis-grid">${state.quizQuestions.map(q=>{const x=state.lastAttempt.answers.find(y=>y.question_id===q.id);return `<div class="analysis-item ${x?.status==="correct"?"correct":x?.status==="wrong"?"wrong":""}"><h4>${esc(q.question_text)}</h4><p>Your answer: ${esc(x?.selected_option||"Not attempted")} • Correct: ${esc(q.correct_option)} • Marks: ${x?.marks_awarded??0}</p>${q.explanation?`<p><strong>Explanation:</strong> ${esc(q.explanation)}</p>`:""}</div>`}).join("")}</div></div>`;
     $("#back-quizzes").onclick=()=>history.back();
