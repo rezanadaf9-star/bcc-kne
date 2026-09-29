@@ -927,7 +927,7 @@
     const {data,error}=await sb.from("student_profiles").select("*,profiles(full_name,login_id)").eq("id",id).single();if(error)return toast(error.message,"error");
     const attempts=await sb.from("quiz_attempts").select("*,quizzes(title)").eq("student_id",data.user_id).order("submitted_at",{ascending:false}).limit(20);
     modal(`<div class="modal-head"><h2>${esc(data.profiles?.full_name)}</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>
-      <div class="student-admin-profile">${data.photo_path?`<span class="student-admin-avatar" id="student-photo-preview"></span>`:`<span class="student-admin-avatar" id="student-photo-preview">${esc(initials(data.profiles?.full_name))}</span>`}<div><strong>${esc(data.profiles?.full_name)}</strong><span>${esc(data.phone||"No phone number")}</span></div></div><div class="student-photo-upload"><label for="student-photo-file">Profile photo <span class="mini-label">(optional)</span></label><input id="student-photo-file" type="file" accept="image/*" capture="environment"><button class="small-btn primary" id="upload-student-photo"><i class="fa-solid fa-camera"></i> ${data.photo_path?"Replace photo":"Add photo"}</button><span class="mini-label">Photo is saved using this student's Supabase User ID.</span></div><div class="stats-grid"><div class="content-card"><span class="mini-label">Student ID</span><h3>${esc(data.profiles?.login_id)}</h3></div><div class="content-card"><span class="mini-label">Class</span><h3>${data.class_no}</h3></div><div class="content-card"><span class="mini-label">Roll / Batch</span><h3>${esc(data.roll_number)} / ${esc(data.batch)}</h3></div></div>
+      <div class="student-admin-profile">${data.photo_path?`<span class="student-admin-avatar" id="student-photo-preview"></span>`:`<span class="student-admin-avatar" id="student-photo-preview">${esc(initials(data.profiles?.full_name))}</span>`}<div><strong>${esc(data.profiles?.full_name)}</strong><span>${esc(data.phone||"No phone number")}</span></div></div><div class="student-photo-upload"><label for="student-photo-file">Profile photo <span class="mini-label">(optional)</span></label><input id="student-photo-file" type="file" accept="image/*" capture="environment"><button class="small-btn primary" id="upload-student-photo"><i class="fa-solid fa-camera"></i> ${data.photo_path?"Replace photo":"Add photo"}</button><span class="mini-label">Photo is saved using this student's Supabase User ID.</span><div id="student-photo-status" class="student-photo-status ${data.photo_path?"saved":""}">${data.photo_path?`Profile photo saved for ${esc(data.profiles?.full_name)}.`:"No profile photo saved yet."}</div></div><div class="stats-grid"><div class="content-card"><span class="mini-label">Student ID</span><h3>${esc(data.profiles?.login_id)}</h3></div><div class="content-card"><span class="mini-label">Class</span><h3>${data.class_no}</h3></div><div class="content-card"><span class="mini-label">Roll / Batch</span><h3>${esc(data.roll_number)} / ${esc(data.batch)}</h3></div></div>
       <h3 class="section-title">Quiz history</h3><div class="table-card"><table class="data-table"><thead><tr><th>Quiz</th><th>Score</th><th>Correct</th><th>Wrong</th><th>Date</th></tr></thead><tbody>${(attempts.data||[]).map(a=>`<tr><td>${esc(a.quizzes?.title)}</td><td>${a.score}/${a.total_marks}</td><td>${a.correct_count}</td><td>${a.wrong_count}</td><td>${fmtDate(a.submitted_at)}</td></tr>`).join("")||`<tr><td colspan="5">No attempts yet.</td></tr>`}</tbody></table></div>`);
     $("[data-close]").onclick=closeModal;
     if(data.photo_path){
@@ -937,7 +937,7 @@
         const img=new Image();
         img.alt="Student profile photo";
         img.onload=()=>{p.innerHTML="";p.appendChild(img)};
-        img.onerror=()=>{p.innerHTML=esc(initials(data.profiles?.full_name))};
+        img.onerror=()=>{p.innerHTML=esc(initials(data.profiles?.full_name)); const st=$("#student-photo-status"); if(st){st.className="student-photo-status error";st.textContent="Profile photo is saved, but could not be displayed. Check the student-photos Storage policy."}};
         img.src=u;
       }
     }
@@ -947,17 +947,40 @@
     const input=$("#student-photo-file"); const photo=input?.files?.[0];
     if(!photo)return toast("Select a photo first.","error");
     if(photo.size>5*1024*1024)return toast("Photo must be 5 MB or smaller.","error");
-    loading(true,"Uploading photo...");
+    loading(true,"Updating profile photo...");
     try{
-      const ext=(photo.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
-      const path=`${userId}/profile.${ext}`;
-      const upload=await sb.storage.from("student-photos").upload(path,photo,{upsert:true,contentType:photo.type||"image/jpeg"});
+      // Always use one stable filename. This prevents old JPG/PNG paths from
+      // becoming stale when an admin replaces a student's photo.
+      const path=`${userId}/profile.jpg`;
+      let file=photo;
+      if(photo.type !== "image/jpeg") {
+        file=await new Promise((resolve,reject)=>{
+          const img=new Image();
+          const url=URL.createObjectURL(photo);
+          img.onload=()=>{
+            try{
+              const max=1600, scale=Math.min(1,max/Math.max(img.width,img.height));
+              const c=document.createElement("canvas");
+              c.width=Math.max(1,Math.round(img.width*scale)); c.height=Math.max(1,Math.round(img.height*scale));
+              c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+              c.toBlob(b=>{URL.revokeObjectURL(url); b?resolve(new File([b],"profile.jpg",{type:"image/jpeg"})):reject(new Error("Could not process image."));},"image/jpeg",0.9);
+            }catch(e){URL.revokeObjectURL(url);reject(e)}
+          };
+          img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("Could not read the selected image."))};
+          img.src=url;
+        });
+      }
+      const upload=await sb.storage.from("student-photos").upload(path,file,{upsert:true,contentType:"image/jpeg",cacheControl:"0"});
       if(upload.error)throw upload.error;
       const update=await sb.from("student_profiles").update({photo_path:path}).eq("user_id",userId);
       if(update.error)throw update.error;
-      toast("Student photo saved.","success");
+      const {data:student,error:studentError}=await sb.from("student_profiles").select("photo_path,profiles(full_name)").eq("id",studentProfileId).single();
+      if(studentError)throw studentError;
+      if(student?.photo_path !== path)throw new Error("Photo was uploaded but the profile record was not updated.");
+      const name=student.profiles?.full_name || "Student";
+      toast(`Profile photo updated for ${name}.`,"success");
       await viewStudent(studentProfileId);
-    }catch(e){toast(e.message||"Could not upload photo.","error")}finally{loading(false)}
+    }catch(e){toast(e.message||"Could not update profile photo.","error")}finally{loading(false)}
   }
 
   async function subjectsForClass(classNo){
