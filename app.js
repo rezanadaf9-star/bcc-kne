@@ -37,7 +37,7 @@
     try {
       const { data, error } = await sb.storage.from("student-photos").createSignedUrls(paths, 3600);
       if (error) throw error;
-      const map = new Map(paths.map((p,i) => [p, data?.[i]?.signedUrl || ""]));
+      const map = new Map(paths.map((p,i) => [p, data?.[i]?.signedUrl ? `${data[i].signedUrl}${data[i].signedUrl.includes("?") ? "&" : "?"}photo_v=${encodeURIComponent(p + Date.now())}` : ""]));
       return list.map(r => ({ ...r, photo_url: map.get(r.photo_path) || "" }));
     } catch (e) {
       console.warn("Student photo URLs could not be generated", e);
@@ -49,7 +49,7 @@
     try {
       const { data, error } = await sb.storage.from("student-photos").createSignedUrl(path, 3600);
       if (error) throw error;
-      return data?.signedUrl || "";
+      return data?.signedUrl ? `${data.signedUrl}${data.signedUrl.includes("?") ? "&" : "?"}photo_v=${encodeURIComponent(path + Date.now())}` : "";
     } catch (e) {
       console.warn("Student photo URL could not be generated", e);
       return "";
@@ -199,9 +199,16 @@
       state.classNo = sp.class_no;
       state.student = sp;
       const profilePhoto = await studentPhotoUrl(sp.photo_path);
-      $("#profile-avatar").innerHTML = profilePhoto
-        ? `<img src="${esc(profilePhoto)}" alt="${esc(state.profile.full_name || "Student")}" class="avatar-image">`
-        : esc(initials(state.profile.full_name));
+      const avatar = $("#profile-avatar");
+      avatar.innerHTML = esc(initials(state.profile.full_name));
+      if (profilePhoto) {
+        const img = new Image();
+        img.className = "avatar-image";
+        img.alt = state.profile.full_name || "Student";
+        img.onload = () => { avatar.innerHTML = ""; avatar.appendChild(img); };
+        img.onerror = () => { avatar.innerHTML = esc(initials(state.profile.full_name)); };
+        img.src = profilePhoto;
+      }
       $("#topbar-context").textContent = `${classText(sp.class_no)} • Batch ${sp.batch}`;
       homeView = options.preserveRoute && state.view ? state.view : "dashboard";
     } else {
@@ -923,7 +930,17 @@
       <div class="student-admin-profile">${data.photo_path?`<span class="student-admin-avatar" id="student-photo-preview"></span>`:`<span class="student-admin-avatar" id="student-photo-preview">${esc(initials(data.profiles?.full_name))}</span>`}<div><strong>${esc(data.profiles?.full_name)}</strong><span>${esc(data.phone||"No phone number")}</span></div></div><div class="student-photo-upload"><label for="student-photo-file">Profile photo <span class="mini-label">(optional)</span></label><input id="student-photo-file" type="file" accept="image/*" capture="environment"><button class="small-btn primary" id="upload-student-photo"><i class="fa-solid fa-camera"></i> ${data.photo_path?"Replace photo":"Add photo"}</button><span class="mini-label">Photo is saved using this student's Supabase User ID.</span></div><div class="stats-grid"><div class="content-card"><span class="mini-label">Student ID</span><h3>${esc(data.profiles?.login_id)}</h3></div><div class="content-card"><span class="mini-label">Class</span><h3>${data.class_no}</h3></div><div class="content-card"><span class="mini-label">Roll / Batch</span><h3>${esc(data.roll_number)} / ${esc(data.batch)}</h3></div></div>
       <h3 class="section-title">Quiz history</h3><div class="table-card"><table class="data-table"><thead><tr><th>Quiz</th><th>Score</th><th>Correct</th><th>Wrong</th><th>Date</th></tr></thead><tbody>${(attempts.data||[]).map(a=>`<tr><td>${esc(a.quizzes?.title)}</td><td>${a.score}/${a.total_marks}</td><td>${a.correct_count}</td><td>${a.wrong_count}</td><td>${fmtDate(a.submitted_at)}</td></tr>`).join("")||`<tr><td colspan="5">No attempts yet.</td></tr>`}</tbody></table></div>`);
     $("[data-close]").onclick=closeModal;
-    if(data.photo_path){ const u=await studentPhotoUrl(data.photo_path); const p=$("#student-photo-preview"); if(p&&u)p.innerHTML=`<img src="${esc(u)}" alt="">`; }
+    if(data.photo_path){
+      const u=await studentPhotoUrl(data.photo_path);
+      const p=$("#student-photo-preview");
+      if(p&&u){
+        const img=new Image();
+        img.alt="Student profile photo";
+        img.onload=()=>{p.innerHTML="";p.appendChild(img)};
+        img.onerror=()=>{p.innerHTML=esc(initials(data.profiles?.full_name))};
+        img.src=u;
+      }
+    }
     $("#upload-student-photo").onclick=()=>uploadStudentPhoto(data.user_id, data.id);
   }
   async function uploadStudentPhoto(userId, studentProfileId){
