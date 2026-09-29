@@ -307,18 +307,3 @@ body.quiz-active .mobile-icon-btn{pointer-events:none}
 
 .student-admin-profile{display:flex;align-items:center;gap:12px;margin-bottom:16px}.student-admin-profile>div{display:flex;flex-direction:column;gap:3px}.student-admin-profile strong{font-size:14px;color:var(--navy)}.student-admin-profile span{font-size:9px;color:#888}.student-admin-avatar{width:52px;height:52px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:var(--yellow);color:var(--navy);font-weight:700;flex:none}.student-admin-avatar img{width:100%;height:100%;object-fit:cover}.avatar{overflow:hidden}.avatar-image{width:100%;height:100%;display:block;object-fit:cover}.leader-student{display:flex;align-items:center;gap:9px;min-width:180px}.leader-avatar{width:38px;height:38px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:var(--yellow);color:var(--navy);font-size:10px;font-weight:700;flex:none}.leader-avatar img{width:100%;height:100%;object-fit:cover}.leaderboard-me-row .leader-avatar{box-shadow:0 0 0 2px var(--yellow)}
 .student-photo-upload{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 0 16px;border-bottom:1px solid var(--line);margin-bottom:16px}.student-photo-upload label{font-size:11px;font-weight:700;color:var(--navy)}.student-photo-upload input{max-width:230px;font-size:11px}.student-photo-upload .mini-label{width:100%}
-
-
-/* Final header + portal background + reliable profile-photo display */
-:root{--portal-blue:var(--navy);}
-html,body{background:#fff9a6;}
-body{background-color:#fff9a6;}
-.main-content{padding-top:76px;background:#fff9a6;}
-.topbar{position:fixed;top:0;left:300px;right:0;height:76px;background:var(--portal-blue);border-bottom:0;color:#fff;z-index:1000;backdrop-filter:none;-webkit-backdrop-filter:none;}
-.topbar-title span,.topbar-title small,.profile-meta strong,.profile-meta small{color:#fff;}
-#sidebar-open,#sidebar-open i,.topbar .profile-button,.topbar .profile-button>i{color:#fff;}
-.avatar-image{width:100%;height:100%;display:block;object-fit:cover;border-radius:50%;}
-.student-admin-avatar img,.leader-avatar img{width:100%;height:100%;display:block;object-fit:cover;border-radius:50%;}
-@media(max-width:1050px){.topbar{left:250px;}.main-content{padding-top:76px;}}
-@media(max-width:760px){.main-content{padding-top:68px;}.topbar{left:0;height:68px;background:var(--portal-blue);}.topbar-title span,.topbar-title small{color:#fff;}.topbar .mobile-icon-btn,.topbar .mobile-icon-btn i{color:#fff;}.topbar .profile-button,.topbar .profile-button>i{color:#fff;}}
-@media(max-width:900px) and (pointer:coarse){.main-content{padding-top:68px;}.topbar{left:0;height:68px;background:var(--portal-blue);}.topbar .mobile-icon-btn,.topbar .mobile-icon-btn i,.topbar .profile-button,.topbar .profile-button>i{color:#fff;}}
