@@ -240,3 +240,67 @@ body.quiz-active .mobile-icon-btn{pointer-events:none}
   .leader-class-card{padding:17px}
   .leader-class-card>span{width:46px;height:46px}
 }
+
+
+/* ============================================================
+   Mobile touch behavior: disable desktop hover effects.
+   Phones/tablets should only react to tap, not sticky :hover.
+   ============================================================ */
+@media (hover: none) and (max-width: 760px){
+  .primary-btn,
+  .feature-card,
+  .subject-card,
+  .leader-class-card,
+  .nav-item,
+  .logout-btn,
+  .option,
+  .small-btn,
+  .close-btn,
+  .mobile-icon-btn,
+  .profile-button,
+  .portal-tab,
+  .input-action{
+    transition:none !important;
+  }
+
+  .primary-btn:hover{
+    transform:none;
+    box-shadow:none;
+  }
+
+  .feature-card:hover{
+    background:#fff;
+    color:inherit;
+    transform:none;
+  }
+  .feature-card:hover h3{color:var(--navy)}
+  .feature-card:hover p{color:#888}
+  .feature-card:hover .feature-icon{
+    background:var(--soft);
+    color:var(--navy);
+  }
+
+  .subject-card:hover,
+  .leader-class-card:hover{
+    border-color:var(--line);
+    transform:none;
+  }
+
+  .nav-item:hover{
+    background:transparent;
+    color:#ddd9ff;
+  }
+  .nav-item.active:hover{
+    background:var(--yellow);
+    color:var(--navy);
+  }
+
+  .logout-btn:hover{
+    background:transparent;
+    color:#ffdfdf;
+  }
+
+  .option:hover{
+    background:#fff;
+  }
+}
