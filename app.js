@@ -1182,8 +1182,26 @@
   }
 
   async function renderMarks(el){
-    const {data,error}=await sb.from("quiz_attempts").select("*,quizzes(title),student_profiles(profiles(full_name,login_id),class_no)").order("submitted_at",{ascending:false}).limit(100);if(error)throw error;
-    el.innerHTML=`<div class="page-head"><div><h1>Marks</h1><p>Quiz scores submitted by students.</p></div></div><div class="table-card"><table class="data-table"><thead><tr><th>Student</th><th>ID</th><th>Class</th><th>Quiz</th><th>Score</th><th>Correct</th><th>Wrong</th><th>Date</th></tr></thead><tbody>${(data||[]).map(a=>`<tr><td><strong>${esc(a.student_profiles?.profiles?.full_name)}</strong></td><td>${esc(a.student_profiles?.profiles?.login_id)}</td><td>${a.student_profiles?.class_no}</td><td>${esc(a.quizzes?.title)}</td><td>${a.score}/${a.total_marks}</td><td>${a.correct_count}</td><td>${a.wrong_count}</td><td>${fmtDate(a.submitted_at)}</td></tr>`).join("")||`<tr><td colspan="8">No marks yet.</td></tr>`}</tbody></table></div>`;
+    // Admin Marks page: avoid relying on a missing PostgREST relationship
+    // between quiz_attempts and student_profiles. The actual student link is
+    // quiz_attempts.student_id -> profiles.id, while class data lives in
+    // student_profiles.user_id. Fetch these records separately.
+    const {data,error}=await sb.from("quiz_attempts").select("*,quizzes(title)").order("submitted_at",{ascending:false}).limit(100);
+    if(error)throw error;
+    const attempts=data||[];
+    const studentIds=[...new Set(attempts.map(a=>a.student_id).filter(Boolean))];
+    let studentMap=new Map();
+    if(studentIds.length){
+      const [{data:students,error:studentError},{data:profiles,error:profileError}]=await Promise.all([
+        sb.from("student_profiles").select("user_id,class_no").in("user_id",studentIds),
+        sb.from("profiles").select("id,full_name,login_id").in("id",studentIds)
+      ]);
+      if(studentError)throw studentError;
+      if(profileError)throw profileError;
+      const profileMap=new Map((profiles||[]).map(p=>[p.id,p]));
+      (students||[]).forEach(sp=>studentMap.set(sp.user_id,{...sp,profile:profileMap.get(sp.user_id)||{}}));
+    }
+    el.innerHTML=`<div class="page-head"><div><h1>Marks</h1><p>Quiz scores submitted by students.</p></div></div><div class="table-card"><table class="data-table"><thead><tr><th>Student</th><th>ID</th><th>Class</th><th>Quiz</th><th>Score</th><th>Correct</th><th>Wrong</th><th>Date</th></tr></thead><tbody>${attempts.map(a=>{const s=studentMap.get(a.student_id)||{class_no:"—",profile:{}};return `<tr><td><strong>${esc(s.profile?.full_name||"Unknown student")}</strong></td><td>${esc(s.profile?.login_id||"—")}</td><td>${esc(s.class_no??"—")}</td><td>${esc(a.quizzes?.title||"—")}</td><td>${a.score}/${a.total_marks}</td><td>${a.correct_count}</td><td>${a.wrong_count}</td><td>${fmtDate(a.submitted_at)}</td></tr>`}).join("")||`<tr><td colspan="8">No marks yet.</td></tr>`}</tbody></table></div>`;
   }
 
   function empty(icon,title,text){return `<div class="empty-state"><i class="${icon}"></i><h3>${title}</h3><p>${text}</p></div>`}
