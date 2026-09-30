@@ -906,10 +906,31 @@
 
   function showCreateStudent(){
     modal(`<div class="modal-head"><h2>Create student</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>
-      <div class="form-grid"><div class="form-group"><label>Full name</label><input id="new-name" required></div><div class="form-group"><label>Class</label><select id="new-class"><option value="10">10</option><option value="12">12</option></select></div><div class="form-group"><label>Roll number</label><input id="new-roll"></div><div class="form-group"><label>Batch</label><select id="new-batch"><option value="26">26</option><option value="27">27</option></select></div><div class="form-group"><label>Phone number <span class="mini-label">(optional)</span></label><input id="new-phone" type="tel" inputmode="numeric" placeholder="Optional"></div><div class="form-group"><label>Student photo <span class="mini-label">(optional)</span></label><input id="new-photo" type="file" accept="image/*" capture="environment"></div><div class="form-group"><label>Initial password</label><input id="new-password" type="password" minlength="8"></div></div>
+      <div class="form-grid"><div class="form-group"><label>Full name</label><input id="new-name" required></div><div class="form-group"><label>Class</label><select id="new-class"><option value="10">10</option><option value="12">12</option></select></div><div class="form-group"><label>Roll number</label><input id="new-roll"></div><div class="form-group"><label>Batch</label><select id="new-batch"><option value="26">26</option><option value="27">27</option></select></div><div class="form-group"><label>Phone number <span class="mini-label">(optional)</span></label><input id="new-phone" type="tel" inputmode="numeric" placeholder="Optional"></div><div class="form-group"><label>Student photo <span class="mini-label">(optional)</span></label><input id="new-photo" type="file" accept="image/*" capture="environment"></div><div class="form-group"><label>Initial password</label><div class="password-field"><input id="new-password" type="password" minlength="8" autocomplete="new-password" placeholder="Enter initial password"><button type="button" class="password-action" id="toggle-new-password" aria-label="Show password" title="Show password"><i class="fa-regular fa-eye"></i></button><button type="button" class="password-action" id="copy-new-password" aria-label="Copy password" title="Copy password"><i class="fa-regular fa-copy"></i></button></div></div></div>
       <p class="notice" style="margin-top:14px">The system generates the ID as batch + BCC + class + first two letters of the name + random 3 digits. Passwords are handled by Supabase Auth and are not stored in plaintext by this portal.</p>
       <div class="modal-actions"><button class="small-btn" data-close>Cancel</button><button class="small-btn primary" id="save-student">Create</button></div>`);
-    $$("[data-close]").forEach(x=>x.onclick=closeModal);$("#save-student").onclick=createStudent;
+    $$(`[data-close]`).forEach(x=>x.onclick=closeModal);
+    $("#save-student").onclick=createStudent;
+    $("#toggle-new-password").onclick=()=>{
+      const input=$("#new-password");
+      const button=$("#toggle-new-password");
+      input.type=input.type==="password"?"text":"password";
+      button.innerHTML=`<i class="fa-regular fa-eye${input.type==="password"?"":"-slash"}"></i>`;
+      button.setAttribute("aria-label",input.type==="password"?"Show password":"Hide password");
+      button.title=input.type==="password"?"Show password":"Hide password";
+    };
+    $("#copy-new-password").onclick=async()=>{
+      const input=$("#new-password");
+      const value=input.value;
+      if(!value)return toast("Enter a password first.","error");
+      try{
+        await navigator.clipboard.writeText(value);
+        toast("Password copied. You can paste it into WhatsApp or another message.","success");
+      }catch(e){
+        input.focus();input.select();
+        toast("Password selected. Press Cmd/Ctrl+C to copy it.","success");
+      }
+    };
   }
   async function createStudent(){
     const payload={full_name:$("#new-name").value.trim(),class_no:Number($("#new-class").value),roll_number:$("#new-roll").value.trim(),batch:$("#new-batch").value,password:$("#new-password").value,phone:$("#new-phone").value.trim()||null};

@@ -414,3 +414,9 @@ body{background-color:var(--bg);}
     transform:scale(.97);
   }
 }
+.password-field{display:flex;align-items:center;gap:6px;width:100%;border:1px solid #ddd9e9;border-radius:10px;background:#fff;padding:0 8px 0 11px;transition:.2s}
+.password-field:focus-within{border-color:var(--navy);box-shadow:0 0 0 3px rgba(27,20,100,.06)}
+.password-field input{border:0!important;box-shadow:none!important;border-radius:0!important;padding:10px 0!important;min-width:0;flex:1}
+.password-action{border:0;background:transparent;color:#777;width:30px;height:32px;display:grid;place-items:center;cursor:pointer;border-radius:7px;flex:none}
+.password-action:hover{background:#f2f0fa;color:var(--navy)}
+@media (hover:none) and (max-width:760px){.password-action:hover{background:transparent;color:#777}.password-action:active{background:#f2f0fa;color:var(--navy);transform:scale(.94)}}
