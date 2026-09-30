@@ -374,3 +374,43 @@ body{background-color:var(--bg);}
   .danger-outline:hover{background:transparent!important;color:var(--red)!important}
   .danger-outline:active{background:var(--red)!important;color:#fff!important;transform:scale(.97)}
 }
+
+/* Profile dropdown logout button */
+.profile-menu .menu-logout{
+  width:100%;
+  border:1px solid var(--red);
+  background:transparent;
+  color:var(--red);
+  border-radius:5px;
+  padding:9px 10px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  font:600 10px Poppins,Arial,sans-serif;
+  cursor:pointer;
+  transition:background .15s ease,color .15s ease,transform .1s ease;
+}
+.profile-menu .menu-logout:hover{
+  background:var(--red);
+  color:#fff;
+}
+.profile-menu .menu-logout:active{
+  background:var(--red);
+  color:#fff;
+  transform:scale(.97);
+}
+@media (hover:none) and (max-width:760px){
+  .profile-menu .menu-logout{
+    color:var(--red);
+    background:transparent;
+    border:1px solid var(--red);
+    border-radius:5px;
+  }
+  .profile-menu .menu-logout:active,
+  .profile-menu .menu-logout:focus-visible{
+    background:var(--red);
+    color:#fff;
+    transform:scale(.97);
+  }
+}
