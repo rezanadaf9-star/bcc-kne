@@ -30,30 +30,30 @@
   const fmtDate = v => v ? new Date(v).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) : "—";
   const fmtDateTime = v => v ? new Date(v).toLocaleString("en-IN", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" }) : "—";
   const initials = n => (n || "B").trim().split(/\s+/).map(x => x[0]).join("").slice(0,2).toUpperCase();
-  async function addPhotoUrls(rows) {
-    const list = rows || [];
-    const paths = [...new Set(list.map(r => r.photo_path).filter(Boolean))];
-    if (!paths.length) return list;
-    try {
-      const { data, error } = await sb.storage.from("student-photos").createSignedUrls(paths, 3600);
-      if (error) throw error;
-      const map = new Map(paths.map((p,i) => [p, data?.[i]?.signedUrl ? `${data[i].signedUrl}${data[i].signedUrl.includes("?") ? "&" : "?"}photo_v=${encodeURIComponent(p + Date.now())}` : ""]));
-      return list.map(r => ({ ...r, photo_url: map.get(r.photo_path) || "" }));
-    } catch (e) {
-      console.warn("Student photo URLs could not be generated", e);
-      return list;
-    }
-  }
   async function studentPhotoUrl(path) {
     if (!path) return "";
     try {
       const { data, error } = await sb.storage.from("student-photos").createSignedUrl(path, 3600);
       if (error) throw error;
-      return data?.signedUrl ? `${data.signedUrl}${data.signedUrl.includes("?") ? "&" : "?"}photo_v=${encodeURIComponent(path + Date.now())}` : "";
+      if (data?.signedUrl) return `${data.signedUrl}${data.signedUrl.includes("?") ? "&" : "?"}photo_v=${Date.now()}`;
     } catch (e) {
-      console.warn("Student photo URL could not be generated", e);
+      console.warn("Signed student photo URL failed; trying authenticated download", e);
+    }
+    try {
+      const { data:blob, error } = await sb.storage.from("student-photos").download(path);
+      if (error) throw error;
+      return `${URL.createObjectURL(blob)}#photo_v=${Date.now()}`;
+    } catch (e) {
+      console.warn("Student photo download failed", e);
       return "";
     }
+  }
+  async function addPhotoUrls(rows) {
+    const list = rows || [];
+    const paths = [...new Set(list.map(r => r.photo_path).filter(Boolean))];
+    if (!paths.length) return list;
+    const result = await Promise.all(list.map(async r => ({ ...r, photo_url: r.photo_path ? await studentPhotoUrl(r.photo_path) : "" })));
+    return result;
   }
   const slug = s => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   const classText = c => c ? `Class ${c}` : "Class";
@@ -903,6 +903,24 @@
       <div class="modal-actions"><button class="small-btn" data-close>Cancel</button><button class="small-btn primary" id="save-student">Create</button></div>`);
     $$("[data-close]").forEach(x=>x.onclick=closeModal);$("#save-student").onclick=createStudent;
   }
+  async function normalizeStudentPhoto(photo){
+    if(photo.type === "image/jpeg") return photo;
+    return await new Promise((resolve,reject)=>{
+      const img=new Image(); const url=URL.createObjectURL(photo);
+      img.onload=()=>{
+        try{
+          const max=1600, scale=Math.min(1,max/Math.max(img.width,img.height));
+          const c=document.createElement("canvas");
+          c.width=Math.max(1,Math.round(img.width*scale)); c.height=Math.max(1,Math.round(img.height*scale));
+          c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+          c.toBlob(b=>{URL.revokeObjectURL(url); b?resolve(new File([b],"profile.jpg",{type:"image/jpeg"})):reject(new Error("Could not process image."));},"image/jpeg",0.9);
+        }catch(e){URL.revokeObjectURL(url);reject(e)}
+      };
+      img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("Could not read the selected image."))};
+      img.src=url;
+    });
+  }
+
   async function createStudent(){
     const payload={full_name:$("#new-name").value.trim(),class_no:Number($("#new-class").value),roll_number:$("#new-roll").value.trim(),batch:$("#new-batch").value,password:$("#new-password").value,phone:$("#new-phone").value.trim()||null};
     const photo=$("#new-photo")?.files?.[0]||null;
@@ -913,9 +931,9 @@
       const {data,error}=await sb.functions.invoke("admin-create-user",{body:{type:"student",...payload}});
       if(error)throw error;if(data?.error)throw new Error(data.error);
       if(photo && data?.user_id){
-        const ext=(photo.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
-        const path=`${data.user_id}/profile.${ext}`;
-        const upload=await sb.storage.from("student-photos").upload(path,photo,{upsert:true,contentType:photo.type||"image/jpeg"});
+        const file=await normalizeStudentPhoto(photo);
+        const path=`${data.user_id}/profile.jpg`;
+        const upload=await sb.storage.from("student-photos").upload(path,file,{upsert:true,contentType:"image/jpeg",cacheControl:"0"});
         if(upload.error)throw upload.error;
         const update=await sb.from("student_profiles").update({photo_path:path}).eq("user_id",data.user_id);
         if(update.error)throw update.error;
@@ -937,7 +955,7 @@
         const img=new Image();
         img.alt="Student profile photo";
         img.onload=()=>{p.innerHTML="";p.appendChild(img)};
-        img.onerror=()=>{p.innerHTML=esc(initials(data.profiles?.full_name)); const st=$("#student-photo-status"); if(st){st.className="student-photo-status error";st.textContent="Profile photo is saved, but could not be displayed. Check the student-photos Storage policy."}};
+        img.onerror=()=>{p.innerHTML=esc(initials(data.profiles?.full_name)); const st=$("#student-photo-status"); if(st){st.className="student-photo-status error";st.textContent="Profile photo is saved, but could not be displayed. Check student-photos Storage SELECT policy."}};
         img.src=u;
       }
     }
@@ -952,24 +970,7 @@
       // Always use one stable filename. This prevents old JPG/PNG paths from
       // becoming stale when an admin replaces a student's photo.
       const path=`${userId}/profile.jpg`;
-      let file=photo;
-      if(photo.type !== "image/jpeg") {
-        file=await new Promise((resolve,reject)=>{
-          const img=new Image();
-          const url=URL.createObjectURL(photo);
-          img.onload=()=>{
-            try{
-              const max=1600, scale=Math.min(1,max/Math.max(img.width,img.height));
-              const c=document.createElement("canvas");
-              c.width=Math.max(1,Math.round(img.width*scale)); c.height=Math.max(1,Math.round(img.height*scale));
-              c.getContext("2d").drawImage(img,0,0,c.width,c.height);
-              c.toBlob(b=>{URL.revokeObjectURL(url); b?resolve(new File([b],"profile.jpg",{type:"image/jpeg"})):reject(new Error("Could not process image."));},"image/jpeg",0.9);
-            }catch(e){URL.revokeObjectURL(url);reject(e)}
-          };
-          img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("Could not read the selected image."))};
-          img.src=url;
-        });
-      }
+      const file=await normalizeStudentPhoto(photo);
       const upload=await sb.storage.from("student-photos").upload(path,file,{upsert:true,contentType:"image/jpeg",cacheControl:"0"});
       if(upload.error)throw upload.error;
       const update=await sb.from("student_profiles").update({photo_path:path}).eq("user_id",userId);
