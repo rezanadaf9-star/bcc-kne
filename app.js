@@ -949,8 +949,40 @@
         const update=await sb.from("student_profiles").update({photo_path:path}).eq("user_id",data.user_id);
         if(update.error)throw update.error;
       }
-      closeModal();toast(`Student created. ID: ${data.login_id}`,"success");await renderStudents($("#view-container"));
+      showStudentCreatedCredentials(data.login_id, payload.password, payload.full_name);
     }catch(e){toast(e.message||"Could not create student.","error")}finally{loading(false)}
+  }
+
+  function showStudentCreatedCredentials(loginId, password, fullName){
+    const websiteLink = "https://rezanadaf9-star.github.io/bcc-kne/";
+    const message = `Website: ${websiteLink}\nUser ID: ${loginId}\nPassword: ${password}`;
+    modal(`<div class="modal-head"><h2>Student created successfully</h2><button class="close-btn" data-created-close><i class="fa-solid fa-xmark"></i></button></div>
+      <div class="student-created-card">
+        <div class="student-created-success"><i class="fa-solid fa-circle-check"></i><div><strong>${esc(fullName)}</strong><span>Login details are ready to send to the student.</span></div></div>
+        <div class="student-credential-list">
+          <div class="student-credential-row"><span>Website</span><strong>${esc(websiteLink)}</strong></div>
+          <div class="student-credential-row"><span>User ID</span><strong>${esc(loginId)}</strong></div>
+          <div class="student-credential-row"><span>Password</span><strong>${esc(password)}</strong></div>
+        </div>
+        <div class="student-created-actions">
+          <button class="small-btn" id="copy-student-credentials"><i class="fa-regular fa-copy"></i> Copy login details</button>
+          <button class="small-btn primary" id="created-done">Done</button>
+        </div>
+      </div>`);
+    const finish=async()=>{closeModal();toast(`Student created. ID: ${loginId}`,"success");await renderStudents($("#view-container"));};
+    $$("[data-created-close]").forEach(x=>x.onclick=finish);
+    $("#created-done").onclick=finish;
+    $("#copy-student-credentials").onclick=async()=>{
+      try{
+        await navigator.clipboard.writeText(message);
+        toast("Website, User ID and password copied. You can paste them into WhatsApp.","success");
+      }catch(e){
+        const ta=document.createElement("textarea");
+        ta.value=message;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();
+        try{document.execCommand("copy");toast("Login details copied. You can paste them into WhatsApp.","success")}catch(err){toast("Could not copy automatically. Select the details and copy them.","error")}
+        ta.remove();
+      }
+    };
   }
   async function viewStudent(id){
     const {data,error}=await sb.from("student_profiles").select("*,profiles(full_name,login_id)").eq("id",id).single();if(error)return toast(error.message,"error");
