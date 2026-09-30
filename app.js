@@ -55,6 +55,21 @@
       return "";
     }
   }
+  async function loadProfileAvatar(path, name) {
+    const avatar = $("#profile-avatar");
+    if (!avatar) return;
+    avatar.innerHTML = esc(initials(name));
+    if (!path) return;
+    const url = await studentPhotoUrl(path);
+    if (!url) return;
+    const img = new Image();
+    img.className = "avatar-image";
+    img.alt = name || "Profile";
+    img.onload = () => { avatar.innerHTML = ""; avatar.appendChild(img); };
+    img.onerror = () => { avatar.innerHTML = esc(initials(name)); };
+    img.src = url;
+  }
+
   const slug = s => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   const classText = c => c ? `Class ${c}` : "Class";
   const roleLabel = p => p?.role === "admin" ? "Administrator" : "Teacher";
@@ -193,26 +208,19 @@
     $("#profile-avatar").innerHTML = esc(initials(state.profile.full_name));
     $("#menu-name").textContent = state.profile.full_name || "BCCian";
     $("#menu-id").textContent = state.profile.login_id || "—";
+    $("#staff-photo-action")?.classList.toggle("hidden", state.profile.role === "student");
+    $("#staff-photo-action")?.querySelector("span") && ($("#staff-photo-action").querySelector("span").textContent = state.profile.photo_path ? "Replace profile photo" : "Add profile photo");
     let homeView;
     if (state.profile.role === "student") {
       const sp = options.skipStudentFetch && state.student ? state.student : await getStudentProfile();
       state.classNo = sp.class_no;
       state.student = sp;
-      const profilePhoto = await studentPhotoUrl(sp.photo_path);
-      const avatar = $("#profile-avatar");
-      avatar.innerHTML = esc(initials(state.profile.full_name));
-      if (profilePhoto) {
-        const img = new Image();
-        img.className = "avatar-image";
-        img.alt = state.profile.full_name || "Student";
-        img.onload = () => { avatar.innerHTML = ""; avatar.appendChild(img); };
-        img.onerror = () => { avatar.innerHTML = esc(initials(state.profile.full_name)); };
-        img.src = profilePhoto;
-      }
+      await loadProfileAvatar(sp.photo_path, state.profile.full_name || "Student");
       $("#topbar-context").textContent = `${classText(sp.class_no)} • Batch ${sp.batch}`;
       homeView = options.preserveRoute && state.view ? state.view : "dashboard";
     } else {
       state.classNo = null;
+      await loadProfileAvatar(state.profile.photo_path, state.profile.full_name || "Administrator");
       $("#topbar-context").textContent = "Teacher & Administration Portal";
       homeView = "admin-dashboard";
     }
@@ -927,7 +935,7 @@
     const {data,error}=await sb.from("student_profiles").select("*,profiles(full_name,login_id)").eq("id",id).single();if(error)return toast(error.message,"error");
     const attempts=await sb.from("quiz_attempts").select("*,quizzes(title)").eq("student_id",data.user_id).order("submitted_at",{ascending:false}).limit(20);
     modal(`<div class="modal-head"><h2>${esc(data.profiles?.full_name)}</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>
-      <div class="student-admin-profile">${data.photo_path?`<span class="student-admin-avatar" id="student-photo-preview"></span>`:`<span class="student-admin-avatar" id="student-photo-preview">${esc(initials(data.profiles?.full_name))}</span>`}<div><strong>${esc(data.profiles?.full_name)}</strong><span>${esc(data.phone||"No phone number")}</span></div></div><div class="student-photo-upload"><label for="student-photo-file">Profile photo <span class="mini-label">(optional)</span></label><input id="student-photo-file" type="file" accept="image/*" capture="environment"><button class="small-btn primary" id="upload-student-photo"><i class="fa-solid fa-camera"></i> ${data.photo_path?"Replace photo":"Add photo"}</button><span class="mini-label">Photo is saved using this student's Supabase User ID.</span><div id="student-photo-status" class="student-photo-status ${data.photo_path?"saved":""}">${data.photo_path?`Profile photo saved for ${esc(data.profiles?.full_name)}.`:"No profile photo saved yet."}</div></div><div class="stats-grid"><div class="content-card"><span class="mini-label">Student ID</span><h3>${esc(data.profiles?.login_id)}</h3></div><div class="content-card"><span class="mini-label">Class</span><h3>${data.class_no}</h3></div><div class="content-card"><span class="mini-label">Roll / Batch</span><h3>${esc(data.roll_number)} / ${esc(data.batch)}</h3></div></div>
+      <div class="student-admin-profile">${data.photo_path?`<span class="student-admin-avatar" id="student-photo-preview"></span>`:`<span class="student-admin-avatar" id="student-photo-preview">${esc(initials(data.profiles?.full_name))}</span>`}<div><strong>${esc(data.profiles?.full_name)}</strong><span>${esc(data.phone||"No phone number")}</span></div></div><div class="student-photo-upload"><label for="student-photo-file">Profile photo <span class="mini-label">(optional)</span></label><input id="student-photo-file" type="file" accept="image/*" capture="environment"><div class="student-photo-actions"><button class="small-btn primary" id="upload-student-photo"><i class="fa-solid fa-camera"></i> ${data.photo_path?"Replace photo":"Add photo"}</button>${data.photo_path?`<button class="small-btn danger-outline" id="delete-student-photo"><i class="fa-solid fa-trash"></i> Delete photo</button>`:""}</div><span class="mini-label">Photo is saved using this student's Supabase User ID.</span><div id="student-photo-status" class="student-photo-status ${data.photo_path?"saved":""}">${data.photo_path?`Profile photo saved for ${esc(data.profiles?.full_name)}.`:"No profile photo saved yet."}</div></div><div class="stats-grid"><div class="content-card"><span class="mini-label">Student ID</span><h3>${esc(data.profiles?.login_id)}</h3></div><div class="content-card"><span class="mini-label">Class</span><h3>${data.class_no}</h3></div><div class="content-card"><span class="mini-label">Roll / Batch</span><h3>${esc(data.roll_number)} / ${esc(data.batch)}</h3></div></div>
       <h3 class="section-title">Quiz history</h3><div class="table-card"><table class="data-table"><thead><tr><th>Quiz</th><th>Score</th><th>Correct</th><th>Wrong</th><th>Date</th></tr></thead><tbody>${(attempts.data||[]).map(a=>`<tr><td>${esc(a.quizzes?.title)}</td><td>${a.score}/${a.total_marks}</td><td>${a.correct_count}</td><td>${a.wrong_count}</td><td>${fmtDate(a.submitted_at)}</td></tr>`).join("")||`<tr><td colspan="5">No attempts yet.</td></tr>`}</tbody></table></div>`);
     $("[data-close]").onclick=closeModal;
     if(data.photo_path){
@@ -942,6 +950,7 @@
       }
     }
     $("#upload-student-photo").onclick=()=>uploadStudentPhoto(data.user_id, data.id);
+    $("#delete-student-photo")?.addEventListener("click",()=>deleteStudentPhoto(data.user_id, data.id, data.photo_path, data.profiles?.full_name || "Student"));
   }
   async function uploadStudentPhoto(userId, studentProfileId){
     const input=$("#student-photo-file"); const photo=input?.files?.[0];
@@ -1094,6 +1103,58 @@
       <div class="list-stack">${(qzs.data||[]).map(x=>`<div class="quiz-card"><div class="inline" style="justify-content:space-between"><div><h3>${esc(x.title)}</h3><div class="quiz-meta"><span class="pill">${esc(x.quiz_type)}</span><span class="pill">${esc(x.subjects?.name||"All")}</span><span class="pill">${x.total_marks} marks</span><span class="pill">${x.duration_minutes} min</span>${x.is_active?`<span class="pill active">Active</span>`:`<span class="pill">Inactive</span>`}</div></div><div class="inline"><button class="small-btn" data-edit-quiz="${x.id}">Edit</button><button class="small-btn danger" data-delete-quiz="${x.id}"><i class="fa-solid fa-trash"></i> Delete</button></div></div></div>`).join("")||emptyInline("No quizzes yet.")}</div>`;
     $("#new-quiz").onclick=()=>showQuizEditor(null,[...subs10,...subs12]);$$("[data-edit-quiz]").forEach(b=>b.onclick=()=>showQuizEditor(b.dataset.editQuiz,[...subs10,...subs12]));$$('[data-delete-quiz]').forEach(b=>b.onclick=()=>deleteQuiz(b.dataset.deleteQuiz));
   }
+  async function deleteStudentPhoto(userId, studentProfileId, photoPath, name){
+    if(!confirm(`Delete profile photo for ${name}?`)) return;
+    loading(true,"Deleting profile photo...");
+    try {
+      const path = photoPath || `${userId}/profile.jpg`;
+      const del = await sb.storage.from("student-photos").remove([path]);
+      if (del.error) throw del.error;
+      const update = await sb.from("student_profiles").update({photo_path:null}).eq("user_id",userId).select("photo_path").single();
+      if (update.error) throw update.error;
+      toast(`Profile photo deleted for ${name}.`,"success");
+      await viewStudent(studentProfileId);
+    } catch(e) {
+      toast(e.message || "Could not delete profile photo.","error");
+    } finally { loading(false); }
+  }
+
+  async function uploadStaffPhoto(){
+    const input=$("#staff-photo-file");
+    const photo=input?.files?.[0];
+    if(!photo) return;
+    if(photo.size>5*1024*1024) return toast("Photo must be 5 MB or smaller.","error");
+    loading(true,"Updating profile photo...");
+    try {
+      const path=`staff/${state.session.user.id}/profile.jpg`;
+      let file=photo;
+      if(photo.type !== "image/jpeg") {
+        file=await new Promise((resolve,reject)=>{
+          const img=new Image(), url=URL.createObjectURL(photo);
+          img.onload=()=>{
+            try {
+              const max=1600, scale=Math.min(1,max/Math.max(img.width,img.height));
+              const c=document.createElement("canvas"); c.width=Math.max(1,Math.round(img.width*scale)); c.height=Math.max(1,Math.round(img.height*scale));
+              c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+              c.toBlob(b=>{URL.revokeObjectURL(url); b?resolve(new File([b],"profile.jpg",{type:"image/jpeg"})):reject(new Error("Could not process image."));},"image/jpeg",0.9);
+            } catch(e){URL.revokeObjectURL(url);reject(e)}
+          };
+          img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("Could not read the selected image."))}; img.src=url;
+        });
+      }
+      const upload=await sb.storage.from("student-photos").upload(path,file,{upsert:true,contentType:"image/jpeg",cacheControl:"0"});
+      if(upload.error) throw upload.error;
+      const update=await sb.rpc("set_my_profile_photo",{p_path:path});
+      if(update.error) throw update.error;
+      state.profile={...(await currentProfile())};
+      saveIdentityCache();
+      await loadProfileAvatar(path,state.profile.full_name || "Administrator");
+      $("#staff-photo-action")?.querySelector("span") && ($("#staff-photo-action").querySelector("span").textContent="Replace profile photo");
+      toast(`Profile photo updated for ${state.profile.full_name || "Administrator"}.`,"success");
+      input.value="";
+    } catch(e) { toast(e.message || "Could not update profile photo.","error"); } finally { loading(false); }
+  }
+
   async function deleteQuiz(id){
     if(!confirm("Delete this quiz permanently? Its questions and submitted attempts will also be deleted.")) return;
     loading(true,"Deleting quiz...");
@@ -1171,6 +1232,8 @@
     $("#login-form").onsubmit=e=>{e.preventDefault();login()};
     $$("[data-toggle-password]").forEach(b=>b.onclick=()=>{const i=$(b.dataset.togglePassword);i.type=i.type==="password"?"text":"password";b.innerHTML=`<i class="fa-regular fa-eye${i.type==="password"?"":"-slash"}"></i>`});
     $$(".logout-btn").forEach(b=>b.onclick=logout);
+    $("#staff-photo-action")?.addEventListener("click",()=>$("#staff-photo-file")?.click());
+    $("#staff-photo-file")?.addEventListener("change",uploadStaffPhoto);
     $("#profile-button").onclick=e=>{e.stopPropagation();toggleProfile()};document.addEventListener("click",e=>{if(!e.target.closest(".profile-menu-wrap"))closeProfileMenu()});
     $("#sidebar-open").onclick=()=>toggleSidebar(true);$("#sidebar-close").onclick=()=>toggleSidebar(false);$("#mobile-overlay").onclick=()=>toggleSidebar(false);
     $$(".nav-item[data-view]").forEach(b=>b.onclick=()=>navigate(b.dataset.view));

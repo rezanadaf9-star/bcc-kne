@@ -305,7 +305,7 @@ body.quiz-active .mobile-icon-btn{pointer-events:none}
   }
 }
 
-.student-admin-profile{display:flex;align-items:center;gap:12px;margin-bottom:16px}.student-admin-profile>div{display:flex;flex-direction:column;gap:3px}.student-admin-profile strong{font-size:14px;color:var(--navy)}.student-admin-profile span{font-size:9px;color:#888}.student-admin-avatar{width:52px;height:52px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:var(--yellow);color:var(--navy);font-weight:700;flex:none;border:1px solid var(--navy)}.student-admin-avatar img{width:100%;height:100%;object-fit:cover}.avatar{overflow:hidden;border:1px solid var(--navy)}.avatar-image{width:100%;height:100%;display:block;object-fit:cover}.leader-student{display:flex;align-items:center;gap:9px;min-width:180px}.leader-avatar{width:38px;height:38px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:var(--yellow);color:var(--navy);font-size:10px;font-weight:700;flex:none;border:1px solid var(--navy)}.leader-avatar img{width:100%;height:100%;object-fit:cover}.leaderboard-me-row .leader-avatar{box-shadow:none}
+.student-admin-profile{display:flex;align-items:center;gap:12px;margin-bottom:16px}.student-admin-profile>div{display:flex;flex-direction:column;gap:3px}.student-admin-profile strong{font-size:14px;color:var(--navy)}.student-admin-profile span{font-size:9px;color:#888}.student-admin-avatar{width:52px;height:52px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:var(--yellow);color:var(--navy);font-weight:700;flex:none}.student-admin-avatar img{width:100%;height:100%;object-fit:cover}.avatar{overflow:hidden}.avatar-image{width:100%;height:100%;display:block;object-fit:cover}.leader-student{display:flex;align-items:center;gap:9px;min-width:180px}.leader-avatar{width:38px;height:38px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:var(--yellow);color:var(--navy);font-size:10px;font-weight:700;flex:none}.leader-avatar img{width:100%;height:100%;object-fit:cover}.leaderboard-me-row .leader-avatar{box-shadow:0 0 0 2px var(--yellow)}
 .student-photo-upload{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 0 16px;border-bottom:1px solid var(--line);margin-bottom:16px}.student-photo-upload label{font-size:11px;font-weight:700;color:var(--navy)}.student-photo-upload input{max-width:230px;font-size:11px}.student-photo-upload .mini-label{width:100%}
 
 
@@ -347,76 +347,30 @@ body{background-color:var(--bg);}
 .student-photo-status.saved{background:#e9f8ee;color:#166534;border:1px solid #bfe8cb}
 .student-photo-status.error{background:#fff0f0;color:#991b1b;border:1px solid #f2c3c3}
 
-/* Profile dropdown logout button */
-.profile-menu .menu-logout,
-.logout-btn.menu-logout{
-  width:100%;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:8px;
-  padding:9px 12px;
-  border:1px solid var(--red);
-  border-radius:5px;
-  background:transparent;
-  color:var(--red);
-  font:600 11px Poppins,Arial,sans-serif;
-  cursor:pointer;
-  transition:background .15s ease,color .15s ease,transform .1s ease;
-}
 
-.profile-menu .menu-logout:hover,
-.logout-btn.menu-logout:hover{
-  background:var(--red);
-  color:#fff;
-}
-
-.profile-menu .menu-logout:active,
-.logout-btn.menu-logout:active{
-  background:var(--red);
-  color:#fff;
-  transform:scale(.97);
-}
-
-/* Keep the same red outline/text on phone; tap gives red fill + white text. */
-@media (hover:none) and (max-width:760px){
-  .profile-menu .menu-logout,
-  .logout-btn.menu-logout{
-    transition:background .15s ease,color .15s ease,transform .1s ease !important;
-    border:1px solid var(--red);
-    border-radius:5px;
-    background:transparent;
-    color:var(--red);
-  }
-  .profile-menu .menu-logout:hover,
-  .logout-btn.menu-logout:hover{
-    background:transparent;
-    color:var(--red);
-  }
-  .profile-menu .menu-logout:active,
-  .logout-btn.menu-logout:active{
-    background:var(--red);
-    color:#fff;
-    transform:scale(.97);
-  }
-}
-
-/* Keep the blue avatar border clean and crop any colored edge baked into the uploaded photo. */
-.avatar-image,
-.student-admin-avatar img,
-.leader-avatar img {
-  width:100%;
-  height:100%;
-  display:block;
-  object-fit:cover;
-  object-position:center;
-  border-radius:50%;
-  transform:scale(1.09);
-}
+/* Profile-photo fallback + admin photo controls */
 .avatar,
 .student-admin-avatar,
 .leader-avatar {
-  background:#fff;
-  border:1px solid var(--navy);
+  background:var(--yellow) !important;
+  color:var(--navy) !important;
+  border:1px solid var(--navy) !important;
   overflow:hidden;
+}
+.avatar-image,
+.student-admin-avatar img,
+.leader-avatar img {
+  transform:scale(1.09);
+  transform-origin:center;
+  border-radius:50%;
+}
+.student-photo-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.danger-outline{border:1px solid var(--red)!important;background:transparent!important;color:var(--red)!important;border-radius:5px!important}
+.danger-outline:hover{background:var(--red)!important;color:#fff!important}
+.profile-photo-menu-action{width:100%;border:1px solid var(--navy);background:transparent;color:var(--navy);border-radius:5px;padding:9px 10px;display:flex;align-items:center;gap:8px;font:600 10px Poppins,Arial,sans-serif;cursor:pointer;margin:8px 0}
+.profile-photo-menu-action:hover{background:var(--navy);color:#fff}
+@media (hover:none) and (max-width:760px){
+  .profile-photo-menu-action:active{background:var(--navy);color:#fff;transform:scale(.98)}
+  .danger-outline:hover{background:transparent!important;color:var(--red)!important}
+  .danger-outline:active{background:var(--red)!important;color:#fff!important;transform:scale(.97)}
 }
