@@ -346,3 +346,57 @@ body{background-color:var(--bg);}
 .student-photo-status{width:100%;padding:9px 11px;border-radius:9px;background:#f4f4f7;color:#777;font-size:10px;font-weight:600;margin-top:2px}
 .student-photo-status.saved{background:#e9f8ee;color:#166534;border:1px solid #bfe8cb}
 .student-photo-status.error{background:#fff0f0;color:#991b1b;border:1px solid #f2c3c3}
+
+/* Profile dropdown logout button */
+.profile-menu .menu-logout,
+.logout-btn.menu-logout{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:9px 12px;
+  border:1px solid var(--red);
+  border-radius:5px;
+  background:transparent;
+  color:var(--red);
+  font:600 11px Poppins,Arial,sans-serif;
+  cursor:pointer;
+  transition:background .15s ease,color .15s ease,transform .1s ease;
+}
+
+.profile-menu .menu-logout:hover,
+.logout-btn.menu-logout:hover{
+  background:var(--red);
+  color:#fff;
+}
+
+.profile-menu .menu-logout:active,
+.logout-btn.menu-logout:active{
+  background:var(--red);
+  color:#fff;
+  transform:scale(.97);
+}
+
+/* Keep the same red outline/text on phone; tap gives red fill + white text. */
+@media (hover:none) and (max-width:760px){
+  .profile-menu .menu-logout,
+  .logout-btn.menu-logout{
+    transition:background .15s ease,color .15s ease,transform .1s ease !important;
+    border:1px solid var(--red);
+    border-radius:5px;
+    background:transparent;
+    color:var(--red);
+  }
+  .profile-menu .menu-logout:hover,
+  .logout-btn.menu-logout:hover{
+    background:transparent;
+    color:var(--red);
+  }
+  .profile-menu .menu-logout:active,
+  .logout-btn.menu-logout:active{
+    background:var(--red);
+    color:#fff;
+    transform:scale(.97);
+  }
+}
