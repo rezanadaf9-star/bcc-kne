@@ -260,10 +260,27 @@
     closeProfileMenu();
   }
 
+  function getActiveNavView(view) {
+    const parentMap = {
+      // Student section pages keep their parent section highlighted.
+      "lectures-subject": "lectures",
+      "lecture-player": "lectures",
+      "notes-subject": "notes",
+      "homework-subject": "homework",
+      "quiz-run": "quizzes",
+      "quiz-result": "quizzes",
+      // Admin section pages keep the section they belong to highlighted.
+      "marks-class": "marks",
+      "leaderboard-class": "leaderboard"
+    };
+    return parentMap[view] || view;
+  }
+
   function syncNav() {
-    $$(".nav-item[data-view]").forEach(b => b.classList.toggle("active", b.dataset.view === state.view));
-    const active = $(`.nav-item[data-view="${state.view}"]`);
-    $("#topbar-section").textContent = state.view === "leaderboard-class" ? "Leaderboard" : (state.view === "marks-class" ? "Marks" : (active ? active.querySelector("span").textContent : "Dashboard"));
+    const activeView = getActiveNavView(state.view);
+    $$(".nav-item[data-view]").forEach(b => b.classList.toggle("active", b.dataset.view === activeView));
+    const active = $(`.nav-item[data-view="${activeView}"]`);
+    $("#topbar-section").textContent = active ? active.querySelector("span").textContent : "Dashboard";
   }
 
   async function renderView() {
