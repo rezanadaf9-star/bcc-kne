@@ -271,6 +271,8 @@
       "quiz-result": "quizzes",
       // Admin section pages keep the section they belong to highlighted.
       "marks-class": "marks",
+      "academic-leaderboard": "marks",
+      "academic-leaderboard-exam": "marks",
       "leaderboard-class": "leaderboard"
     };
     return parentMap[view] || view;
@@ -299,6 +301,7 @@
         if (state.view === "quizzes") return await renderQuizzes(el);
         if (state.view === "leaderboard") return await renderStudentLeaderboard(el);
         if (state.view === "student-marks") return await renderStudentMarks(el);
+        if (state.view === "student-academic-leaderboard") return await renderStudentAcademicLeaderboard(el, Number(state.classNo), state.route.examId);
         if (state.view === "notebooklm") return await renderNotebookLM(el);
         if (state.view === "lecture-player") {
           if (!state.currentLecture || state.currentLecture.id !== state.route.lectureId) {
@@ -325,6 +328,8 @@
         if (state.view === "quiz-manager") return await renderQuizManager(el);
         if (state.view === "marks") return await renderMarks(el);
         if (state.view === "marks-class") return await renderMarksClass(el, Number(state.route.classNo));
+        if (state.view === "academic-leaderboard") return await renderAcademicLeaderboard(el, Number(state.route.classNo));
+        if (state.view === "academic-leaderboard-exam") return await renderAcademicLeaderboardExam(el, Number(state.route.classNo), state.route.examId);
         if (state.view === "leaderboard") return await renderAdminLeaderboard(el);
         if (state.view === "leaderboard-class") return await renderAdminLeaderboardClass(el, Number(state.route.classNo));
       }
@@ -418,87 +423,99 @@
     return data||null;
   }
 
+  function rankWindow(rows,currentId){
+    const all=rows||[];
+    if(!all.length)return [];
+    const me=all.find(r=>r.student_id===currentId);
+    const base=all.slice(3,10);
+    const out=[...base];
+    if(me && me.rank>10){ out.push({__ellipsis:true}); out.push(me); }
+    return out;
+  }
+
+  function quizPodium(rows,currentId,compact=false){
+    const top=(rows||[]).slice(0,3);
+    if(!top.length)return empty("fa-solid fa-ranking-star","No ranked students yet","The leaderboard will appear after students submit the quiz.");
+    return `<div class="rank-podium quiz-podium">${top.map((r,i)=>`<div class="podium-item place-${i+1} ${r.student_id===currentId?'is-me':''}">
+      <div class="podium-crown-wrap"><img src="assets/crown.png" class="podium-crown" alt="Crown"></div>
+      <div class="podium-photo">${r.photo_url?`<img src="${esc(r.photo_url)}" alt="">`:esc(initials(r.full_name))}</div>
+      <strong>${esc(r.full_name||"Student")}${r.student_id===currentId?' <span class="you-badge">YOU</span>':''}</strong>
+      <span>${Number(r.score??r.total_score??0)} / ${Number(r.total_marks??0)}</span>
+      <small>${r.percentage!=null?Number(r.percentage).toFixed(2)+"%":"—"}</small>
+      <div class="podium-block"><b>${i+1}</b><em>${rankLabel(i+1)}</em></div>
+    </div>`).join('')}</div>`;
+  }
+
+  function rankList(rows,currentId,kind="quiz"){
+    const visible=rankWindow(rows,currentId);
+    if(!visible.length)return "";
+    return `<div class="rank-list-card"><div class="rank-list-head"><span>Rank</span><span>Student</span><span>Marks</span><span>Percentage</span></div>${visible.map(r=>{
+      if(r.__ellipsis)return `<div class="rank-ellipsis"><span>•••</span><span>More students</span><span>•••</span><span>•••</span></div>`;
+      const me=r.student_id===currentId;
+      const score=r.score??r.total_score??0,full=r.total_marks??0,pct=r.percentage!=null?Number(r.percentage):(Number(full)?Number(score)/Number(full)*100:0);
+      return `<div class="rank-list-row ${me?'is-me':''}"><strong>${esc(rankLabel(r.rank))}</strong><div class="rank-list-student"><span class="rank-list-avatar">${r.photo_url?`<img src="${esc(r.photo_url)}" alt="">`:esc(initials(r.full_name))}</span><span><b>${esc(r.full_name||"Student")}${me?' <span class="you-badge">YOU</span>':''}</b><small>${esc(r.login_id||"")}</small></span></div><span>${esc(score)} / ${esc(full)}</span><span>${pct.toFixed(2)}%</span></div>`;
+    }).join('')}</div>`;
+  }
+
+  function academicPodium(rows,currentId,admin=false){
+    const top=(rows||[]).slice(0,3);
+    if(!top.length)return empty("fa-solid fa-ranking-star","No completed results yet","The exam leaderboard will appear after the result is declared.");
+    return `<div class="rank-podium academic-podium">${top.map((r,i)=>`<div class="podium-item place-${i+1} ${!admin&&r.student_id===currentId?'is-me':''}">
+      <div class="podium-crown-wrap"><img src="assets/crown.png" class="podium-crown" alt="Crown"></div>
+      <div class="podium-photo">${r.photo_url?`<img src="${esc(r.photo_url)}" alt="">`:esc(initials(r.full_name))}</div>
+      <strong>${esc(r.full_name||"Student")}${!admin&&r.student_id===currentId?' <span class="you-badge">YOU</span>':''}</strong>
+      <span>Roll ${esc(r.roll_number||"—")}</span>
+      <small>${Number(r.total_score||0)} / ${Number(r.total_full_marks||0)} • ${Number(r.percentage||0).toFixed(2)}%</small>
+      <div class="podium-block"><b>${i+1}</b><em>${rankLabel(i+1)}</em></div>
+    </div>`).join('')}</div>`;
+  }
+
+  function academicRankList(rows,currentId,admin=false){
+    const visible=admin ? (rows||[]).slice(3) : rankWindow(rows,currentId);
+    if(!visible.length)return "";
+    return `<div class="rank-list-card academic-rank-list"><div class="rank-list-head"><span>Rank</span><span>Student</span><span>Marks</span><span>Percentage</span></div>${visible.map(r=>{
+      if(r.__ellipsis)return `<div class="rank-ellipsis"><span>•••</span><span>More students</span><span>•••</span><span>•••</span></div>`;
+      const me=!admin&&r.student_id===currentId;
+      return `<div class="rank-list-row ${me?'is-me':''}"><strong>${esc(rankLabel(r.rank))}</strong><div class="rank-list-student"><span class="rank-list-avatar">${r.photo_url?`<img src="${esc(r.photo_url)}" alt="">`:esc(initials(r.full_name))}</span><span><b>${esc(r.full_name||"Student")}${me?' <span class="you-badge">YOU</span>':''}</b><small>Roll No. ${esc(r.roll_number||"—")}</small></span></div><span>${esc(r.total_score)} / ${esc(r.total_full_marks)}</span><span>${Number(r.percentage||0).toFixed(2)}%</span></div>`;
+    }).join('')}</div>`;
+  }
+
   async function renderStudentLeaderboard(el){
-    const full=state.route?.full===true;
-    const [cumulative,history,latestQuiz]=await Promise.all([
+    const [cumulative,history,latestQuiz,classCount]=await Promise.all([
       sb.rpc("get_class_leaderboard",{p_class_no:state.classNo}),
       sb.rpc("get_my_quiz_history"),
-      fetchLatestClassQuiz(state.classNo)
+      fetchLatestClassQuiz(state.classNo),
+      sb.from("student_profiles").select("user_id",{count:"exact",head:true}).eq("class_no",state.classNo)
     ]);
     if(cumulative.error)throw cumulative.error;
     if(history.error)throw history.error;
-
+    const classSize=classCount?.count ?? (cumulative.data||[]).length;
     let latestRows=[];
     if(latestQuiz){
       const {data,error}=await sb.rpc("get_quiz_leaderboard",{p_quiz_id:latestQuiz.id});
       if(error)throw error;
       latestRows=await addPhotoUrls(data||[]);
     }
-    cumulative.data = await addPhotoUrls(cumulative.data||[]);
-
+    cumulative.data=await addPhotoUrls(cumulative.data||[]);
     const me=(cumulative.data||[]).find(x=>x.student_id===state.profile.id);
     const latestMe=latestRows.find(x=>x.student_id===state.profile.id);
-    const top=latestRows.slice(0,5);
     const historyRows=history.data||[];
-
     el.innerHTML=`
-      <div class="page-head">
-        <div><h1>Leaderboard</h1><p>${classText(state.classNo)} rankings, latest quiz performance and your quiz history.</p></div>
-        ${full?`<button class="small-btn" id="leaderboard-summary"><i class="fa-solid fa-arrow-left"></i> Overview</button>`:""}
-      </div>
-
+      <div class="page-head"><div><h1>Leaderboard</h1><p>${classText(state.classNo)} rankings, latest quiz performance and your quiz history.</p></div></div>
       <div class="leaderboard-summary-grid">
-        <div class="leader-stat-card">
-          <span class="leader-stat-icon"><i class="fa-solid fa-ranking-star"></i></span>
-          <div><span class="mini-label">Your class rank</span><strong>${me?rankLabel(me.rank):"—"}</strong><small>${me?`${Number(me.percentage).toFixed(2)}% overall`:"No quiz attempts yet"}</small></div>
-        </div>
-        <div class="leader-stat-card">
-          <span class="leader-stat-icon"><i class="fa-solid fa-medal"></i></span>
-          <div><span class="mini-label">Total marks</span><strong>${me?`${esc(me.total_score)} / ${esc(me.total_marks)}`:"0 / 0"}</strong><small>${me?`${esc(me.attempted_quizzes)} quiz${Number(me.attempted_quizzes)===1?"":"zes"} attempted`:"No attempts yet"}</small></div>
-        </div>
-        <div class="leader-stat-card">
-          <span class="leader-stat-icon"><i class="fa-solid fa-users"></i></span>
-          <div><span class="mini-label">Class size</span><strong>${(cumulative.data||[]).length}</strong><small>${classText(state.classNo)}</small></div>
-        </div>
+        <div class="leader-stat-card"><span class="leader-stat-icon"><i class="fa-solid fa-ranking-star"></i></span><div><span class="mini-label">Your class rank</span><strong>${me?rankLabel(me.rank):"—"}</strong><small>${me?`${Number(me.percentage).toFixed(2)}% overall`:"No quiz attempts yet"}</small></div></div>
+        <div class="leader-stat-card"><span class="leader-stat-icon"><i class="fa-solid fa-medal"></i></span><div><span class="mini-label">Total marks</span><strong>${me?`${esc(me.total_score)} / ${esc(me.total_marks)}`:"0 / 0"}</strong><small>${me?`${esc(me.attempted_quizzes)} quiz${Number(me.attempted_quizzes)===1?"":"zes"} attempted`:"No attempts yet"}</small></div></div>
+        <div class="leader-stat-card"><span class="leader-stat-icon"><i class="fa-solid fa-users"></i></span><div><span class="mini-label">Class size</span><strong>${classSize}</strong><small>${classText(state.classNo)}</small></div></div>
       </div>
-
       <section class="leaderboard-panel">
-        <div class="leaderboard-panel-head">
-          <div><span class="pill active">LATEST QUIZ</span><h2>${esc(latestQuiz?.title||"No quiz yet")}</h2><p>${latestQuiz?`${esc(latestQuiz.quiz_type)} • ${esc(latestQuiz.total_marks)} marks • ${fmtDate(latestQuiz.created_at)}`:"A published quiz leaderboard will appear here."}</p></div>
-          ${latestQuiz&&latestRows.length?`<button class="small-btn primary" id="see-full-class"><i class="fa-solid fa-users"></i> ${full?"Class leaderboard":"See full class"}</button>`:""}
-        </div>
-        ${latestQuiz&&latestRows.length?`
-          <div class="leaderboard-me-card">
-            <div><span class="mini-label">Your latest quiz position</span><strong>${latestMe?rankLabel(latestMe.rank):"Not attempted"}</strong><small>${latestMe?`${esc(latestMe.score)}/${esc(latestMe.total_marks)} marks`:"You have not attempted this quiz."}</small></div>
-            <div><i class="fa-solid fa-chart-line"></i></div>
-          </div>
-          <div class="table-card"><table class="data-table leaderboard-table"><thead><tr><th>Rank</th><th>Student</th><th>Marks</th><th>Date</th></tr></thead><tbody>${(full?latestRows:top).map(r=>leaderboardRow(r,false,state.profile.id)).join("")}</tbody></table></div>
-          ${!full&&latestRows.length>5?`<div class="leaderboard-more"><button class="small-btn" id="see-full-class-bottom">See full class</button></div>`:""}
-        `:empty("fa-solid fa-ranking-star","No leaderboard yet","The latest quiz has no submitted attempts yet.")}</section>
-
-      <section class="leaderboard-panel">
-        <div class="leaderboard-panel-head">
-          <div><span class="pill">CUMULATIVE</span><h2>${classText(state.classNo)} overall ranking</h2><p>Overall ranking across all submitted quizzes, using cumulative percentage.</p></div>
-          ${(cumulative.data||[]).length&&!full?`<button class="small-btn primary" id="see-full-cumulative"><i class="fa-solid fa-users"></i> See full ranking</button>`:""}
-        </div>
-        ${(() => {
-          const all=cumulative.data||[];
-          const top=all.slice(0,5);
-          const meRow=all.find(r=>r.student_id===state.profile.id);
-          const visible=full?all:(meRow&&!top.some(r=>r.student_id===meRow.student_id)?[...top,meRow]:top);
-          return all.length ? `<div class="table-card"><table class="data-table leaderboard-table"><thead><tr><th>Rank</th><th>Student</th><th>Total marks</th><th>Percentage</th><th>Quizzes</th><th>Last submission</th></tr></thead><tbody>${visible.map(r=>leaderboardRow(r,false,state.profile.id)).join("")}</tbody></table></div>` : empty("fa-solid fa-ranking-star","No overall ranking yet","No submitted quiz attempts yet.");
-        })()}
+        <div class="leaderboard-panel-head"><div><span class="pill active">LATEST QUIZ</span><h2>${esc(latestQuiz?.title||"No quiz yet")}</h2><p>${latestQuiz?`${esc(latestQuiz.quiz_type)} • ${esc(latestQuiz.total_marks)} marks • ${fmtDate(latestQuiz.created_at)}`:"A published quiz leaderboard will appear here."}</p></div></div>
+        ${latestQuiz&&latestRows.length?`<div class="leaderboard-me-card"><div><span class="mini-label">Your latest quiz position</span><strong>${latestMe?rankLabel(latestMe.rank):"Not attempted"}</strong><small>${latestMe?`${esc(latestMe.score)}/${esc(latestMe.total_marks)} marks`:"You have not attempted this quiz."}</small></div><div><i class="fa-solid fa-chart-line"></i></div></div>${quizPodium(latestRows,state.profile.id)}${rankList(latestRows,state.profile.id)}`:empty("fa-solid fa-ranking-star","No leaderboard yet","The latest quiz has no submitted attempts yet.")}
       </section>
-
       <section class="leaderboard-panel">
-        <div class="leaderboard-panel-head"><div><span class="pill">HISTORY</span><h2>Your quiz history</h2><p>Your position is calculated within your class for each quiz you have submitted.</p></div></div>
-        <div class="table-card"><table class="data-table leaderboard-table"><thead><tr><th>Quiz</th><th>Score</th><th>Rank</th><th>Date</th></tr></thead><tbody>${historyRows.map(r=>`<tr><td><strong>${esc(r.quiz_title)}</strong><span class="table-sub">${esc(r.quiz_type)}</span></td><td>${esc(r.score)} / ${esc(r.total_marks)}</td><td><strong class="rank-badge">${esc(rankLabel(r.rank))}</strong></td><td>${fmtDate(r.submitted_at)}</td></tr>`).join("")||`<tr><td colspan="4">No quiz history yet.</td></tr>`}</tbody></table></div>
-      </section>`;
-
-    $("#see-full-class")?.addEventListener("click",()=>navigate("leaderboard",{full:true}));
-    $("#see-full-class-bottom")?.addEventListener("click",()=>navigate("leaderboard",{full:true}));
-    $("#see-full-cumulative")?.addEventListener("click",()=>navigate("leaderboard",{full:true}));
-    $("#leaderboard-summary")?.addEventListener("click",()=>navigate("leaderboard",{full:false}));
+        <div class="leaderboard-panel-head"><div><span class="pill">CUMULATIVE</span><h2>${classText(state.classNo)} overall ranking</h2><p>Overall ranking across all submitted quizzes, using cumulative percentage.</p></div></div>
+        ${(cumulative.data||[]).length?`${quizPodium(cumulative.data,state.profile.id)}${rankList(cumulative.data,state.profile.id,"cumulative")}`:empty("fa-solid fa-ranking-star","No overall ranking yet","No submitted quiz attempts yet.")}
+      </section>
+      <section class="leaderboard-panel"><div class="leaderboard-panel-head"><div><span class="pill">HISTORY</span><h2>Your quiz history</h2><p>Your position is calculated within your class for each quiz you have submitted.</p></div></div><div class="table-card"><table class="data-table leaderboard-table"><thead><tr><th>Quiz</th><th>Score</th><th>Rank</th><th>Date</th></tr></thead><tbody>${historyRows.map(r=>`<tr><td><strong>${esc(r.quiz_title)}</strong><span class="table-sub">${esc(r.quiz_type)}</span></td><td>${esc(r.score)} / ${esc(r.total_marks)}</td><td><strong class="rank-badge">${esc(rankLabel(r.rank))}</strong></td><td>${fmtDate(r.submitted_at)}</td></tr>`).join("")||`<tr><td colspan="4">No quiz history yet.</td></tr>`}</tbody></table></div></section>`;
   }
 
   async function renderAdminLeaderboard(el){
@@ -573,7 +590,7 @@
       </section>
       <section class="leaderboard-panel">
         <div class="leaderboard-panel-head"><div><span class="pill active">LATEST QUIZ</span><h2>${esc(latestQuiz?.title||"No quiz yet")}</h2><p>${latestQuiz?"Latest published quiz leaderboard for this class.":"No quiz has been published for this class yet."}</p></div></div>
-        <div class="table-card"><table class="data-table leaderboard-table"><thead><tr><th>Rank</th><th>Student</th><th>Marks</th><th>Percentage</th><th>Date</th></tr></thead><tbody>${latestRows.map(r=>leaderboardRow(r)).join("")||`<tr><td colspan="5">No submitted attempts for the latest quiz.</td></tr>`}</tbody></table></div>
+        ${latestRows.length?`${quizPodium(latestRows,null,true)}${rankList(latestRows,null,"admin")}`:empty("fa-solid fa-ranking-star","No latest quiz attempts","No students have submitted the latest quiz yet.")}
       </section>
       <section class="leaderboard-panel">
         <div class="leaderboard-panel-head"><div><span class="pill">STUDENT MONITORING</span><h2>Class ${classNo} quiz performance</h2><p>Individual student progress, marks, percentage and change from the previous submitted quiz.</p></div></div>
@@ -1133,8 +1150,8 @@
 
   function normalizeStudentRouteForRole(){
     if(!state.profile)return;
-    const studentViews=new Set(["dashboard","lectures","lectures-subject","notes","notes-subject","homework","homework-subject","quizzes","leaderboard","student-marks","notebooklm","lecture-player","quiz-run","quiz-result"]);
-    const adminViews=new Set(["admin-dashboard","students","content","quiz-manager","marks","marks-class","leaderboard","leaderboard-class"]);
+    const studentViews=new Set(["dashboard","lectures","lectures-subject","notes","notes-subject","homework","homework-subject","quizzes","leaderboard","student-marks","student-academic-leaderboard","notebooklm","lecture-player","quiz-run","quiz-result"]);
+    const adminViews=new Set(["admin-dashboard","students","content","quiz-manager","marks","marks-class","academic-leaderboard","academic-leaderboard-exam","leaderboard","leaderboard-class"]);
     const allowed=state.profile.role==="student"?studentViews:adminViews;
     if(!allowed.has(state.view)){
       state.view=state.profile.role==="student"?"dashboard":"admin-dashboard";
@@ -1322,25 +1339,20 @@
 
   async function renderMarks(el){
     const [exams, staffStudents] = await Promise.all([
-      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at").order("created_at",{ascending:false}),
+      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared").order("created_at",{ascending:false}),
       sb.from("student_profiles").select("user_id,class_no,roll_number,profiles(full_name,login_id)").order("class_no").order("roll_number")
     ]);
-    if(exams.error)throw exams.error;
-    if(staffStudents.error)throw staffStudents.error;
-    const rows=staffStudents.data||[];
-    const counts=new Map([10,12].map(c=>[c,0]));
-    rows.forEach(s=>counts.set(Number(s.class_no),(counts.get(Number(s.class_no))||0)+1));
-    const grouped={10:(exams.data||[]).filter(x=>x.class_no===10),12:(exams.data||[]).filter(x=>x.class_no===12)};
-    el.innerHTML=`
-      <div class="page-head"><div><h1>Marks</h1><p>School exam marks are entered here. Quiz marks and quiz performance are available in Leaderboard.</p></div></div>
-      <div class="marks-class-grid">
-        ${[10,12].map(c=>`<article class="marks-class-card" data-marks-class="${c}"><span class="marks-class-icon"><i class="fa-solid fa-graduation-cap"></i></span><div><h2>Class ${c}</h2><p>${counts.get(c)||0} students • ${grouped[c].length} saved exam${grouped[c].length===1?"":"s"}</p></div><i class="fa-solid fa-arrow-right"></i></article>`).join("")}
-      </div>
-      <section class="marks-exam-history"><div class="leaderboard-panel-head"><div><span class="pill">EXAM RECORDS</span><h2>Saved exams</h2><p>Open a class to create a new exam or continue an unfinished entry.</p></div></div>
-        <div class="marks-exam-grid">${[10,12].map(c=>`<div class="marks-exam-column"><h3>Class ${c}</h3>${grouped[c].map(e=>`<button class="marks-exam-item" data-open-exam="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small>${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join("")||`<div class="marks-empty">No exam records yet.</div>`}</div>`).join("")}</div>
-      </section>`;
-    $$("[data-marks-class]",el).forEach(c=>c.onclick=()=>navigate("marks-class",{classNo:Number(c.dataset.marksClass)}));
-    $$("[data-open-exam]",el).forEach(b=>b.onclick=()=>{const x=(exams.data||[]).find(e=>e.id===b.dataset.openExam);navigate("marks-class",{classNo:x?.class_no||10,examId:b.dataset.openExam})});
+    if(exams.error)throw exams.error;if(staffStudents.error)throw staffStudents.error;
+    const rows=staffStudents.data||[], allExams=exams.data||[];const counts=new Map([10,12].map(c=>[c,0]));rows.forEach(s=>counts.set(Number(s.class_no),(counts.get(Number(s.class_no))||0)+1));
+    const grouped={10:allExams.filter(x=>x.class_no===10),12:allExams.filter(x=>x.class_no===12)};
+    const declared={10:grouped[10].filter(x=>x.result_declared),12:grouped[12].filter(x=>x.result_declared)};
+    el.innerHTML=`<div class="page-head"><div><h1>Marks</h1><p>School exam marks are entered here. Quiz marks and quiz performance are available in Leaderboard.</p></div></div>
+      <div class="marks-class-grid">${[10,12].map(c=>`<article class="marks-class-card" data-marks-class="${c}"><span class="marks-class-icon"><i class="fa-solid fa-graduation-cap"></i></span><div><h2>Class ${c}</h2><p>${counts.get(c)||0} students • ${grouped[c].length} saved exam${grouped[c].length===1?'':'s'} • ${declared[c].length} declared</p></div><i class="fa-solid fa-arrow-right"></i></article>`).join('')}</div>
+      <section class="marks-exam-history"><div class="leaderboard-panel-head"><div><span class="pill">EXAM RECORDS</span><h2>Saved exams</h2><p>Open a class to create a new exam or continue an unfinished entry.</p></div></div><div class="marks-exam-grid">${[10,12].map(c=>`<div class="marks-exam-column"><h3>Class ${c}</h3>${grouped[c].map(e=>`<button class="marks-exam-item" data-open-exam="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small>${fmtDate(e.created_at)} • ${e.result_declared?'Result declared':'Result not declared'}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join('')||`<div class="marks-empty">No exam records yet.</div>`}</div>`).join('')}</div></section>
+      <section class="marks-exam-history"><div class="leaderboard-panel-head"><div><span class="pill active">EXAMS LEADERBOARD</span><h2>Declared exam leaderboards</h2><p>Open a declared exam to view the podium and the complete ranked class list.</p></div></div><div class="marks-exam-grid">${[10,12].map(c=>`<div class="marks-exam-column leaderboard-exam-column"><h3>Class ${c}</h3>${declared[c].map(e=>`<button class="marks-exam-item leaderboard-exam-card" data-admin-exam-leaderboard="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small><i class="fa-solid fa-ranking-star"></i> Result declared • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-arrow-right"></i></button>`).join('')||`<div class="marks-empty">No declared exam results yet.</div>`}</div>`).join('')}</div></section>`;
+    $$('[data-marks-class]',el).forEach(c=>c.onclick=()=>navigate('marks-class',{classNo:Number(c.dataset.marksClass)}));
+    $$('[data-open-exam]',el).forEach(b=>{const x=allExams.find(e=>e.id===b.dataset.openExam);b.onclick=()=>navigate('marks-class',{classNo:x?.class_no||10,examId:b.dataset.openExam})});
+    $$('[data-admin-exam-leaderboard]',el).forEach(b=>{const x=allExams.find(e=>e.id===b.dataset.adminExamLeaderboard);b.onclick=()=>navigate('academic-leaderboard-exam',{classNo:x?.class_no||10,examId:b.dataset.adminExamLeaderboard})});
   }
 
   async function renderMarksClass(el,classNo){
@@ -1358,13 +1370,15 @@
       <section class="admin-card marks-student-section"><div class="marks-entry-head"><div><span class="pill">STUDENTS</span><h2>Student list</h2><p>${list.length} students in Class ${classNo}.</p></div></div>
         <div class="marks-student-grid">${list.map((s,i)=>`<button class="marks-student-card" data-academic-student="${esc(s.user_id)}"><span class="marks-student-number">${i+1}</span><span class="marks-student-avatar">${esc(initials(s.profiles?.full_name))}</span><span class="marks-student-info"><strong>${esc(s.profiles?.full_name||"Student")}</strong><small>Roll No. ${esc(s.roll_number||"—")} • ${classText(classNo)}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join("")||`<div class="marks-empty">No students found in this class.</div>`}</div>
       </section>
-      <section class="marks-exam-history"><div class="marks-entry-head"><div><span class="pill active">EXAMS</span><h2>Exam setups</h2><p>Continue any unfinished exam or review completed entries.</p></div></div>
-        <div class="marks-exam-grid single">${examList.map(e=>`<button class="marks-exam-item wide" data-resume-exam="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small>${(e.academic_exam_subjects||[]).length} subjects configured • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-arrow-right"></i></button>`).join("")||`<div class="marks-empty">No exam has been created for Class ${classNo} yet.</div>`}</div>
+      <section class="marks-exam-history"><div class="marks-entry-head"><div><span class="pill active">EXAMS</span><h2>Exam setups</h2><p>Continue any unfinished exam, review entries, or declare a completed result.</p></div></div>
+        <div class="marks-exam-grid single">${examList.map(e=>`<div class="marks-exam-item wide exam-admin-card"><button class="exam-admin-main" data-resume-exam="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small>${(e.academic_exam_subjects||[]).length} subjects configured • ${fmtDate(e.created_at)} • ${e.result_declared?'Result declared':'Result not declared'}</small></span><i class="fa-solid fa-arrow-right"></i></button><div class="exam-admin-actions">${e.result_declared?`<span class="declared-chip"><i class="fa-solid fa-circle-check"></i> Declared</span>`:`<button class="small-btn declare-result-btn" data-declare-exam="${esc(e.id)}"><i class="fa-solid fa-bullhorn"></i> Declare Result</button>`}<button class="small-btn outline-academic-leaderboard" data-admin-academic-leaderboard="${esc(e.id)}"><i class="fa-solid fa-ranking-star"></i> Leaderboard</button></div></div>`).join("")||`<div class="marks-empty">No exam has been created for Class ${classNo} yet.</div>`}</div>
       </section>`;
     $("#marks-back").onclick=()=>navigate("marks");
     $("#new-academic-exam").onclick=()=>openAcademicExamSetup(classNo);
     $$(`[data-academic-student]`,el).forEach(b=>b.onclick=()=>showAdminStudentAcademicOverview(classNo,b.dataset.academicStudent));
-    $$("[data-resume-exam]",el).forEach(b=>b.onclick=()=>startAcademicMarksEntry(classNo,b.dataset.resumeExam));
+    $$('[data-resume-exam]',el).forEach(b=>b.onclick=()=>startAcademicMarksEntry(classNo,b.dataset.resumeExam));
+    $$('[data-declare-exam]',el).forEach(b=>b.onclick=()=>declareAcademicExam(classNo,b.dataset.declareExam));
+    $$('[data-admin-academic-leaderboard]',el).forEach(b=>b.onclick=()=>navigate('academic-leaderboard-exam',{classNo,examId:b.dataset.adminAcademicLeaderboard}));
     if(state.route.examId)startAcademicMarksEntry(classNo,state.route.examId);
   }
 
@@ -1469,28 +1483,83 @@
     $('#marks-done').onclick=async()=>{try{await saveAcademicStudentMarks(exam.id,student.user_id,inputs,'completed',includedIds);if(next!==null){toast(`${student.profiles?.full_name||'Student'} completed. Next student loaded.`,'success');await showAcademicStudentCard({classNo,exam,list,subjects,index:next})}else{closeModal();toast(`All ${list.length} students have been processed for ${exam.exam_name}.`,'success');await renderView()}}catch(e){toast(e.message||'Could not save marks.','error')}};
   }
 
+  async function declareAcademicExam(classNo,examId){
+    if(!confirm('Declare this exam result? Students will be able to see this exam leaderboard after declaration.'))return;
+    loading(true,'Declaring result...');
+    try{
+      const {data:rows,error:rowError}=await sb.from('student_exam_marks').select('student_id,status').eq('exam_id',examId);
+      if(rowError)throw rowError;
+      const pending=(rows||[]).filter(r=>r.status!=='completed').length;
+      if(pending>0 && !confirm(`${pending} student${pending===1?'':'s'} still have unfinished marks. Declare anyway?`))return;
+      const {error}=await sb.from('academic_exam_sets').update({result_declared:true}).eq('id',examId).eq('class_no',classNo);
+      if(error)throw error;
+      toast('Result declared. The exam leaderboard is now visible to students.','success');
+      await renderView();
+    }catch(e){toast(e.message||'Could not declare result.','error')}finally{loading(false)}
+  }
+
+  async function fetchAcademicExamLeaderboard(examId){
+    const {data,error}=await sb.rpc('get_academic_exam_leaderboard',{p_exam_id:examId});
+    if(error)throw error;
+    return await addPhotoUrls(data||[]);
+  }
+
+  async function renderStudentAcademicLeaderboard(el,classNo,examId){
+    if(!examId)return navigate('student-marks',{},true);
+    const {data:exam,error}=await sb.from('academic_exam_sets').select('id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)').eq('id',examId).eq('class_no',classNo).single();
+    if(error)throw error;
+    if(!exam.result_declared)return navigate('student-marks',{},true);
+    const rows=await fetchAcademicExamLeaderboard(examId),me=rows.find(r=>r.student_id===state.profile.id);
+    el.innerHTML=`<div class="back-row"><button class="small-btn" id="student-academic-back"><i class="fa-solid fa-arrow-left"></i> Back to Marks</button></div>
+      <div class="page-head"><div><h1>${esc(exam.exam_name)} Leaderboard</h1><p>${classText(classNo)} • Declared academic result • Ranked by percentage.</p></div></div>
+      <section class="academic-leaderboard-page"><div class="academic-leaderboard-hero"><span class="academic-ribbon"><i class="fa-solid fa-trophy"></i> EXAM LEADERBOARD</span><h2>${esc(exam.exam_name)}</h2><p>${rows.length} completed student result${rows.length===1?'':'s'} in ${classText(classNo)}.</p></div>
+      ${academicPodium(rows,state.profile.id,false)}
+      ${me?`<div class="marks-current-rank academic-current-rank"><span><i class="fa-solid fa-ranking-star"></i> Your rank</span><strong>${rankLabel(me.rank)}</strong><small>${Number(me.percentage||0).toFixed(2)}% • ${esc(me.total_score)} / ${esc(me.total_full_marks)}</small></div>`:''}
+      ${academicRankList(rows,state.profile.id,false)}</section>`;
+    $('#student-academic-back').onclick=()=>navigate('student-marks');
+  }
+
+  async function renderAcademicLeaderboard(el,classNo){
+    if(![10,12].includes(classNo))return navigate('marks',{},true);
+    const {data:exams,error}=await sb.from('academic_exam_sets').select('id,class_no,exam_name,created_at,result_declared').eq('class_no',classNo).eq('result_declared',true).order('created_at',{ascending:false});
+    if(error)throw error;
+    el.innerHTML=`<div class="back-row"><button class="small-btn" id="academic-leaderboard-back"><i class="fa-solid fa-arrow-left"></i> Back to Marks</button></div><div class="page-head"><div><h1>Class ${classNo} Exam Leaderboards</h1><p>Declared academic examinations with podium and complete ranked student list.</p></div></div><section class="marks-exam-history"><div class="marks-exam-grid single">${(exams||[]).map(e=>`<button class="marks-exam-item wide leaderboard-exam-card" data-academic-exam-card="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small><i class="fa-solid fa-circle-check"></i> Result declared • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-arrow-right"></i></button>`).join('')||`<div class="marks-empty">No declared exam results for Class ${classNo} yet.</div>`}</div></section>`;
+    $('#academic-leaderboard-back').onclick=()=>navigate('marks');
+    $$('[data-academic-exam-card]',el).forEach(b=>b.onclick=()=>navigate('academic-leaderboard-exam',{classNo,examId:b.dataset.academicExamCard}));
+  }
+
+  async function renderAcademicLeaderboardExam(el,classNo,examId){
+    if(!examId)return navigate('academic-leaderboard',{classNo},true);
+    const {data:exam,error}=await sb.from('academic_exam_sets').select('id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)').eq('id',examId).eq('class_no',classNo).single();
+    if(error)throw error;
+    if(!exam.result_declared)return navigate('academic-leaderboard',{classNo},true);
+    const rows=await fetchAcademicExamLeaderboard(examId);
+    el.innerHTML=`<div class="back-row"><button class="small-btn" id="academic-exam-back"><i class="fa-solid fa-arrow-left"></i> Back to Exam Leaderboards</button></div><div class="page-head"><div><h1>${esc(exam.exam_name)} Leaderboard</h1><p>Class ${classNo} • All students ranked by percentage.</p></div></div><section class="academic-leaderboard-page admin-view"><div class="academic-leaderboard-hero"><span class="academic-ribbon"><i class="fa-solid fa-crown"></i> DECLARED RESULT</span><h2>${esc(exam.exam_name)}</h2><p>${rows.length} student result${rows.length===1?'':'s'} • ${fmtDate(exam.created_at)}</p></div>${academicPodium(rows,null,true)}${academicRankList(rows,null,true)}</section>`;
+    $('#academic-exam-back').onclick=()=>navigate('academic-leaderboard',{classNo});
+  }
+
   async function renderStudentMarks(el){
-    const {data:exams,error:examError}=await sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",state.classNo).order("created_at",{ascending:false});
-    if(examError)throw examError;const examList=exams||[];
+    const {data:exams,error:examError}=await sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",state.classNo).order("created_at",{ascending:false});
+    if(examError)throw examError;const examList=exams||[],declaredExams=examList.filter(e=>e.result_declared),latest=declaredExams[0]||null;
     if(!examList.length){
-      el.innerHTML=`<div class="page-head"><div><h1>Marks</h1><p>${classText(state.classNo)} academic marks and examination performance.</p></div></div><section class="marks-student-leaderboard"><div class="marks-student-rank-head"><div><span class="pill active">EXAM LEADERBOARD</span><h2>Your class position</h2><p>The leaderboard will appear automatically after the first school exam is completed.</p></div></div><div class="marks-empty student-marks-empty-card"><i class="fa-solid fa-ranking-star"></i><strong>No academic exam has been added yet.</strong><span>Your rank and the top students will appear here after your teacher publishes marks.</span></div></section><section class="marks-exam-cards"><div class="marks-student-rank-head"><div><span class="pill">EXAMS</span><h2>Your exam records</h2><p>Exam cards will appear here when your teacher creates them.</p></div></div><div class="student-exam-grid empty-exam-placeholders">${[1,2,3].map(i=>`<div class="student-exam-card empty-exam-card"><span class="exam-card-icon"><i class="fa-solid fa-file-lines"></i></span><span><strong>Exam ${i}</strong><small>Not added yet</small></span></div>`).join('')}</div></section>`;return;
+      el.innerHTML=`<div class="page-head"><div><h1>Marks</h1><p>${classText(state.classNo)} academic marks and examination performance.</p></div></div><section class="marks-student-leaderboard"><div class="marks-student-rank-head"><div><span class="pill active">LATEST EXAM LEADERBOARD</span><h2>Your class position</h2><p>The leaderboard will appear automatically after an academic result is declared.</p></div></div><div class="marks-empty student-marks-empty-card"><i class="fa-solid fa-ranking-star"></i><strong>No academic exam has been added yet.</strong><span>Your rank and the top students will appear here after your teacher declares a result.</span></div></section><section class="marks-exam-cards"><div class="marks-student-rank-head"><div><span class="pill">EXAMS</span><h2>Your exam records</h2><p>Exam cards will appear here when your teacher creates them.</p></div></div><div class="student-exam-grid empty-exam-placeholders">${[1,2,3].map(i=>`<div class="student-exam-card empty-exam-card"><span class="exam-card-icon"><i class="fa-solid fa-file-lines"></i></span><span><strong>Exam ${i}</strong><small>Not added yet</small></span></div>`).join('')}</div></section><section class="marks-exam-cards"><div class="marks-student-rank-head"><div><span class="pill active">EXAMS LEADERBOARD</span><h2>Declared exam leaderboards</h2></div></div><div class="student-exam-grid"><div class="marks-empty">No declared exam results yet.</div></div></section>`;return;
     }
-    const latest=examList[0];
-    const {data:records,error:recordError}=await sb.from('student_exam_marks').select('student_id,marks,status,included_subject_ids').eq('exam_id',latest.id).eq('status','completed');
-    if(recordError)throw recordError;
-    const ranked=(records||[]).map(r=>{const t=academicTotals(latest,r);return {...r,total_score:t.total,total_full_marks:t.full,percentage:t.percentage||0}}).sort((a,b)=>b.percentage-a.percentage||b.total_score-a.total_score);
-    const meIndex=ranked.findIndex(r=>r.student_id===state.profile.id),me=meIndex>=0?{...ranked[meIndex],rank:meIndex+1}:null,top3=ranked.slice(0,3);
-    const ids=ranked.map(r=>r.student_id),nameMap=new Map();if(ids.length){const {data:profiles}=await sb.from('profiles').select('id,full_name').in('id',ids);(profiles||[]).forEach(p=>nameMap.set(p.id,p.full_name));}
-    el.innerHTML=`<div class="page-head"><div><h1>Marks</h1><p>${classText(state.classNo)} academic marks and examination performance.</p></div></div><section class="marks-student-leaderboard"><div class="marks-student-rank-head"><div><span class="pill active">LATEST EXAM LEADERBOARD</span><h2>${esc(latest.exam_name)}</h2><p>Rank is calculated from the subjects included for each student.</p></div></div><div class="marks-podium-grid">${top3.map((r,i)=>`<div class="marks-podium-card ${r.student_id===state.profile.id?'is-me':''}"><span class="podium-place">${i+1}</span><span class="marks-student-avatar">${esc(initials(nameMap.get(r.student_id)||'Student'))}</span><strong>${esc(nameMap.get(r.student_id)||'Student')}</strong><small>${Number(r.percentage).toFixed(2)}% • ${esc(r.total_score)} / ${esc(r.total_full_marks)}</small></div>`).join('')}${me&&!top3.some(r=>r.student_id===me.student_id)?`<div class="marks-your-rank"><span>Your rank</span><strong>${rankLabel(me.rank)}</strong><small>${Number(me.percentage).toFixed(2)}%</small></div>`:''}${!top3.length?`<div class="marks-your-rank" style="grid-column:1/-1"><span>No completed marks yet</span><strong>—</strong><small>Your position will appear after marks are completed.</small></div>`:''}</div>${me?`<div class="marks-current-rank"><span><i class="fa-solid fa-ranking-star"></i> Your current rank in ${esc(latest.exam_name)}</span><strong>${rankLabel(me.rank)}</strong><small>${Number(me.percentage).toFixed(2)}% overall</small></div>`:`<div class="marks-empty">Your marks have not been completed for the latest exam yet.</div>`}</section><section class="marks-exam-cards"><div class="marks-student-rank-head"><div><span class="pill">EXAMS</span><h2>Your exam records</h2><p>Tap any exam to see subject-wise marks, percentage and full marks.</p></div></div><div class="student-exam-grid">${examList.map(e=>`<button class="student-exam-card" data-student-exam="${esc(e.id)}"><span class="exam-card-icon"><i class="fa-solid fa-file-lines"></i></span><span><strong>${esc(e.exam_name)}</strong><small>${(e.academic_exam_subjects||[]).length} subjects • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join('')}</div></section>`;
+    let latestRows=[];let latestMe=null;
+    if(latest){latestRows=await fetchAcademicExamLeaderboard(latest.id);latestMe=latestRows.find(r=>r.student_id===state.profile.id)||null;}
+    el.innerHTML=`<div class="page-head"><div><h1>Marks</h1><p>${classText(state.classNo)} academic marks and examination performance.</p></div></div>
+      <section class="marks-student-leaderboard"><div class="marks-student-rank-head"><div><span class="pill active">LATEST EXAM LEADERBOARD</span><h2>${latest?esc(latest.exam_name):'No declared exam yet'}</h2><p>${latest?'Rank is calculated from each student’s applicable subjects and percentage.':'The leaderboard will appear automatically after your teacher declares an exam result.'}</p></div></div>${latest?`${academicPodium(latestRows,state.profile.id,false)}${latestMe?`<div class="marks-current-rank"><span><i class="fa-solid fa-ranking-star"></i> Your current rank in ${esc(latest.exam_name)}</span><strong>${rankLabel(latestMe.rank)}</strong><small>${Number(latestMe.percentage||0).toFixed(2)}% overall</small></div>`:''}`:`<div class="marks-empty student-marks-empty-card"><i class="fa-solid fa-ranking-star"></i><strong>No declared exam result yet.</strong><span>Your class podium will appear here after the result is declared.</span></div>`}</section>
+      <section class="marks-exam-cards"><div class="marks-student-rank-head"><div><span class="pill">EXAMS</span><h2>Your exam records</h2><p>Tap any exam to see subject-wise marks, percentage and full marks.</p></div></div><div class="student-exam-grid">${examList.map(e=>`<button class="student-exam-card" data-student-exam="${esc(e.id)}"><span class="exam-card-icon"><i class="fa-solid fa-file-lines"></i></span><span><strong>${esc(e.exam_name)}</strong><small>${(e.academic_exam_subjects||[]).length} subjects • ${e.result_declared?'Result declared':'Result not declared'} • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join('')}</div></section>
+      <section class="marks-exam-cards"><div class="marks-student-rank-head"><div><span class="pill active">EXAMS LEADERBOARD</span><h2>Declared exam leaderboards</h2><p>Open an exam to see the top three podium and ranks 4–10, with your position highlighted when needed.</p></div></div><div class="student-exam-grid">${declaredExams.map(e=>`<button class="student-exam-card leaderboard-exam-card" data-student-academic-leaderboard="${esc(e.id)}"><span class="exam-card-icon leaderboard-icon"><i class="fa-solid fa-ranking-star"></i></span><span><strong>${esc(e.exam_name)} Leaderboard</strong><small>Result declared • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join('')||`<div class="marks-empty">No declared exam results yet.</div>`}</div></section>`;
     $$('[data-student-exam]',el).forEach(b=>b.onclick=()=>openStudentExamDetail(b.dataset.studentExam));
+    $$('[data-student-academic-leaderboard]',el).forEach(b=>b.onclick=()=>navigate('student-academic-leaderboard',{examId:b.dataset.studentAcademicLeaderboard}));
   }
 
   async function openStudentExamDetail(examId){
-    const [{data:exam,error:examError},{data:record,error:recordError}]=await Promise.all([sb.from('academic_exam_sets').select('id,class_no,exam_name,created_at,academic_exam_subjects(subject_id,subject_name,full_marks)').eq('id',examId).single(),sb.from('student_exam_marks').select('marks,status,updated_at,included_subject_ids').eq('exam_id',examId).eq('student_id',state.profile.id).maybeSingle()]);
+    const [{data:exam,error:examError},{data:record,error:recordError}]=await Promise.all([sb.from('academic_exam_sets').select('id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)').eq('id',examId).single(),sb.from('student_exam_marks').select('marks,status,updated_at,included_subject_ids').eq('exam_id',examId).eq('student_id',state.profile.id).maybeSingle()]);
     if(examError)throw examError;if(recordError)throw recordError;if(!record||record.status!=='completed')return toast('Your marks for this exam are not published yet.','error');
+    if(!exam.result_declared)return toast('This exam result has not been declared yet.','error');
     const t=academicTotals(exam,record);
-    const {data:classRecords,error:rankError}=await sb.from('student_exam_marks').select('student_id,marks,status,included_subject_ids').eq('exam_id',examId).eq('status','completed');if(rankError)throw rankError;
-    const ranked=(classRecords||[]).map(r=>{const x=academicTotals(exam,r);return {student_id:r.student_id,pct:x.percentage||0}}).sort((a,b)=>b.pct-a.pct);const rank=ranked.findIndex(r=>r.student_id===state.profile.id)+1;
+    const ranked=await fetchAcademicExamLeaderboard(examId);const mine=ranked.find(r=>r.student_id===state.profile.id);const rank=mine?.rank||0;
     const subs=t.subjects,marks=record.marks||{};
     modal(`<div class="modal-head"><div><span class="pill active">${esc(exam.exam_name)}</span><h2>${esc(state.profile.full_name)}</h2><p class="modal-subtitle">${classText(state.classNo)} • Detailed marks</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div><div class="marks-detail-summary"><div><span>Total marks</span><strong>${t.total} / ${t.full}</strong></div><div><span>Percentage</span><strong>${t.full?((t.total/t.full)*100).toFixed(2):'0.00'}%</strong></div><div><span>Class rank</span><strong>${rank>0?rankLabel(rank):'—'}</strong></div><div><span>Subjects counted</span><strong>${subs.length}</strong></div></div><div class="table-card"><table class="data-table marks-detail-table"><thead><tr><th>Subject</th><th>Marks</th><th>Full marks</th><th>Percentage</th></tr></thead><tbody>${subs.map(s=>{const m=Number(marks[s.subject_id]||0),fm=Number(s.full_marks||0);return `<tr><td><strong>${esc(s.subject_name)}</strong></td><td>${m}</td><td>${fm}</td><td>${fm?((m/fm)*100).toFixed(2):'0.00'}%</td></tr>`}).join('')}</tbody></table></div><div class="modal-actions"><button class="small-btn primary" data-close-modal>Done</button></div>`);
     $$('[data-close-modal]').forEach(b=>b.onclick=closeModal);

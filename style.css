@@ -565,3 +565,46 @@ body{background-color:var(--bg);}
 .small-btn.fm-update-action:hover,.small-btn.fm-update-action:focus-visible,.small-btn.fm-update-action:active{background:var(--red);color:#fff}
 .fm-update-list{display:grid;gap:8px;margin-top:10px}.fm-update-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 13px;border:1px solid var(--line);border-radius:12px;background:#fff;cursor:pointer}.fm-update-row:hover{border-color:#efb5b5;background:#fffafa}.fm-update-row strong{display:block;color:var(--navy);font-size:11px}.fm-update-row small{display:block;color:#888;font-size:9px;margin-top:3px}.fm-update-row input{width:17px;height:17px;accent-color:var(--red);flex:none}.fm-update-note{margin-top:12px}.student-marks-empty-card{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;min-height:150px;text-align:center}.student-marks-empty-card i{font-size:25px;color:#b2afbd}.student-marks-empty-card strong{font-size:11px;color:var(--navy)}.student-marks-empty-card span{font-size:9px;color:#888}.empty-exam-card{cursor:default!important;box-shadow:none!important;opacity:.72}.empty-exam-card:hover{transform:none!important;border-color:var(--line)!important;background:#fff!important}
 @media(max-width:760px){.modal-backdrop{align-items:center;justify-items:center;padding:82px 10px 10px}}
+
+/* ============================================================
+   V6: Visual quiz + academic leaderboards
+   ============================================================ */
+.rank-podium{display:grid;grid-template-columns:1fr 1.08fr 1fr;align-items:end;gap:12px;margin:14px 0 18px;padding:12px 8px 0}
+.podium-item{position:relative;text-align:center;min-width:0;padding:8px 8px 0;border-radius:18px 18px 8px 8px;background:linear-gradient(180deg,#fff,#faf9ff);border:1px solid var(--line);box-shadow:var(--shadow);overflow:visible}
+.podium-item.place-1{order:2;min-height:245px;background:linear-gradient(180deg,#fffbea,#fff)}
+.podium-item.place-2{order:1;min-height:205px}
+.podium-item.place-3{order:3;min-height:185px}
+.podium-item.is-me{border:2px solid var(--green);box-shadow:0 8px 24px rgba(28,150,75,.12)}
+.podium-crown-wrap{height:34px;display:flex;justify-content:center;align-items:flex-end;margin-top:-22px;position:relative;z-index:2}
+.podium-crown{width:43px;height:43px;object-fit:contain;filter:drop-shadow(0 3px 3px rgba(0,0,0,.18))}
+.podium-photo{width:64px;height:64px;border-radius:50%;overflow:hidden;display:grid;place-items:center;margin:2px auto 7px;background:var(--yellow);color:var(--navy);font-weight:800;border:2px solid #fff;box-shadow:0 0 0 2px #e4c500}
+.place-1 .podium-photo{width:76px;height:76px;box-shadow:0 0 0 3px #e4c500}
+.podium-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.podium-item strong{display:block;color:var(--navy);font-size:11px;line-height:1.25;word-break:break-word}
+.podium-item>span:not(.podium-photo){display:block;font-size:9px;color:#777;margin-top:4px}
+.podium-item small{display:block;font-size:8px;color:#555;margin-top:3px}
+.podium-block{height:50px;margin:10px -8px 0;display:flex;align-items:center;justify-content:center;gap:6px;color:#fff;background:linear-gradient(180deg,#f5c400,#d9a800);border-radius:9px 9px 0 0}
+.place-1 .podium-block{height:72px;background:linear-gradient(180deg,#ffd84d,#e4ad00)}
+.place-2 .podium-block{background:linear-gradient(180deg,#cbd5e1,#94a3b8)}
+.place-3 .podium-block{background:linear-gradient(180deg,#d99a5b,#b66d32)}
+.podium-block b{font-size:20px}.podium-block em{font-style:normal;font-size:8px;text-transform:uppercase;letter-spacing:.7px}
+.rank-list-card{border:1px solid var(--line);border-radius:15px;overflow:hidden;background:#fff;box-shadow:var(--shadow)}
+.rank-list-head,.rank-list-row,.rank-ellipsis{display:grid;grid-template-columns:74px minmax(180px,1fr) 120px 110px;align-items:center;gap:10px;padding:11px 13px}
+.rank-list-head{background:#f7f5ff;color:#777;font-size:8px;text-transform:uppercase;letter-spacing:.5px;font-weight:800}
+.rank-list-row{border-top:1px solid #eee;font-size:10px;color:#444}
+.rank-list-row.is-me{background:#fff8c9;box-shadow:inset 0 2px 0 #f2d400,inset 0 -2px 0 #f2d400}
+.rank-list-row>strong{color:var(--navy);font-size:11px}
+.rank-list-student{display:flex;align-items:center;gap:9px;min-width:0}.rank-list-student>span:last-child{min-width:0}.rank-list-student b{display:block;color:var(--navy);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rank-list-student small{display:block;color:#999;font-size:8px;margin-top:2px}
+.rank-list-avatar{width:34px;height:34px;border-radius:50%;overflow:hidden;display:grid;place-items:center;background:var(--yellow);color:var(--navy);font-size:9px;font-weight:800;flex:none}.rank-list-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.rank-ellipsis{border-top:1px dashed #ddd;color:#999;background:#fafafa;font-size:10px}.rank-ellipsis span:nth-child(2){text-align:center;font-size:8px;text-transform:uppercase;letter-spacing:.5px}
+.academic-leaderboard-page{background:#fff;border:1px solid var(--line);border-radius:20px;padding:18px;box-shadow:var(--shadow)}
+.academic-leaderboard-hero{padding:17px;border-radius:16px;background:linear-gradient(135deg,#17105f,#3b2d9a 55%,#725bd7);color:#fff;margin-bottom:7px;position:relative;overflow:hidden}.academic-leaderboard-hero:after{content:"";position:absolute;width:180px;height:180px;border-radius:50%;right:-70px;top:-80px;background:rgba(255,255,255,.1)}
+.academic-ribbon{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:999px;background:rgba(255,255,255,.14);font-size:8px;font-weight:800;letter-spacing:.7px}.academic-leaderboard-hero h2{font-size:20px;margin-top:9px}.academic-leaderboard-hero p{font-size:9px;opacity:.8;margin-top:4px}
+.academic-current-rank{background:#111!important;border-color:#111!important}
+.exam-admin-card{padding:0;display:block;overflow:hidden}.exam-admin-main{width:100%;border:0;background:transparent;padding:12px;display:flex;align-items:center;justify-content:space-between;text-align:left;cursor:pointer}.exam-admin-main strong{display:block}.exam-admin-actions{display:flex;gap:7px;align-items:center;padding:8px 12px;background:#faf9ff;border-top:1px solid var(--line);flex-wrap:wrap}.declare-result-btn{border:1px solid var(--red)!important;color:var(--red)!important;background:transparent!important}.declare-result-btn:hover{background:var(--red)!important;color:#fff!important}.outline-academic-leaderboard{border:1px solid var(--navy)!important;color:var(--navy)!important;background:transparent!important}.outline-academic-leaderboard:hover{background:var(--navy)!important;color:#fff!important}.declared-chip{font-size:8px;font-weight:800;color:var(--green);background:#eaf8ef;padding:6px 9px;border-radius:999px}.leaderboard-exam-card{border-color:#d8d1f3!important;background:linear-gradient(135deg,#fff,#faf8ff)!important}.leaderboard-exam-card .exam-card-icon,.leaderboard-icon{background:#efeaff!important;color:#4b35a8!important}
+.admin-view .rank-list-card{max-height:520px;overflow:auto}.admin-view .rank-list-head,.admin-view .rank-list-row,.admin-view .rank-ellipsis{grid-template-columns:70px minmax(220px,1fr) 150px 120px}.admin-view .rank-list-card{scrollbar-width:thin}
+
+@media(max-width:760px){
+  .rank-podium{grid-template-columns:1fr 1fr;gap:8px}.podium-item.place-1{order:1;grid-column:1/-1;min-height:225px}.podium-item.place-2{order:2;min-height:190px}.podium-item.place-3{order:3;min-height:175px}.place-1 .podium-photo{width:70px;height:70px}.rank-list-card{overflow-x:auto}.rank-list-head,.rank-list-row,.rank-ellipsis{min-width:590px}.academic-leaderboard-page{padding:12px}.exam-admin-actions{padding:8px}.admin-view .rank-list-head,.admin-view .rank-list-row,.admin-view .rank-ellipsis{min-width:650px}
+}
+@media(max-width:480px){.rank-podium{grid-template-columns:1fr}.podium-item.place-1,.podium-item.place-2,.podium-item.place-3{grid-column:auto;min-height:180px}.podium-crown{width:38px;height:38px}.podium-photo,.place-1 .podium-photo{width:58px;height:58px}.podium-block,.place-1 .podium-block{height:48px}.rank-list-head,.rank-list-row,.rank-ellipsis{min-width:560px}.academic-leaderboard-hero h2{font-size:17px}}
