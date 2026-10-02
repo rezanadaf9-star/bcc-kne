@@ -211,6 +211,7 @@
     $("#staff-photo-action")?.classList.toggle("hidden", state.profile.role === "student");
     $("#staff-photo-action")?.querySelector("span") && ($("#staff-photo-action").querySelector("span").textContent = state.profile.photo_path ? "Replace profile photo" : "Add profile photo");
     let homeView;
+    normalizeStudentRouteForRole();
     if (state.profile.role === "student") {
       const sp = options.skipStudentFetch && state.student ? state.student : await getStudentProfile();
       state.classNo = sp.class_no;
@@ -1097,6 +1098,33 @@
     return rows;
   }
 
+  function includedAcademicSubjects(exam, record){
+    const subjects=exam?.academic_exam_subjects||[];
+    const ids=record?.included_subject_ids;
+    if(!Array.isArray(ids)||ids.length===0)return subjects;
+    const set=new Set(ids.map(String));
+    return subjects.filter(s=>set.has(String(s.subject_id)));
+  }
+
+  function academicTotals(exam, record){
+    const subjects=includedAcademicSubjects(exam,record);
+    const marks=record?.marks||{};
+    const total=subjects.reduce((n,s)=>n+Number(marks[s.subject_id]??0),0);
+    const full=subjects.reduce((n,s)=>n+Number(s.full_marks||0),0);
+    return {subjects,total,full,percentage:full?(total/full)*100:null};
+  }
+
+  function normalizeStudentRouteForRole(){
+    if(!state.profile)return;
+    const studentViews=new Set(["dashboard","lectures","lectures-subject","notes","notes-subject","homework","homework-subject","quizzes","leaderboard","student-marks","notebooklm","lecture-player","quiz-run","quiz-result"]);
+    const adminViews=new Set(["admin-dashboard","students","content","quiz-manager","marks","marks-class","leaderboard","leaderboard-class"]);
+    const allowed=state.profile.role==="student"?studentViews:adminViews;
+    if(!allowed.has(state.view)){
+      state.view=state.profile.role==="student"?"dashboard":"admin-dashboard";
+      state.route={};
+    }
+  }
+
   async function renderContent(el){
     const subjects10=await subjectsForClass(10), subjects12=await subjectsForClass(12);
     el.innerHTML=`<div class="page-head"><div><h1>Content</h1><p>Choose a class first. Content is only visible to that class.</p></div></div>
@@ -1327,16 +1355,17 @@
     const subjects=await subjectsForClass(classNo);
     if(!subjects.length)return toast(`No subjects are configured for Class ${classNo}.`,"error");
     modal(`<div class="modal-head"><h2>Set up Class ${classNo} exam</h2><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
-      <p class="mini-label" style="margin-bottom:14px">Enter the exam name and full marks once. These settings will be used for every student in this exam.</p>
+      <p class="mini-label" style="margin-bottom:14px">Enter the exam name and full marks once. <strong>Only subjects where you enter full marks will be included in this exam.</strong> Leave a subject blank if the coaching does not teach it for this exam.</p>
       <div class="form-grid"><div class="form-group" style="grid-column:1/-1"><label>Exam name</label><input id="academic-exam-name" placeholder="e.g. First Terminal Examination"></div></div>
-      <div class="marks-full-grid">${subjects.map(s=>`<div class="form-group"><label>${esc(s.name)} — Full marks</label><input class="academic-full-mark" data-subject-id="${esc(s.id)}" data-subject-name="${esc(s.name)}" type="number" min="1" step="0.01" placeholder="100"></div>`).join("")}</div>
+      <div class="marks-full-grid">${subjects.map(s=>`<div class="form-group"><label>${esc(s.name)} — Full marks</label><input class="academic-full-mark" data-subject-id="${esc(s.id)}" data-subject-name="${esc(s.name)}" type="number" min="1" step="0.01" placeholder="Leave blank if not taught"></div>`).join("")}</div>
       <div class="modal-actions"><button class="small-btn" data-close-modal>Cancel</button><button class="small-btn primary" id="create-academic-exam"><i class="fa-solid fa-check"></i> Create & Start</button></div>`);
     $$("[data-close-modal]").forEach(b=>b.onclick=()=>$("#modal-root").innerHTML="");
     $("#create-academic-exam").onclick=async()=>{
       const examName=$("#academic-exam-name").value.trim(), inputs=$$(".academic-full-mark");
       if(!examName)return toast("Enter the exam name.","error");
-      const subjectRows=inputs.map(i=>({subject_id:i.dataset.subjectId,subject_name:i.dataset.subjectName,full_marks:Number(i.value)}));
-      if(subjectRows.some(x=>!Number.isFinite(x.full_marks)||x.full_marks<=0))return toast("Enter full marks for every subject.","error");
+      const subjectRows=inputs.filter(i=>i.value.trim()!=="").map(i=>({subject_id:i.dataset.subjectId,subject_name:i.dataset.subjectName,full_marks:Number(i.value)}));
+      if(!subjectRows.length)return toast("Enter full marks for at least one subject.","error");
+      if(subjectRows.some(x=>!Number.isFinite(x.full_marks)||x.full_marks<=0))return toast("Full marks must be greater than 0.","error");
       loading(true,"Creating exam...");
       try{
         const {data:exam,error}=await sb.from("academic_exam_sets").insert({class_no:classNo,exam_name:examName,created_by:state.profile.id}).select().single();
@@ -1362,75 +1391,92 @@
     const [{data:exam,error:examError},{data:students,error:studentError},{data:records,error:recordError}]=await Promise.all([
       sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("id",examId).single(),
       sb.from("student_profiles").select("user_id,class_no,roll_number,profiles(full_name,login_id)").eq("class_no",classNo),
-      sb.from("student_exam_marks").select("student_id,status").eq("exam_id",examId)
+      sb.from("student_exam_marks").select("student_id,status,included_subject_ids").eq("exam_id",examId)
     ]);
     if(examError)throw examError;if(studentError)throw studentError;if(recordError)throw recordError;
     const list=(students||[]).sort((a,b)=>String(a.roll_number||"").localeCompare(String(b.roll_number||""),undefined,{numeric:true,sensitivity:"base"}));
-    const subjects=(exam.academic_exam_subjects||[]), recordMap=new Map((records||[]).map(r=>[r.student_id,r.status]));
+    const subjects=exam.academic_exam_subjects||[],recordMap=new Map((records||[]).map(r=>[r.student_id,r]));
     if(!list.length)return toast("No students found.","error");
-    let idx;
-    if(startStudentId){idx=list.findIndex(s=>s.user_id===startStudentId);if(idx<0)idx=0}
-    else {idx=list.findIndex(s=>recordMap.get(s.user_id)!=="completed");if(idx<0)idx=0}
+    let idx;if(startStudentId){idx=list.findIndex(s=>s.user_id===startStudentId);if(idx<0)idx=0}else{idx=list.findIndex(s=>recordMap.get(s.user_id)?.status!=="completed");if(idx<0)idx=0}
     await showAcademicStudentCard({classNo,exam,list,subjects,index:idx});
+  }
+
+  async function saveAcademicStudentMarks(examId,studentId,inputs,status,includedSubjectIds=null){
+    const marks={};
+    for(const i of inputs){const raw=i.value.trim();if(raw==="")throw new Error("Enter marks for every selected subject before saving.");const v=Number(raw),max=Number(i.max);if(!Number.isFinite(v)||v<0||v>max)throw new Error(`Marks must be between 0 and ${max}.`);marks[i.dataset.subjectId]=v}
+    const payload={exam_id:examId,student_id:studentId,marks,status,updated_at:new Date().toISOString()};
+    if(Array.isArray(includedSubjectIds))payload.included_subject_ids=includedSubjectIds;
+    const {error}=await sb.from("student_exam_marks").upsert(payload,{onConflict:"exam_id,student_id"});if(error)throw error;
+  }
+
+  async function updateStudentFM(exam,studentId,subjects,currentIds){
+    const defaultIds=subjects.map(s=>String(s.subject_id));
+    const selected=new Set(Array.isArray(currentIds)&&currentIds.length?currentIds.map(String):defaultIds);
+    modal(`<div class="modal-head"><div><span class="pill active">FM UPDATE</span><h2>Subjects for this student</h2><p class="modal-subtitle">Uncheck a subject only if this student is not taking it. Full marks for the exam remain unchanged for other students.</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
+      <div class="fm-update-list">${subjects.map(s=>`<label class="fm-update-row"><span><strong>${esc(s.subject_name)}</strong><small>Full marks: ${esc(s.full_marks)}</small></span><input type="checkbox" class="fm-subject-toggle" data-subject-id="${esc(s.subject_id)}" ${selected.has(String(s.subject_id))?"checked":""}></label>`).join("")}</div>
+      <div class="notice fm-update-note">Only the checked subjects will appear in this student's marks card and calculation. The next student will automatically start with all exam subjects.</div>
+      <div class="modal-actions"><button class="small-btn" data-close-modal>Cancel</button><button class="small-btn fm-update-action" id="save-fm-update"><i class="fa-solid fa-sliders"></i> Update FM</button></div>`);
+    $$('[data-close-modal]').forEach(b=>b.onclick=closeModal);
+    $('#save-fm-update').onclick=async()=>{
+      const ids=$$('.fm-subject-toggle').filter(x=>x.checked).map(x=>x.dataset.subjectId);
+      if(!ids.length)return toast('Keep at least one subject for this student.','error');
+      const existing=await sb.from('student_exam_marks').select('marks,status').eq('exam_id',exam.id).eq('student_id',studentId).maybeSingle();
+      if(existing.error)throw existing.error;
+      const marks=existing.data?.marks||{};Object.keys(marks).forEach(k=>{if(!ids.includes(String(k)))delete marks[k]});
+      const status=existing.data?.status||'draft';
+      const {error}=await sb.from('student_exam_marks').upsert({exam_id:exam.id,student_id:studentId,marks,status,included_subject_ids:ids,updated_at:new Date().toISOString()},{onConflict:'exam_id,student_id'});
+      if(error)throw error;closeModal();toast('FM updated for this student.','success');await startAcademicMarksEntry(exam.class_no,exam.id,studentId);
+    };
   }
 
   async function showAcademicStudentCard({classNo,exam,list,subjects,index}){
     const student=list[index];
-    const {data:existing,error}=await sb.from("student_exam_marks").select("marks,status,updated_at").eq("exam_id",exam.id).eq("student_id",student.user_id).maybeSingle();
+    const {data:existing,error}=await sb.from('student_exam_marks').select('marks,status,updated_at,included_subject_ids').eq('exam_id',exam.id).eq('student_id',student.user_id).maybeSingle();
     if(error)throw error;
-    const saved=existing?.marks||{},completed=existing?.status==="completed",next=index+1<list.length?index+1:null,prev=index>0?index-1:null;
-    modal(`<div class="modal-head"><div><span class="pill active">${esc(exam.exam_name)}</span><h2>${esc(student.profiles?.full_name||"Student")}</h2><p class="modal-subtitle">Roll No. ${esc(student.roll_number||"—")} • Class ${classNo} • Student ${index+1} of ${list.length}</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
-      <div class="marks-student-meta"><span><strong>${esc(student.profiles?.full_name||"Student")}</strong></span><span>Roll No. ${esc(student.roll_number||"—")}</span><span>${classText(classNo)}</span>${completed?`<span class="status-chip success">Completed</span>`:`<span class="status-chip">Pending / Draft</span>`}</div>
-      <div class="marks-input-grid">${subjects.map(s=>`<div class="form-group"><label>${esc(s.subject_name)}</label><div class="marks-input-with-full"><input class="academic-mark-input" data-subject-id="${esc(s.subject_id)}" type="number" min="0" max="${esc(s.full_marks)}" step="0.01" value="${saved[s.subject_id]!=null?esc(saved[s.subject_id]):""}" placeholder="0"><span>/ ${esc(s.full_marks)}</span></div></div>`).join("")}</div>
-      <div class="marks-total-preview"><span>Total: <strong id="academic-total-preview">0</strong> / ${subjects.reduce((n,s)=>n+Number(s.full_marks||0),0)}</span><span id="academic-percent-preview">0.00%</span></div>
-      <div class="modal-actions marks-entry-actions"><button class="small-btn" id="marks-prev" ${prev===null?"disabled":""}><i class="fa-solid fa-arrow-left"></i> Previous</button><span class="marks-entry-spacer"></span><button class="small-btn save-action" id="marks-save"><i class="fa-solid fa-floppy-disk"></i> Save</button><button class="small-btn primary" id="marks-done"><i class="fa-solid fa-check"></i> Done</button></div>`);
-    $$("[data-close-modal]").forEach(b=>b.onclick=()=>$("#modal-root").innerHTML="");
-    const inputs=$$(".academic-mark-input");
-    const updatePreview=()=>{let total=0;inputs.forEach(i=>{const v=Number(i.value);if(Number.isFinite(v)&&v>=0)total+=v});const full=subjects.reduce((n,s)=>n+Number(s.full_marks||0),0);$("#academic-total-preview").textContent=total.toFixed(2).replace(/\.00$/,"");$("#academic-percent-preview").textContent=full?`${((total/full)*100).toFixed(2)}%`:"0.00%"};
-    inputs.forEach(i=>i.addEventListener("input",updatePreview));updatePreview();
-    $("#marks-prev").onclick=()=>{if(prev!==null)showAcademicStudentCard({classNo,exam,list,subjects,index:prev})};
-    $("#marks-save").onclick=async()=>{try{await saveAcademicStudentMarks(exam.id,student.user_id,inputs,"draft");$("#modal-root").innerHTML="";toast(`Progress saved for ${student.profiles?.full_name||"this student"}. You can continue from the first unfinished student later.`,"success")}catch(e){toast(e.message||"Could not save progress.","error")}};
-    $("#marks-done").onclick=async()=>{try{await saveAcademicStudentMarks(exam.id,student.user_id,inputs,"completed");if(next!==null){toast(`${student.profiles?.full_name||"Student"} completed. Next student loaded.`,"success");await showAcademicStudentCard({classNo,exam,list,subjects,index:next})}else{$("#modal-root").innerHTML="";toast(`All ${list.length} students have been processed for ${exam.exam_name}.`,"success");await renderView()}}catch(e){toast(e.message||"Could not save marks.","error")}};
-  }
-
-  async function saveAcademicStudentMarks(examId,studentId,inputs,status){
-    const marks={};
-    for(const i of inputs){const raw=i.value.trim();if(raw==="")throw new Error("Enter marks for every subject before saving.");const v=Number(raw),max=Number(i.max);if(!Number.isFinite(v)||v<0||v>max)throw new Error(`Marks must be between 0 and ${max}.`);marks[i.dataset.subjectId]=v}
-    const {error}=await sb.from("student_exam_marks").upsert({exam_id:examId,student_id:studentId,marks,status,updated_at:new Date().toISOString()},{onConflict:"exam_id,student_id"});
-    if(error)throw error;
+    const allSubjectIds=subjects.map(s=>String(s.subject_id));
+    const includedIds=Array.isArray(existing?.included_subject_ids)&&existing.included_subject_ids.length?existing.included_subject_ids.map(String):allSubjectIds;
+    const activeSubjects=subjects.filter(s=>includedIds.includes(String(s.subject_id)));
+    const saved=existing?.marks||{},completed=existing?.status==='completed',next=index+1<list.length?index+1:null,prev=index>0?index-1:null;
+    modal(`<div class="modal-head"><div><span class="pill active">${esc(exam.exam_name)}</span><h2>${esc(student.profiles?.full_name||'Student')}</h2><p class="modal-subtitle">Roll No. ${esc(student.roll_number||'—')} • Class ${classNo} • Student ${index+1} of ${list.length}</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
+      <div class="marks-student-meta"><span><strong>${esc(student.profiles?.full_name||'Student')}</strong></span><span>Roll No. ${esc(student.roll_number||'—')}</span><span>${classText(classNo)}</span><span>${activeSubjects.length} subject${activeSubjects.length===1?'':'s'}</span>${completed?'<span class="status-chip success">Completed</span>':'<span class="status-chip">Pending / Draft</span>'}</div>
+      <div class="marks-input-grid">${activeSubjects.map(s=>`<div class="form-group"><label>${esc(s.subject_name)}</label><div class="marks-input-with-full"><input class="academic-mark-input" data-subject-id="${esc(s.subject_id)}" type="number" min="0" max="${esc(s.full_marks)}" step="0.01" value="${saved[s.subject_id]!=null?esc(saved[s.subject_id]):''}" placeholder="0"><span>/ ${esc(s.full_marks)}</span></div></div>`).join('')}</div>
+      <div class="marks-total-preview"><span>Total: <strong id="academic-total-preview">0</strong> / ${activeSubjects.reduce((n,s)=>n+Number(s.full_marks||0),0)}</span><span id="academic-percent-preview">0.00%</span></div>
+      <div class="modal-actions marks-entry-actions"><button class="small-btn" id="marks-prev" ${prev===null?'disabled':''}><i class="fa-solid fa-arrow-left"></i> Previous</button><button class="small-btn fm-update-action" id="marks-fm-update"><i class="fa-solid fa-sliders"></i> FM Update</button><span class="marks-entry-spacer"></span><button class="small-btn save-action" id="marks-save"><i class="fa-solid fa-floppy-disk"></i> Save</button><button class="small-btn done-action" id="marks-done"><i class="fa-solid fa-check"></i> Done</button></div>`);
+    $$('[data-close-modal]').forEach(b=>b.onclick=closeModal);
+    const inputs=$$('.academic-mark-input');
+    const updatePreview=()=>{let total=0;inputs.forEach(i=>{const v=Number(i.value);if(Number.isFinite(v)&&v>=0)total+=v});const full=activeSubjects.reduce((n,s)=>n+Number(s.full_marks||0),0);$('#academic-total-preview').textContent=total.toFixed(2).replace(/\.00$/,'');$('#academic-percent-preview').textContent=full?`${((total/full)*100).toFixed(2)}%`:'0.00%'};
+    inputs.forEach(i=>i.addEventListener('input',updatePreview));updatePreview();
+    $('#marks-prev').onclick=()=>{if(prev!==null)showAcademicStudentCard({classNo,exam,list,subjects,index:prev})};
+    $('#marks-fm-update').onclick=()=>updateStudentFM(exam,student.user_id,subjects,includedIds);
+    $('#marks-save').onclick=async()=>{try{await saveAcademicStudentMarks(exam.id,student.user_id,inputs,'draft',includedIds);closeModal();toast(`Progress saved for ${student.profiles?.full_name||'this student'}. You can continue from the first unfinished student later.`,'success')}catch(e){toast(e.message||'Could not save progress.','error')}};
+    $('#marks-done').onclick=async()=>{try{await saveAcademicStudentMarks(exam.id,student.user_id,inputs,'completed',includedIds);if(next!==null){toast(`${student.profiles?.full_name||'Student'} completed. Next student loaded.`,'success');await showAcademicStudentCard({classNo,exam,list,subjects,index:next})}else{closeModal();toast(`All ${list.length} students have been processed for ${exam.exam_name}.`,'success');await renderView()}}catch(e){toast(e.message||'Could not save marks.','error')}};
   }
 
   async function renderStudentMarks(el){
-    const [exams,ranking]=await Promise.all([
-      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",state.classNo).order("created_at",{ascending:false}),
-      sb.rpc("get_academic_exam_student_ranking",{p_class_no:state.classNo,p_student_id:state.profile.id})
-    ]);
-    if(exams.error)throw exams.error;if(ranking.error)throw ranking.error;
-    const examList=exams.data||[],rankRows=ranking.data||[],me=rankRows.find(r=>r.student_id===state.profile.id),top3=rankRows.slice(0,3);
-    el.innerHTML=`<div class="page-head"><div><h1>Marks</h1><p>${classText(state.classNo)} exam records and your class performance.</p></div></div>
-      <section class="marks-student-leaderboard"><div class="marks-student-rank-head"><div><span class="pill active">EXAM LEADERBOARD</span><h2>Your class position</h2><p>Combined performance from completed school exams.</p></div></div>
-        <div class="marks-podium-grid">${top3.map((r,i)=>`<div class="marks-podium-card ${r.student_id===state.profile.id?"is-me":""}"><span class="podium-place">${i+1}</span><span class="marks-student-avatar">${esc(initials(r.full_name))}</span><strong>${esc(r.full_name)}</strong><small>${Number(r.percentage).toFixed(2)}% • ${esc(r.total_score)} / ${esc(r.total_full_marks)}</small></div>`).join("")}${me&&!top3.some(r=>r.student_id===me.student_id)?`<div class="marks-your-rank"><span>Your rank</span><strong>${rankLabel(me.rank)}</strong><small>${Number(me.percentage).toFixed(2)}%</small></div>`:""}</div>
-        ${me?`<div class="marks-current-rank"><span><i class="fa-solid fa-ranking-star"></i> Your current rank</span><strong>${rankLabel(me.rank)}</strong><small>${Number(me.percentage).toFixed(2)}% overall</small></div>`:`<div class="marks-empty">Your marks will appear here after your first completed exam.</div>`}
-      </section>
-      <section class="marks-exam-cards"><div class="marks-student-rank-head"><div><span class="pill">EXAMS</span><h2>Your exam records</h2><p>Tap any exam to see subject-wise marks, percentage and full marks.</p></div></div>
-        <div class="student-exam-grid">${examList.map(e=>`<button class="student-exam-card" data-student-exam="${esc(e.id)}"><span class="exam-card-icon"><i class="fa-solid fa-file-lines"></i></span><span><strong>${esc(e.exam_name)}</strong><small>${(e.academic_exam_subjects||[]).length} subjects • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join("")||`<div class="marks-empty">No exam marks have been published for your class yet.</div>`}</div>
-      </section>`;
-    $$("[data-student-exam]",el).forEach(b=>b.onclick=()=>openStudentExamDetail(b.dataset.studentExam));
+    const {data:exams,error:examError}=await sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",state.classNo).order("created_at",{ascending:false});
+    if(examError)throw examError;const examList=exams||[];
+    if(!examList.length){
+      el.innerHTML=`<div class="page-head"><div><h1>Marks</h1><p>${classText(state.classNo)} academic marks and examination performance.</p></div></div><section class="marks-student-leaderboard"><div class="marks-student-rank-head"><div><span class="pill active">EXAM LEADERBOARD</span><h2>Your class position</h2><p>The leaderboard will appear automatically after the first school exam is completed.</p></div></div><div class="marks-empty student-marks-empty-card"><i class="fa-solid fa-ranking-star"></i><strong>No academic exam has been added yet.</strong><span>Your rank and the top students will appear here after your teacher publishes marks.</span></div></section><section class="marks-exam-cards"><div class="marks-student-rank-head"><div><span class="pill">EXAMS</span><h2>Your exam records</h2><p>Exam cards will appear here when your teacher creates them.</p></div></div><div class="student-exam-grid empty-exam-placeholders">${[1,2,3].map(i=>`<div class="student-exam-card empty-exam-card"><span class="exam-card-icon"><i class="fa-solid fa-file-lines"></i></span><span><strong>Exam ${i}</strong><small>Not added yet</small></span></div>`).join('')}</div></section>`;return;
+    }
+    const latest=examList[0];
+    const {data:records,error:recordError}=await sb.from('student_exam_marks').select('student_id,marks,status,included_subject_ids').eq('exam_id',latest.id).eq('status','completed');
+    if(recordError)throw recordError;
+    const ranked=(records||[]).map(r=>{const t=academicTotals(latest,r);return {...r,total_score:t.total,total_full_marks:t.full,percentage:t.percentage||0}}).sort((a,b)=>b.percentage-a.percentage||b.total_score-a.total_score);
+    const meIndex=ranked.findIndex(r=>r.student_id===state.profile.id),me=meIndex>=0?{...ranked[meIndex],rank:meIndex+1}:null,top3=ranked.slice(0,3);
+    const ids=ranked.map(r=>r.student_id),nameMap=new Map();if(ids.length){const {data:profiles}=await sb.from('profiles').select('id,full_name').in('id',ids);(profiles||[]).forEach(p=>nameMap.set(p.id,p.full_name));}
+    el.innerHTML=`<div class="page-head"><div><h1>Marks</h1><p>${classText(state.classNo)} academic marks and examination performance.</p></div></div><section class="marks-student-leaderboard"><div class="marks-student-rank-head"><div><span class="pill active">LATEST EXAM LEADERBOARD</span><h2>${esc(latest.exam_name)}</h2><p>Rank is calculated from the subjects included for each student.</p></div></div><div class="marks-podium-grid">${top3.map((r,i)=>`<div class="marks-podium-card ${r.student_id===state.profile.id?'is-me':''}"><span class="podium-place">${i+1}</span><span class="marks-student-avatar">${esc(initials(nameMap.get(r.student_id)||'Student'))}</span><strong>${esc(nameMap.get(r.student_id)||'Student')}</strong><small>${Number(r.percentage).toFixed(2)}% • ${esc(r.total_score)} / ${esc(r.total_full_marks)}</small></div>`).join('')}${me&&!top3.some(r=>r.student_id===me.student_id)?`<div class="marks-your-rank"><span>Your rank</span><strong>${rankLabel(me.rank)}</strong><small>${Number(me.percentage).toFixed(2)}%</small></div>`:''}${!top3.length?`<div class="marks-your-rank" style="grid-column:1/-1"><span>No completed marks yet</span><strong>—</strong><small>Your position will appear after marks are completed.</small></div>`:''}</div>${me?`<div class="marks-current-rank"><span><i class="fa-solid fa-ranking-star"></i> Your current rank in ${esc(latest.exam_name)}</span><strong>${rankLabel(me.rank)}</strong><small>${Number(me.percentage).toFixed(2)}% overall</small></div>`:`<div class="marks-empty">Your marks have not been completed for the latest exam yet.</div>`}</section><section class="marks-exam-cards"><div class="marks-student-rank-head"><div><span class="pill">EXAMS</span><h2>Your exam records</h2><p>Tap any exam to see subject-wise marks, percentage and full marks.</p></div></div><div class="student-exam-grid">${examList.map(e=>`<button class="student-exam-card" data-student-exam="${esc(e.id)}"><span class="exam-card-icon"><i class="fa-solid fa-file-lines"></i></span><span><strong>${esc(e.exam_name)}</strong><small>${(e.academic_exam_subjects||[]).length} subjects • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join('')}</div></section>`;
+    $$('[data-student-exam]',el).forEach(b=>b.onclick=()=>openStudentExamDetail(b.dataset.studentExam));
   }
 
   async function openStudentExamDetail(examId){
-    const [{data:exam,error:examError},{data:record,error:recordError}]=await Promise.all([
-      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("id",examId).single(),
-      sb.from("student_exam_marks").select("marks,status,updated_at").eq("exam_id",examId).eq("student_id",state.profile.id).maybeSingle()
-    ]);
-    if(examError)throw examError;if(recordError)throw recordError;
-    if(!record||record.status!=="completed")return toast("Your marks for this exam are not published yet.","error");
-    const subs=exam.academic_exam_subjects||[],marks=record.marks||{},total=Object.values(marks).reduce((a,v)=>a+Number(v||0),0),full=subs.reduce((a,s)=>a+Number(s.full_marks||0),0);
-    modal(`<div class="modal-head"><div><span class="pill active">${esc(exam.exam_name)}</span><h2>${esc(state.profile.full_name)}</h2><p class="modal-subtitle">${classText(state.classNo)} • Detailed marks</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
-      <div class="marks-detail-summary"><div><span>Total marks</span><strong>${total} / ${full}</strong></div><div><span>Percentage</span><strong>${full?((total/full)*100).toFixed(2):"0.00"}%</strong></div></div>
-      <div class="table-card"><table class="data-table marks-detail-table"><thead><tr><th>Subject</th><th>Marks</th><th>Full marks</th><th>Percentage</th></tr></thead><tbody>${subs.map(s=>{const m=Number(marks[s.subject_id]||0),fm=Number(s.full_marks||0);return `<tr><td><strong>${esc(s.subject_name)}</strong></td><td>${m}</td><td>${fm}</td><td>${fm?((m/fm)*100).toFixed(2):"0.00"}%</td></tr>`}).join("")}</tbody></table></div>
-      <div class="modal-actions"><button class="small-btn primary" data-close-modal>Done</button></div>`);
-    $$("[data-close-modal]").forEach(b=>b.onclick=()=>$("#modal-root").innerHTML="");
+    const [{data:exam,error:examError},{data:record,error:recordError}]=await Promise.all([sb.from('academic_exam_sets').select('id,class_no,exam_name,created_at,academic_exam_subjects(subject_id,subject_name,full_marks)').eq('id',examId).single(),sb.from('student_exam_marks').select('marks,status,updated_at,included_subject_ids').eq('exam_id',examId).eq('student_id',state.profile.id).maybeSingle()]);
+    if(examError)throw examError;if(recordError)throw recordError;if(!record||record.status!=='completed')return toast('Your marks for this exam are not published yet.','error');
+    const t=academicTotals(exam,record);
+    const {data:classRecords,error:rankError}=await sb.from('student_exam_marks').select('student_id,marks,status,included_subject_ids').eq('exam_id',examId).eq('status','completed');if(rankError)throw rankError;
+    const ranked=(classRecords||[]).map(r=>{const x=academicTotals(exam,r);return {student_id:r.student_id,pct:x.percentage||0}}).sort((a,b)=>b.pct-a.pct);const rank=ranked.findIndex(r=>r.student_id===state.profile.id)+1;
+    const subs=t.subjects,marks=record.marks||{};
+    modal(`<div class="modal-head"><div><span class="pill active">${esc(exam.exam_name)}</span><h2>${esc(state.profile.full_name)}</h2><p class="modal-subtitle">${classText(state.classNo)} • Detailed marks</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div><div class="marks-detail-summary"><div><span>Total marks</span><strong>${t.total} / ${t.full}</strong></div><div><span>Percentage</span><strong>${t.full?((t.total/t.full)*100).toFixed(2):'0.00'}%</strong></div><div><span>Class rank</span><strong>${rank>0?rankLabel(rank):'—'}</strong></div><div><span>Subjects counted</span><strong>${subs.length}</strong></div></div><div class="table-card"><table class="data-table marks-detail-table"><thead><tr><th>Subject</th><th>Marks</th><th>Full marks</th><th>Percentage</th></tr></thead><tbody>${subs.map(s=>{const m=Number(marks[s.subject_id]||0),fm=Number(s.full_marks||0);return `<tr><td><strong>${esc(s.subject_name)}</strong></td><td>${m}</td><td>${fm}</td><td>${fm?((m/fm)*100).toFixed(2):'0.00'}%</td></tr>`}).join('')}</tbody></table></div><div class="modal-actions"><button class="small-btn primary" data-close-modal>Done</button></div>`);
+    $$('[data-close-modal]').forEach(b=>b.onclick=closeModal);
   }
 
   async function renderAdminAcademicExamSummary(classNo){
@@ -1449,7 +1495,7 @@
     if(examError)throw examError;if(studentError)throw studentError;if(recordError)throw recordError;
     const map=new Map((records||[]).map(r=>[r.student_id,r])),rows=(students||[]).sort((a,b)=>String(a.roll_number||"").localeCompare(String(b.roll_number||""),undefined,{numeric:true}));
     modal(`<div class="modal-head"><div><span class="pill active">${esc(exam.exam_name)}</span><h2>Class ${classNo} student performance</h2><p class="modal-subtitle">Click a student to open complete subject-wise marks.</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
-      <div class="marks-student-grid">${rows.map((s,i)=>{const r=map.get(s.user_id),marks=r?.marks||{},subs=exam.academic_exam_subjects||[],total=Object.values(marks).reduce((a,v)=>a+Number(v||0),0),full=subs.reduce((a,x)=>a+Number(x.full_marks||0),0);return `<button class="marks-student-card" data-admin-student="${esc(s.user_id)}"><span class="marks-student-number">${i+1}</span><span class="marks-student-avatar">${esc(initials(s.profiles?.full_name))}</span><span class="marks-student-info"><strong>${esc(s.profiles?.full_name||"Student")}</strong><small>Roll No. ${esc(s.roll_number||"—")} • ${r?.status==="completed"?`${total}/${full} • ${full?((total/full)*100).toFixed(2):"0.00"}%`:"Not completed"}</small></span><i class="fa-solid fa-chevron-right"></i></button>`}).join("")}</div>`);
+      <div class="marks-student-grid">${rows.map((s,i)=>{const r=map.get(s.user_id),marks=r?.marks||{},subs=includedAcademicSubjects(exam,r),total=subs.reduce((a,x)=>a+Number(marks[x.subject_id]||0),0),full=subs.reduce((a,x)=>a+Number(x.full_marks||0),0);return `<button class="marks-student-card" data-admin-student="${esc(s.user_id)}"><span class="marks-student-number">${i+1}</span><span class="marks-student-avatar">${esc(initials(s.profiles?.full_name))}</span><span class="marks-student-info"><strong>${esc(s.profiles?.full_name||"Student")}</strong><small>Roll No. ${esc(s.roll_number||"—")} • ${r?.status==="completed"?`${total}/${full} • ${full?((total/full)*100).toFixed(2):"0.00"}%`:"Not completed"}</small></span><i class="fa-solid fa-chevron-right"></i></button>`}).join("")}</div>`);
     $$("[data-close-modal]").forEach(b=>b.onclick=()=>$("#modal-root").innerHTML="");
     $$("[data-admin-student]").forEach(b=>b.onclick=()=>showAdminStudentExamDetail(exam,b.dataset.adminStudent,rows));
   }
@@ -1465,13 +1511,13 @@
     let records=[];
     if(examList.length){const {data,error}=await sb.from("student_exam_marks").select("exam_id,student_id,marks,status,updated_at").in("exam_id",examList.map(e=>e.id));if(error)throw error;records=data||[];}
     const recordMap=new Map(records.map(r=>[r.exam_id,r]));
-    const stats=examList.map((exam,index)=>{const r=recordMap.get(exam.id),marks=r?.marks||{},subjects=exam.academic_exam_subjects||[],full=subjects.reduce((n,s)=>n+Number(s.full_marks||0),0),total=subjects.reduce((n,s)=>n+Number(marks[s.subject_id]||0),0),percentage=full?total/full*100:null;return {exam,r,marks,subjects,full,total,percentage,index};});
+    const stats=examList.map((exam,index)=>{const r=recordMap.get(exam.id),marks=r?.marks||{},subjects=includedAcademicSubjects(exam,r),full=subjects.reduce((n,s)=>n+Number(s.full_marks||0),0),total=subjects.reduce((n,s)=>n+Number(marks[s.subject_id]||0),0),percentage=full?total/full*100:null;return {exam,r,marks,subjects,full,total,percentage,index};});
     const completed=stats.filter(x=>x.r?.status==="completed"&&x.percentage!=null);
     const rankings=new Map();
     for(const x of completed){
-      const {data:classRecords,error}=await sb.from("student_exam_marks").select("student_id,marks,status").eq("exam_id",x.exam.id).eq("status","completed");
+      const {data:classRecords,error}=await sb.from("student_exam_marks").select("student_id,marks,status,included_subject_ids").eq("exam_id",x.exam.id).eq("status","completed");
       if(error)throw error;
-      const ranked=(classRecords||[]).map(rec=>({student_id:rec.student_id,pct:x.full?Object.values(rec.marks||{}).reduce((a,v)=>a+Number(v||0),0)/x.full*100:0})).sort((a,b)=>b.pct-a.pct);
+      const ranked=(classRecords||[]).map(rec=>{const rt=academicTotals(x.exam,rec);return {student_id:rec.student_id,pct:rt.percentage||0}}).sort((a,b)=>b.pct-a.pct);
       const mine=ranked.findIndex(r=>r.student_id===studentId);rankings.set(x.exam.id,mine>=0?mine+1:null);
     }
     const latest=completed[0]||null,previous=completed[1]||null,overallAvg=completed.length?completed.reduce((n,x)=>n+x.percentage,0)/completed.length:0,latestChange=latest&&previous?latest.percentage-previous.percentage:null;
@@ -1488,8 +1534,8 @@
 
   async function showAdminStudentExamDetail(exam,studentId,rows){
     const student=rows.find(s=>s.user_id===studentId);
-    const {data:record,error}=await sb.from("student_exam_marks").select("marks,status,updated_at").eq("exam_id",exam.id).eq("student_id",studentId).maybeSingle();
-    if(error)throw error;const marks=record?.marks||{},subs=exam.academic_exam_subjects||[],total=Object.values(marks).reduce((a,v)=>a+Number(v||0),0),full=subs.reduce((a,s)=>a+Number(s.full_marks||0),0);
+    const {data:record,error}=await sb.from("student_exam_marks").select("marks,status,updated_at,included_subject_ids").eq("exam_id",exam.id).eq("student_id",studentId).maybeSingle();
+    if(error)throw error;const marks=record?.marks||{},subs=includedAcademicSubjects(exam,record),total=subs.reduce((a,s)=>a+Number(marks[s.subject_id]||0),0),full=subs.reduce((a,s)=>a+Number(s.full_marks||0),0);
     modal(`<div class="modal-head"><div><span class="pill active">${esc(exam.exam_name)}</span><h2>${esc(student?.profiles?.full_name||"Student")}</h2><p class="modal-subtitle">Roll No. ${esc(student?.roll_number||"—")} • Class ${exam.class_no}</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
       <div class="marks-detail-summary"><div><span>Total marks</span><strong>${total} / ${full}</strong></div><div><span>Percentage</span><strong>${full?((total/full)*100).toFixed(2):"0.00"}%</strong></div><div><span>Status</span><strong>${record?.status==="completed"?"Completed":"Pending"}</strong></div></div>
       <div class="table-card"><table class="data-table marks-detail-table"><thead><tr><th>Subject</th><th>Marks</th><th>Full marks</th><th>Percentage</th></tr></thead><tbody>${subs.map(s=>{const m=Number(marks[s.subject_id]||0),fm=Number(s.full_marks||0);return `<tr><td><strong>${esc(s.subject_name)}</strong></td><td>${m}</td><td>${fm}</td><td>${fm?((m/fm)*100).toFixed(2):"0.00"}%</td></tr>`}).join("")}</tbody></table></div>
