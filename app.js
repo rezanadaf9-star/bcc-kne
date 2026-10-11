@@ -110,6 +110,12 @@
   }
 
   async function navigate(view, route = {}, replace = false) {
+    // Leaving the quiz result/analysis must always restore normal portal navigation.
+    // This also protects against a stale quiz-active class after a submit race.
+    if (view !== "quiz-run") {
+      document.body.classList.remove("quiz-active");
+      if (state.quizTimer && state.view !== "quiz-run") { clearInterval(state.quizTimer); state.quizTimer = null; }
+    }
     if (state.profile?.role === "student" && state.quizSecurity?.active && state.view === "quiz-run") {
       const submitted = await submitQuiz(true, "navigation");
       if (!submitted) return;
@@ -461,7 +467,7 @@
   function academicPodium(rows,currentId,admin=false){
     const top=(rows||[]).slice(0,3);
     if(!top.length)return empty("fa-solid fa-ranking-star","No completed results yet","The exam leaderboard will appear after the result is declared.");
-    return `<div class="rank-podium quiz-podium academic-podium marks-podium">${top.map((r,i)=>`<div class="podium-item place-${i+1} ${!admin&&r.student_id===currentId?'is-me':''}">
+    return `<div class="rank-podium academic-podium">${top.map((r,i)=>`<div class="podium-item place-${i+1} ${!admin&&r.student_id===currentId?'is-me':''}">
       <div class="podium-crown-wrap"><img src="assets/crown.png" class="podium-crown" alt="Crown"></div>
       <div class="podium-photo">${r.photo_url?`<img src="${esc(r.photo_url)}" alt="">`:esc(initials(r.full_name))}</div>
       <strong>${esc(r.full_name||"Student")}${!admin&&r.student_id===currentId?' <span class="you-badge">YOU</span>':''}</strong>
@@ -599,7 +605,7 @@
           ${monitor.map(x=>{const c=x.cumulative,l=x.latestAttempt;const change=x.change;const changeHtml=change==null?`<span class="trend neutral">—</span>`:change>0?`<span class="trend up"><i class="fa-solid fa-arrow-up"></i> +${change.toFixed(2)}%</span>`:change<0?`<span class="trend down"><i class="fa-solid fa-arrow-down"></i> ${change.toFixed(2)}%</span>`:`<span class="trend neutral"><i class="fa-solid fa-minus"></i> 0.00%</span>`;return `<tr><td><strong class="rank-badge">${esc(rankLabel(rankMap.get(x.student.user_id)))}</strong></td><td><div class="leader-student"><span class="leader-avatar">${x.student.photo_url?`<img src="${esc(x.student.photo_url)}" alt="">`:esc(initials(x.student.profiles?.full_name))}</span><span><strong>${esc(x.student.profiles?.full_name||"Student")}</strong><span class="table-sub">${esc(x.student.profiles?.login_id||"")}</span></span></div></td><td>${esc(x.student.roll_number||"—")}</td><td>${c?`${esc(c.total_score)} / ${esc(c.total_marks)}`:"0 / 0"}</td><td>${c?Number(c.percentage).toFixed(2):"0.00"}%</td><td>${l?`${esc(l.score)} / ${esc(l.total_marks)}<span class="table-sub">${Number(l.total_marks)?((Number(l.score)/Number(l.total_marks))*100).toFixed(2):"0.00"}%</span>`:"Not attempted"}</td><td>${changeHtml}</td><td>${esc(x.count)}</td></tr>`}).join("")||`<tr><td colspan="8">No student performance data yet.</td></tr>`}
         </tbody></table></div>
       </section>`;
-    $("#back-leaderboard").onclick=()=>history.back();
+    $("#back-leaderboard").onclick=()=>navigate("leaderboard");
   }
 
   async function renderNotebookLM(el) {
@@ -649,7 +655,7 @@
     if(error) return toast(error.message,"error");
     if (pushHistory) writeRoute("lectures-subject", { subjectId });
     $("#view-container").innerHTML = `<div class="back-row"><button class="small-btn" id="back-lectures"><i class="fa-solid fa-arrow-left"></i> Back</button></div><div class="page-head"><div><h1>${esc(data?.[0]?.subjects?.name || "Subject")}</h1><p>Lectures stay inside the BCC portal.</p></div></div><div class="list-stack">${(data||[]).map(lectureRow).join("") || emptyInline("No lectures yet.")}</div>`;
-    $("#back-lectures").onclick=()=>history.back();
+    $("#back-lectures").onclick=()=>navigate("lectures");
     $$("[data-lecture]").forEach(b=>b.onclick=()=>openLecture(b.dataset.lecture));
   }
 
@@ -680,7 +686,7 @@
     } else media=`<div class="player-placeholder"><div><i class="fa-solid fa-video"></i><p>No lecture media has been attached yet.</p></div></div>`;
     el.innerHTML=`<div class="back-row"><button class="small-btn" id="back-lecture"><i class="fa-solid fa-arrow-left"></i> Back to Lectures</button></div>
       <div class="player-wrap">${media}</div><div class="video-info"><h2>${esc(x.title)}</h2><p>${esc(x.subjects?.name || "Subject")} • ${x.is_live ? "Live lecture" : "Recorded lecture"} • ${fmtDateTime(x.created_at)}</p>${x.description?`<p>${esc(x.description)}</p>`:""}${x.downloadable&&x.file_path?`<button class="small-btn yellow" id="download-current" style="margin-top:12px"><i class="fa-solid fa-download"></i> Download lecture</button>`:""}</div>`;
-    $("#back-lecture").onclick=()=>history.back();
+    $("#back-lecture").onclick=()=>navigate("lectures");
     $("#download-current")?.addEventListener("click",async()=>downloadFile(x.file_path,x.title));
   }
 
@@ -710,7 +716,7 @@
     if(error)return toast(error.message,"error");
     if (pushHistory) writeRoute("notes-subject", { subjectId });
     $("#view-container").innerHTML=`<div class="back-row"><button class="small-btn" id="back-notes"><i class="fa-solid fa-arrow-left"></i> Back</button></div><div class="page-head"><div><h1>${esc(data?.[0]?.subjects?.name||"Notes")}</h1><p>Open or download a note.</p></div></div><div class="list-stack">${(data||[]).map(noteRow).join("")||emptyInline("No notes yet.")}</div>`;
-    $("#back-notes").onclick=()=>history.back();
+    $("#back-notes").onclick=()=>navigate("notes");
     $$("[data-note]",$("#view-container")).forEach(b=>b.onclick=()=>openNote(b.dataset.note));
     $$("[data-download]",$("#view-container")).forEach(b=>b.onclick=()=>downloadFile(b.dataset.download,b.dataset.name||"download"));
   }
@@ -733,7 +739,7 @@
   async function renderHomeworkList(subjectId, pushHistory = true){
     const {data,error}=await sb.from("homework").select("*,subjects(name)").eq("class_no",state.classNo).eq("subject_id",subjectId).order("created_at",{ascending:false});if(error)return toast(error.message,"error");
     $("#view-container").innerHTML=`<div class="back-row"><button class="small-btn" id="back-hw"><i class="fa-solid fa-arrow-left"></i> Back</button></div><div class="page-head"><div><h1>${esc(data?.[0]?.subjects?.name||"Homework")}</h1><p>Instructions and attached files.</p></div></div><div class="list-stack">${(data||[]).map(x=>`<div class="content-card"><h3>${esc(x.title)}</h3><p>${esc(x.instructions||"No extra instructions.")}</p><p class="mini-label">Posted ${fmtDate(x.created_at)}${x.due_date?` • Due ${fmtDate(x.due_date)}`:""}</p>${x.file_path?`<div class="inline" style="margin-top:10px"><button class="small-btn primary" data-hw="${esc(x.id)}">Open file</button><button class="small-btn" data-download="${esc(x.file_path)}" data-name="${esc(x.title)}">Download</button></div>`:""}</div>`).join("")||emptyInline("No homework yet.")}</div>`;
-    $("#back-hw").onclick=()=>history.back();$$("[data-hw]").forEach(b=>b.onclick=()=>openHomework(b.dataset.hw));$$("[data-download]").forEach(b=>b.onclick=()=>downloadFile(b.dataset.download,b.dataset.name));
+    $("#back-hw").onclick=()=>navigate("homework");$$("[data-hw]").forEach(b=>b.onclick=()=>openHomework(b.dataset.hw));$$("[data-download]").forEach(b=>b.onclick=()=>downloadFile(b.dataset.download,b.dataset.name));
   }
   async function openHomework(id){const {data,error}=await sb.from("homework").select("*").eq("id",id).single();if(error)return toast(error.message,"error");const url=await signedUrl(data.file_path,3600);if(!url)return toast("Could not open file.","error");const ext=(data.file_path||"").split(".").pop().toLowerCase();const viewer=ext==="pdf"?`<iframe class="pdf-frame" src="${esc(url)}"></iframe>`:`<img class="image-preview" src="${esc(url)}" alt="">`;modal(`<div class="modal-head"><h2>${esc(data.title)}</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>${viewer}<div class="modal-actions"><button class="small-btn" data-download="${esc(data.file_path)}" data-name="${esc(data.title)}">Download</button></div>`);$("[data-close]").onclick=closeModal;$("[data-download]").onclick=()=>downloadFile(data.file_path,data.title)}
 
@@ -1052,7 +1058,9 @@
     document.body.classList.remove("quiz-active");
     const el=$("#view-container"),a=state.lastAttempt.attempt,qz=state.quiz;
     el.innerHTML=`<div class="back-row"><button class="small-btn" id="back-quizzes"><i class="fa-solid fa-arrow-left"></i> Back to Quizzes</button></div><div class="result-card"><p class="mini-label">Quiz submitted</p><div class="score-big">${a.score}/${a.total_marks}</div><p>${a.correct_count} correct • ${a.wrong_count} wrong • ${a.unattempted_count} unattempted</p><div class="analysis-grid">${state.quizQuestions.map(q=>{const x=state.lastAttempt.answers.find(y=>y.question_id===q.id);return `<div class="analysis-item ${x?.status==="correct"?"correct":x?.status==="wrong"?"wrong":""}"><h4>${esc(q.question_text)}</h4><p>Your answer: ${esc(x?.selected_option||"Not attempted")} • Correct: ${esc(q.correct_option)} • Marks: ${x?.marks_awarded??0}</p>${q.explanation?`<p><strong>Explanation:</strong> ${esc(q.explanation)}</p>`:""}</div>`}).join("")}</div></div>`;
-    $("#back-quizzes").onclick=()=>history.back();
+    // The quiz result route replaces the quiz-run history entry, so browser
+    // back is not a reliable way to return to the quiz list. Navigate directly.
+    $("#back-quizzes").onclick=()=>navigate("quizzes");
   }
   async function showAttemptResult(quizId, pushHistory = true){
     const {data,error}=await sb.from("quiz_attempts").select("*,quizzes(*,subjects(name))").eq("quiz_id",quizId).eq("student_id",state.profile.id).order("submitted_at",{ascending:false}).limit(1).maybeSingle();

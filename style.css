@@ -722,55 +722,6 @@ body{background-color:var(--bg);}
 }
 
 
-/* Academic Marks podium uses the exact same podium layout as the Quiz Leaderboard.
-   Data/content remains academic-exam specific; only the podium presentation is shared. */
-.marks-podium{
-  grid-template-columns:repeat(3,minmax(0,clamp(72px,25vw,100px)));
-  justify-content:center;
-  align-items:end;
-  gap:clamp(3px,1vw,8px);
-  padding:18px 0 0;
-  overflow:visible;
-}
-.marks-podium .podium-item{
-  width:100%;
-  min-width:0;
-  padding:8px 0 0;
-  border:0;
-  border-radius:0;
-  background:transparent;
-  box-shadow:none;
-  overflow:visible;
-}
-.marks-podium .podium-item.place-1{order:2;min-height:245px}
-.marks-podium .podium-item.place-2{order:1;min-height:205px}
-.marks-podium .podium-item.place-3{order:3;min-height:185px}
-.marks-podium .podium-crown-wrap{height:30px;margin-top:-18px;position:relative;z-index:5}
-.marks-podium .podium-crown{position:relative;z-index:6;width:43px;height:43px}
-.marks-podium .podium-photo{position:relative;z-index:6;margin:-1px auto 7px}
-.marks-podium .podium-item strong,.marks-podium .podium-item>span:not(.podium-photo),.marks-podium .podium-item small{position:relative;z-index:6}
-.marks-podium .podium-block{position:absolute;z-index:1;left:0;right:0;bottom:0;margin:0;height:50px;display:flex;align-items:flex-end;justify-content:center;gap:6px;padding:0 0 5px;box-sizing:border-box;border-radius:12px 12px 0 0}
-.marks-podium .place-1 .podium-block{height:180px}
-.marks-podium .place-2 .podium-block{height:150px}
-.marks-podium .place-3 .podium-block{height:120px}
-.marks-podium .podium-block b,.marks-podium .podium-block em{position:relative;z-index:7}
-@media(max-width:760px){
-  .marks-podium{grid-template-columns:repeat(3,minmax(0,clamp(72px,25vw,100px)));gap:clamp(3px,1.5vw,7px)}
-  .marks-podium .podium-item.place-1{grid-column:auto;min-height:225px}
-  .marks-podium .podium-item.place-2{min-height:190px}
-  .marks-podium .podium-item.place-3{min-height:175px}
-}
-@media(max-width:480px){
-  .marks-podium{grid-template-columns:repeat(3,minmax(0,clamp(72px,25vw,92px)));gap:3px;padding-top:16px}
-  .marks-podium .podium-item.place-1,.marks-podium .podium-item.place-2,.marks-podium .podium-item.place-3{grid-column:auto;min-height:180px}
-  .marks-podium .podium-crown{width:38px;height:38px}
-  .marks-podium .podium-photo,.marks-podium .place-1 .podium-photo{width:58px;height:58px}
-  .marks-podium .podium-block{height:95px}
-  .marks-podium .place-1 .podium-block{height:135px}
-  .marks-podium .place-2 .podium-block{height:115px}
-  .marks-podium .place-3 .podium-block{height:95px}
-}
-
 /* ============================================================
    Quiz runner — single-question mobile/desktop layout
    ============================================================ */
@@ -1059,11 +1010,33 @@ button:active, a:active, label:active {
 
 .quiz-progress-wrap{margin:0 2px 14px}
 .quiz-progress-wrap .quiz-progress{margin:0 0 7px}
-.quiz-progress-track{height:5px;width:100%;border-radius:999px;background:#eceaf4;overflow:hidden}
-.quiz-progress-track span{display:block;height:100%;width:0;border-radius:inherit;background:linear-gradient(90deg,var(--navy),var(--yellow));transition:width .2s ease}
-.quiz-navigation{position:sticky;bottom:50px;z-index:12;margin-bottom:50px;padding:8px 0;background:linear-gradient(to bottom,rgba(255,251,231,0),rgba(255,251,231,.96) 35%,rgba(255,251,231,1))}
+.quiz-progress-track{height:5px;width:100%;border-radius:999px;background:var(--yellow);overflow:hidden}
+.quiz-progress-track span{display:block;height:100%;width:0;border-radius:inherit;background:var(--navy);transition:width .2s ease}
+
+/* Keep Previous / Next / final Submit pinned to the viewport on every screen size. */
+.quiz-navigation{
+  position:fixed;
+  left:calc(300px + max(34px, (100vw - 300px - 1450px)/2 + 34px));
+  right:max(34px, (100vw - 300px - 1450px)/2 + 34px);
+  bottom:22px;
+  z-index:120;
+  margin:0;
+  padding:8px 0;
+  background:linear-gradient(to bottom,rgba(255,251,231,0),rgba(255,251,231,.96) 35%,rgba(255,251,231,1));
+}
+.quiz-run-shell #quiz-form{padding-bottom:96px !important}
 .quiz-nav-btn{touch-action:manipulation}
 .quiz-option{touch-action:manipulation}
-@media(max-width:760px){
-  .quiz-navigation{bottom:50px;margin-bottom:50px;padding:8px 0 0}
+@media(max-width:1050px){
+  .quiz-navigation{left:276px;right:26px}
 }
+@media(max-width:760px){
+  .quiz-navigation{left:17px;right:17px;bottom:22px;padding:8px 0 0}
+}
+@media(max-width:480px){
+  .quiz-navigation{left:12px;right:12px;bottom:20px}
+}
+
+
+/* Quiz analysis/result is a normal portal page: sidebar navigation must remain clickable. */
+body:not(.quiz-active) .sidebar .nav-item[data-view]{pointer-events:auto;opacity:1;}
