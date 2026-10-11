@@ -13,11 +13,12 @@ export function json(body: unknown, status = 200) {
   });
 }
 
-export function getClients(req: Request) {
+export function getClients(req: Request, fallbackAccessToken = "") {
   const url = Deno.env.get("SUPABASE_URL")!;
   const anon = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
   const secret = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY")!;
-  const auth = req.headers.get("Authorization") || "";
+  const header = req.headers.get("Authorization") || "";
+  const auth = header || (fallbackAccessToken ? `Bearer ${fallbackAccessToken}` : "");
   const userClient = createClient(url, anon, { global: { headers: { Authorization: auth } } });
   const adminClient = createClient(url, secret);
   return { userClient, adminClient };

@@ -1,5 +1,28 @@
-import { corsHeaders, json, getClients } from "../_shared/common.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
+export const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS"
+};
+
+export function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" }
+  });
+}
+
+export function getClients(req: Request, fallbackAccessToken = "") {
+  const url = Deno.env.get("SUPABASE_URL")!;
+  const anon = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
+  const secret = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY")!;
+  const header = req.headers.get("Authorization") || "";
+  const auth = header || (fallbackAccessToken ? `Bearer ${fallbackAccessToken}` : "");
+  const userClient = createClient(url, anon, { global: { headers: { Authorization: auth } } });
+  const adminClient = createClient(url, secret);
+  return { userClient, adminClient };
+}
 Deno.serve(async req => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 

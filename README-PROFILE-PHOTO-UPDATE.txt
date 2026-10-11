@@ -1,19 +1,32 @@
-BCC PROFILE PHOTO + OPTIONAL PHONE UPDATE
+BCC Portal - Profile Photo Update
 
-WHAT CHANGED
-- Admin Create Student now has optional phone number and optional student photo.
-- Photo is uploaded to private Supabase Storage bucket student-photos under USER_ID/profile.ext.
-- Dashboard header shows the student photo; initials remain the fallback.
-- Student leaderboard and admin class leaderboards show a 38px circular photo.
-- Existing students without photos continue to show initials.
-- No SMS/WhatsApp service is integrated. Phone is only stored for future use.
+This package includes:
+- Student profile photos tied to the student's Supabase User ID.
+- Student photo upload/replace from Admin -> Students -> View.
+- Student photo delete option from the same student profile.
+- Student photo fallback: yellow circular background with first letters in BCC navy when no photo exists.
+- Student photos display in the student header/profile and quiz/cumulative leaderboards.
+- Admin/teacher account profile photo upload from the profile menu; the photo is stored persistently and shown in the top header.
+- Profile photos use a 1px BCC navy border. Uploaded photos are slightly cropped to hide colored edges baked into the image; fallback initials remain yellow.
+- No SMS/WhatsApp integration.
 
-PRODUCTION STEPS
-1. Run supabase/PHOTO_PROFILE_MIGRATION.sql ONCE in Supabase SQL Editor.
-2. Replace the existing admin-create-user Edge Function code with supabase/functions/admin-create-user/index.ts from this package, then Deploy updates.
-3. In GitHub replace ONLY frontend/index.html, frontend/app.js and frontend/style.css. Keep config.js unchanged.
-4. Do not redeploy start-quiz or submit-quiz for this feature.
-5. Test by creating one test student with a photo, log in as that student, verify the header photo, then check the leaderboard.
+Production steps:
+1. Run PHOTO_PROFILE_MIGRATION.sql once in Supabase SQL Editor. If the existing photo migration was already run, run this updated version so the staff/admin photo column and RPC are created.
+2. Replace frontend/index.html, frontend/app.js, and frontend/style.css in GitHub.
+3. Keep your existing frontend/config.js unchanged.
+4. No need to redeploy start-quiz or submit-quiz for these photo changes.
+5. Deploy the existing admin-create-user Edge Function only if your current production function does not already match this package.
 
-NOTE
-The photo input uses capture="environment" so compatible phones may offer the camera directly. Photo is optional and limited to 5 MB by the frontend.
+Student photo workflow:
+- Admin opens Students -> View.
+- Choose photo -> Add photo / Replace photo.
+- Delete photo is available when a photo exists.
+
+Admin/teacher photo workflow:
+- Open the profile menu in the top-right.
+- Choose Add profile photo / Replace profile photo.
+- The photo is stored at staff/{USER_ID}/profile.jpg.
+
+Important:
+- The student-photos bucket is private.
+- Storage policies in PHOTO_PROFILE_MIGRATION.sql are required.

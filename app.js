@@ -14,6 +14,7 @@
     quiz: null,
     quizQuestions: [],
     quizAnswers: {},
+    quizIndex: 0,
     quizStartedAt: null,
     quizTimer: null,
     quizSessionId: null,
@@ -460,7 +461,7 @@
   function academicPodium(rows,currentId,admin=false){
     const top=(rows||[]).slice(0,3);
     if(!top.length)return empty("fa-solid fa-ranking-star","No completed results yet","The exam leaderboard will appear after the result is declared.");
-    return `<div class="rank-podium academic-podium">${top.map((r,i)=>`<div class="podium-item place-${i+1} ${!admin&&r.student_id===currentId?'is-me':''}">
+    return `<div class="rank-podium quiz-podium academic-podium marks-podium">${top.map((r,i)=>`<div class="podium-item place-${i+1} ${!admin&&r.student_id===currentId?'is-me':''}">
       <div class="podium-crown-wrap"><img src="assets/crown.png" class="podium-crown" alt="Crown"></div>
       <div class="podium-photo">${r.photo_url?`<img src="${esc(r.photo_url)}" alt="">`:esc(initials(r.full_name))}</div>
       <strong>${esc(r.full_name||"Student")}${!admin&&r.student_id===currentId?' <span class="you-badge">YOU</span>':''}</strong>
@@ -774,6 +775,7 @@
       state.quiz=data;
       state.quizQuestions=publicQuestions;
       state.quizAnswers={};
+      state.quizIndex=0;
       state.quizStartedAt=sessionData.started_at ? new Date(sessionData.started_at).getTime() : Date.now();
       state.quizSessionId=sessionData.session_id;
       state.quizExpiresAt=sessionData.expires_at ? new Date(sessionData.expires_at).getTime() : null;
@@ -787,20 +789,119 @@
     }
   }
   async function renderQuizRun(el){
-    const qz=state.quiz;if(!qz){writeRoute("quizzes", {}, false);return renderView()}
+    const qz=state.quiz;
+    if(!qz){writeRoute("quizzes", {}, false);return renderView()}
     const questions=Array.isArray(state.quizQuestions)?state.quizQuestions:[];
     if(!questions.length){return toast("This quiz has no questions yet.","error")}
+
     document.body.classList.add("quiz-active");
+    state.quizIndex=Math.min(Math.max(Number(state.quizIndex)||0,0),questions.length-1);
+
     el.innerHTML=`<div class="quiz-run-shell">
-      <div class="quiz-lock-notice"><i class="fa-solid fa-shield-halved"></i><span><strong>Quiz mode is active.</strong> Leaving this page, switching tabs/apps, or using browser Back will submit the quiz automatically.</span></div>
-      <div class="quiz-topbar"><div><strong>${esc(qz.title)}</strong><span class="mini-label"> • ${questions.length} question${questions.length===1?"":"s"}</span></div><div class="timer" id="quiz-timer"></div></div>
-      <form id="quiz-form">${questions.map((q,i)=>`<div class="question-card"><h3>${i+1}. ${esc(q.question_text)}</h3>${["A","B","C","D"].map(letter=>{const key=`option_${letter.toLowerCase()}`;return q[key]?`<label class="option"><input type="radio" name="q_${q.id}" value="${letter}"><span><strong>${letter}.</strong> ${esc(q[key])}</span></label>`:""}).join("")}</div>`).join("")}<button class="primary-btn" type="submit" style="width:100%">Submit Quiz</button></form></div>`;
+      <section class="quiz-title-card">
+        <div>
+          <span class="quiz-kicker">${esc(qz.quiz_type||"QUIZ")}</span>
+          <h1>${esc(qz.title)}</h1>
+          <p>${questions.length} question${questions.length===1?"":"s"}${qz.total_marks!=null?` • ${qz.total_marks} marks`:""}</p>
+        </div>
+        <div class="quiz-title-actions">
+          <div class="timer" id="quiz-timer"></div>
+          <button type="button" class="quiz-submit-mini" id="quiz-submit-mini">Submit Quiz</button>
+        </div>
+      </section>
+
+      <div class="quiz-progress-wrap">
+        <div class="quiz-progress"><span id="quiz-progress-text">Question ${state.quizIndex+1} of ${questions.length}</span><span id="quiz-progress-percent">${Math.round(((state.quizIndex+1)/questions.length)*100)}%</span></div>
+        <div class="quiz-progress-track" aria-hidden="true"><span id="quiz-progress-fill"></span></div>
+      </div>
+
+      <form id="quiz-form" novalidate>
+        <div id="quiz-question-stage"></div>
+        <div class="quiz-navigation">
+          <button type="button" class="quiz-nav-btn previous" id="quiz-prev"><i class="fa-solid fa-arrow-left"></i><span>Previous</span></button>
+          <button type="button" class="quiz-nav-btn next" id="quiz-next"><span>${state.quizIndex===questions.length-1?"Submit Quiz":"Next"}</span><i class="fa-solid ${state.quizIndex===questions.length-1?"fa-check":"fa-arrow-right"}"></i></button>
+        </div>
+      </form>
+    </div>`;
+
+    const renderCurrentQuestion=()=>{
+      const i=Math.min(Math.max(Number(state.quizIndex)||0,0),questions.length-1);
+      const q=questions[i];
+      const selected=state.quizAnswers[q.id]||"";
+      const options=["A","B","C","D"].map(letter=>{
+        const key=`option_${letter.toLowerCase()}`;
+        if(!q[key]) return "";
+        return `<label class="quiz-option ${selected===letter?"selected":""}">
+          <input type="radio" name="quiz-current-option" value="${letter}" ${selected===letter?"checked":""}>
+          <span class="quiz-option-letter">${letter}</span>
+          <span class="quiz-option-text">${esc(q[key])}</span>
+          <span class="quiz-option-check"><i class="fa-solid fa-check"></i></span>
+        </label>`;
+      }).join("");
+
+      $("#quiz-question-stage").innerHTML=`<article class="quiz-question-card">
+        <div class="quiz-question-number">Question ${i+1}</div>
+        <h2>${esc(q.question_text)}</h2>
+        <div class="quiz-options">${options}</div>
+      </article>`;
+      const progressPercent=Math.round(((i+1)/questions.length)*100);
+      $("#quiz-progress-text").textContent=`Question ${i+1} of ${questions.length}`;
+      $("#quiz-progress-percent").textContent=`${progressPercent}%`;
+      const progressFill=$("#quiz-progress-fill");
+      if(progressFill) progressFill.style.width=`${progressPercent}%`;
+      const next=$("#quiz-next");
+      next.querySelector("span").textContent=i===questions.length-1?"Submit Quiz":"Next";
+      next.querySelector("i").className=`fa-solid ${i===questions.length-1?"fa-check":"fa-arrow-right"}`;
+      $("#quiz-prev").disabled=i===0;
+      $("#quiz-prev").setAttribute("aria-disabled",String(i===0));
+      $$("input[name='quiz-current-option']").forEach(input=>input.onchange=()=>{
+        state.quizAnswers[q.id]=input.value;
+        $$(".quiz-option",$("#quiz-question-stage")).forEach(x=>x.classList.remove("selected"));
+        input.closest(".quiz-option")?.classList.add("selected");
+      });
+      window.scrollTo({top:0,behavior:"smooth"});
+    };
+
+    const moveQuestion=(delta)=>{
+      const nextIndex=state.quizIndex+delta;
+      if(nextIndex<0 || nextIndex>=questions.length)return;
+      state.quizIndex=nextIndex;
+      renderCurrentQuestion();
+    };
+
+    $("#quiz-prev").onclick=()=>moveQuestion(-1);
+    $("#quiz-next").onclick=async()=>{
+      if(state.quizIndex===questions.length-1){
+        await openQuizSubmitConfirm();
+      }else{
+        moveQuestion(1);
+      }
+    };
+    $("#quiz-submit-mini").onclick=()=>openQuizSubmitConfirm();
+
     const secondsRemaining=state.quizExpiresAt
       ? Math.max(1,Math.ceil((state.quizExpiresAt-Date.now())/1000))
       : Number(qz.duration_minutes)*60;
     startTimer(secondsRemaining);
-    $("#quiz-form").onsubmit=async e=>{e.preventDefault();if(!confirm("Submit this quiz now?"))return;await submitQuiz(false,"manual");};
+    renderCurrentQuestion();
     installQuizGuards();
+  }
+
+  function openQuizSubmitConfirm(){
+    return new Promise(resolve=>{
+      const modalRoot=$("#modal-root");
+      modalRoot.innerHTML=`<div class="modal-backdrop quiz-confirm-backdrop" data-quiz-confirm-backdrop>
+        <div class="quiz-confirm-card" role="dialog" aria-modal="true" aria-labelledby="quiz-confirm-title">
+          <div class="quiz-confirm-icon"><i class="fa-solid fa-paper-plane"></i></div>
+          <div class="quiz-confirm-copy"><h2 id="quiz-confirm-title">Submit this quiz?</h2><p>You can still go back and review your answers. Once submitted, your attempt will be final.</p></div>
+          <div class="quiz-confirm-actions"><button type="button" class="quiz-confirm-cancel" id="quiz-confirm-cancel">Cancel</button><button type="button" class="quiz-confirm-submit" id="quiz-confirm-submit">Submit Quiz</button></div>
+        </div>
+      </div>`;
+      const finish=ok=>{modalRoot.innerHTML="";resolve(ok);};
+      $("#quiz-confirm-cancel").onclick=()=>finish(false);
+      $("#quiz-confirm-submit").onclick=async()=>{modalRoot.querySelector(".quiz-confirm-submit").disabled=true;finish(true);await submitQuiz(false,"manual");};
+      modalRoot.querySelector("[data-quiz-confirm-backdrop]").addEventListener("click",e=>{if(e.target.matches("[data-quiz-confirm-backdrop]"))finish(false)});
+    });
   }
   window.renderQuizzes = renderQuizzes;
 
@@ -868,10 +969,10 @@
   function handleQuizSelectStart(e){if(state.quizSecurity?.active && !e.target.closest("input"))e.preventDefault();}
 
   function collectQuizAnswers(){
-    state.quizQuestions.forEach(q=>{
-      const r=document.querySelector(`input[name="q_${q.id}"]:checked`);
-      state.quizAnswers[q.id]=r?.value||null;
-    });
+    const current=state.quizQuestions?.[state.quizIndex];
+    const r=document.querySelector(`input[name="quiz-current-option"]:checked`);
+    if(current) state.quizAnswers[current.id]=r?.value||state.quizAnswers[current.id]||null;
+    state.quizQuestions.forEach(q=>{if(!(q.id in state.quizAnswers))state.quizAnswers[q.id]=null;});
     return state.quizAnswers;
   }
 
@@ -880,7 +981,17 @@
     state.quizSecurity.submitting=true;
     clearInterval(state.quizTimer);
     collectQuizAnswers();
-    loading(true, reason==="manual"?"Saving result...":"Submitting quiz...");
+    // Manual submission uses the inline button state instead of the full-screen
+    // loader so the click feels immediate. Network time is still required for
+    // the secure Edge Function to calculate and save the final result.
+    const manualSubmitButton=document.querySelector("#quiz-confirm-submit, #quiz-next");
+    if(manualSubmitButton && reason==="manual"){
+      manualSubmitButton.disabled=true;
+      const label=manualSubmitButton.querySelector("span");
+      if(label) label.textContent="Submitting...";
+    } else {
+      loading(true,"Submitting quiz...");
+    }
 
     try{
       const {data,error}=await sb.functions.invoke("submit-quiz",{
@@ -916,7 +1027,9 @@
       state.quizSecurity.submitting=false;
       toast(e.message||"Could not submit quiz.","error");
       return false;
-    }finally{loading(false)}
+    }finally{
+      if(reason!=="manual") loading(false);
+    }
   }
 
   function sendQuizBeacon(reason){
