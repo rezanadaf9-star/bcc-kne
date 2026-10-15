@@ -1040,3 +1040,6 @@ button:active, a:active, label:active {
 
 /* Quiz analysis/result is a normal portal page: sidebar navigation must remain clickable. */
 body:not(.quiz-active) .sidebar .nav-item[data-view]{pointer-events:auto;opacity:1;}
+
+/* Teacher portal form helpers */
+.checkbox-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:9px 0}.checkbox-row label{display:flex;align-items:center;gap:7px;font-size:11px;color:#444}.checkbox-row input{accent-color:var(--navy)}

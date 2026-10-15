@@ -73,7 +73,7 @@
 
   const slug = s => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   const classText = c => c ? `Class ${c}` : "Class";
-  const roleLabel = p => p?.role === "admin" ? "Administrator" : "Teacher";
+  const roleLabel = p => p?.role === "admin" ? "Administrator" : p?.role === "teacher" ? "Teacher" : "Student";
 
   function toast(message, type = "info") {
     const el = document.createElement("div");
@@ -144,12 +144,12 @@
     // If the user reaches a history entry that belongs to the page before
     // the portal, keep the user inside the portal instead of leaving Chrome.
     if (!event.state?.bccPortal) {
-      const home = state.profile.role === "student" ? "dashboard" : "admin-dashboard";
+      const home = state.profile.role === "student" ? "dashboard" : (state.profile.role === "admin" ? "admin-dashboard" : "teacher-dashboard");
       writeRoute(home, {}, false);
       return;
     }
 
-    state.view = event.state.view || (state.profile.role === "student" ? "dashboard" : "admin-dashboard");
+    state.view = event.state.view || (state.profile.role === "student" ? "dashboard" : (state.profile.role === "admin" ? "admin-dashboard" : "teacher-dashboard"));
     state.route = event.state.route || {};
     toggleSidebar(false);
     await renderView();
@@ -198,6 +198,7 @@
       if (!state.profile) throw new Error("Your account exists, but its BCC profile is missing.");
       if (state.portal === "student" && state.profile.role !== "student") throw new Error("This ID is not a student account.");
       if (state.portal === "teacher" && !["teacher","admin"].includes(state.profile.role)) throw new Error("This ID is not a teacher account.");
+      if (state.profile.is_active === false) { await sb.auth.signOut(); state.session=null; state.profile=null; throw new Error("This account is inactive. Please contact BCC administration."); }
       await enterApp();
     } catch (e) {
       toast(e.message || "Login failed.", "error");
@@ -209,7 +210,9 @@
     $("#login-screen").classList.add("hidden");
     $("#app-shell").classList.remove("hidden");
     $("#student-nav").classList.toggle("hidden", state.profile.role !== "student");
-    $("#admin-nav").classList.toggle("hidden", state.profile.role === "student");
+    $("#admin-nav").classList.toggle("hidden", state.profile.role !== "admin");
+    $("#teacher-nav").classList.toggle("hidden", state.profile.role !== "teacher");
+    $$(".admin-only").forEach(x=>x.classList.toggle("hidden",state.profile.role!=="admin"));
     $("#profile-name").textContent = state.profile.full_name || "BCCian";
     $("#profile-role").textContent = state.profile.role === "student" ? "Student" : roleLabel(state.profile);
     $("#profile-avatar").innerHTML = esc(initials(state.profile.full_name));
@@ -229,8 +232,8 @@
     } else {
       state.classNo = null;
       await loadProfileAvatar(state.profile.photo_path, state.profile.full_name || "Administrator");
-      $("#topbar-context").textContent = "Teacher & Administration Portal";
-      homeView = "admin-dashboard";
+      $("#topbar-context").textContent = state.profile.role === "admin" ? "BCC Administration Portal" : "BCC Teacher Portal";
+      homeView = state.profile.role === "admin" ? "admin-dashboard" : "teacher-dashboard";
     }
 
     // Create portal history entries as soon as login succeeds. This is what
@@ -329,7 +332,9 @@
           return await renderQuizResult(el);
         }
       } else {
-        if (state.view === "admin-dashboard") return await renderAdminDashboard(el);
+        if (state.view === "admin-dashboard" && state.profile.role === "admin") return await renderAdminDashboard(el);
+        if (state.view === "teacher-dashboard" && state.profile.role === "teacher") return await renderTeacherDashboard(el);
+        if (state.view === "teachers" && state.profile.role === "admin") return await renderTeachers(el);
         if (state.view === "students") return await renderStudents(el);
         if (state.view === "content") return await renderContent(el);
         if (state.view === "quiz-manager") return await renderQuizManager(el);
@@ -1082,20 +1087,87 @@
       sb.from("quizzes").select("id",{count:"exact",head:true}).eq("is_active",true),
       sb.from("quiz_attempts").select("id",{count:"exact",head:true})
     ]);
-    el.innerHTML=`<div class="banner"><div><h2>Teacher dashboard</h2><p>Manage students, class content, quizzes and marks from one place.</p></div><div class="banner-icon"><i class="fa-solid fa-chalkboard-user"></i></div></div>
+    el.innerHTML=`<div class="banner"><div><h2>Administration dashboard</h2><p>Manage BCC students, teachers, class content, quizzes and marks.</p></div><div class="banner-icon"><i class="fa-solid fa-chalkboard-user"></i></div></div>
       <div class="stats-grid">${metric("Students",students.count??0,"All classes")}${metric("Lectures",lectures.count??0,"Uploaded/linked")}${metric("Notes",notes.count??0,"Study files")}${metric("Homework",hw.count??0,"Assignments")}${metric("Active quizzes",quizzes.count??0,"Currently active")}${metric("Quiz attempts",attempts.count??0,"Submitted")}</div>
       <h2 class="section-title">Administration</h2><div class="feature-grid">
       ${dashboardCard("fa-solid fa-user-plus","Create Student","Generate BCC Student ID and password","students")}
+      ${dashboardCard("fa-solid fa-chalkboard-user","Manage Teachers","Create teacher accounts and manage credentials","teachers")}
       ${dashboardCard("fa-solid fa-cloud-arrow-up","Manage Content","Upload notes, homework and lectures","content")}
       ${dashboardCard("fa-solid fa-list-check","Quiz Manager","Create and configure quizzes","quiz-manager")}
       ${dashboardCard("fa-solid fa-chart-column","Marks","View quiz scores by class","marks")}</div>`;
     $$("[data-go]",el).forEach(x=>x.onclick=()=>navigate(x.dataset.go));
   }
 
+  async function renderTeacherDashboard(el){
+    let assigned=[];
+    try { const {data,error}=await sb.from("teacher_class_assignments").select("class_no").eq("teacher_id",state.profile.id); if(!error && data?.length) assigned=[...new Set(data.map(x=>Number(x.class_no)))]; } catch(_){}
+    const [students,lectures,notes,hw,quizzes,attempts]=await Promise.all([
+      sb.from("student_profiles").select("id",{count:"exact",head:true}).in("class_no",assigned),
+      sb.from("lectures").select("id",{count:"exact",head:true}).in("class_no",assigned),
+      sb.from("notes").select("id",{count:"exact",head:true}).in("class_no",assigned),
+      sb.from("homework").select("id",{count:"exact",head:true}).in("class_no",assigned),
+      sb.from("quizzes").select("id",{count:"exact",head:true}).in("class_no",assigned).eq("is_active",true),
+      sb.from("quiz_attempts").select("id",{count:"exact",head:true})
+    ]);
+    el.innerHTML=`<div class="banner"><div><h2>Welcome, ${esc(state.profile.full_name||"Teacher")}</h2><p>${assigned.length?`Your teaching workspace for classes ${assigned.map(classText).join(", ")}.`:"No classes are assigned to your account yet. Contact the BCC administrator."}</p></div><div class="banner-icon"><i class="fa-solid fa-chalkboard-user"></i></div></div>
+      <div class="stats-grid">${metric("Students",students.count??0,"Your accessible classes")}${metric("Lectures",lectures.count??0,"Class resources")}${metric("Notes",notes.count??0,"Study files")}${metric("Homework",hw.count??0,"Assignments")}${metric("Active quizzes",quizzes.count??0,"Currently active")}${metric("Quiz attempts",attempts.count??0,"Submitted")}</div>
+      <h2 class="section-title">Teaching tools</h2><div class="feature-grid">
+      ${dashboardCard("fa-solid fa-users","Monitor Students","Review class lists and student information","students")}
+      ${dashboardCard("fa-solid fa-cloud-arrow-up","Manage Content","Add notes, homework and lectures","content")}
+      ${dashboardCard("fa-solid fa-list-check","Create Quiz","Build and manage assessments","quiz-manager")}
+      ${dashboardCard("fa-solid fa-chart-column","Marks & Performance","Review marks and class performance","marks")}</div>`;
+    $$('[data-go]',el).forEach(x=>x.onclick=()=>navigate(x.dataset.go));
+  }
+
+  async function renderTeachers(el){
+    const {data,error}=await sb.from("profiles").select("id,full_name,login_id,is_active,created_at,teacher_class_assignments(class_no)").eq("role","teacher").order("created_at",{ascending:false});
+    if(error)throw error;
+    const rows=data||[];
+    el.innerHTML=`<div class="page-head"><div><h1>Teachers</h1><p>Create teacher accounts, share credentials and manage access.</p></div><button class="small-btn primary" id="create-teacher"><i class="fa-solid fa-user-plus"></i> Create teacher</button></div>
+      <div class="table-card"><table class="data-table"><thead><tr><th>Teacher</th><th>Teacher ID</th><th>Class access</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows.map(t=>`<tr><td><strong>${esc(t.full_name)}</strong></td><td>${esc(t.login_id)}</td><td>${(t.teacher_class_assignments||[]).map(a=>classText(a.class_no)).join(", ")||"Not assigned"}</td><td><span class="pill ${t.is_active===false?"":"active"}">${t.is_active===false?"Inactive":"Active"}</span></td><td><button class="small-btn" data-teacher-status="${esc(t.id)}" data-active="${t.is_active===false?"false":"true"}">${t.is_active===false?"Activate":"Deactivate"}</button><button class="small-btn" data-teacher-reset="${esc(t.id)}" data-login="${esc(t.login_id)}" data-name="${esc(t.full_name)}">Reset password</button></td></tr>`).join("")||`<tr><td colspan="5">No teacher accounts created yet.</td></tr>`}</tbody></table></div>`;
+    $("#create-teacher").onclick=showCreateTeacher;
+    $$('[data-teacher-status]',el).forEach(b=>b.onclick=()=>setTeacherStatus(b.dataset.teacherStatus,b.dataset.active!=="true"));
+    $$('[data-teacher-reset]',el).forEach(b=>b.onclick=()=>showResetTeacherPassword(b.dataset.teacherReset,b.dataset.login,b.dataset.name));
+  }
+
+  function showCreateTeacher(){
+    modal(`<div class="modal-head"><h2>Create teacher</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>
+      <div class="form-grid"><div class="form-group"><label>Full name</label><input id="teacher-name" placeholder="e.g. Jackie Kumar" required></div><div class="form-group"><label>Class access</label><div class="checkbox-row"><label><input type="checkbox" id="teacher-class-10" checked> Class 10</label><label><input type="checkbox" id="teacher-class-12" checked> Class 12</label></div></div><div class="form-group"><label>Initial password</label><input id="teacher-password" type="text" autocomplete="off" placeholder="Leave blank to generate automatically"></div></div>
+      <p class="notice" style="margin-top:14px">Teacher IDs use BCC + serial number + the first initials of the first and second name, e.g. BCC01ZQ. A full name with at least two name parts is required. Password changes are restricted to the administrator; give each teacher their credentials privately.</p>
+      <div class="modal-actions"><button class="small-btn" data-close>Cancel</button><button class="small-btn primary" id="save-teacher">Create teacher</button></div>`);
+    $$('[data-close]').forEach(x=>x.onclick=closeModal); $("#save-teacher").onclick=createTeacher;
+  }
+  async function createTeacher(){
+    const full_name=$("#teacher-name").value.trim();
+    const classes=[10,12].filter(n=>$("#teacher-class-"+n).checked);
+    let password=$("#teacher-password").value;
+    if(!full_name)return toast("Enter the teacher's full name.","error");
+    if(!classes.length)return toast("Select at least one class.","error");
+    if(!password) password=Array.from(crypto.getRandomValues(new Uint8Array(12)),b=>"ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%"[b%64]).join("");
+    if(password.length<8)return toast("Password must contain at least 8 characters.","error");
+    loading(true,"Creating teacher account...");
+    try{const {data,error}=await sb.functions.invoke("admin-create-user",{body:{type:"teacher",full_name,password,class_nos:classes}});if(error)throw error;if(data?.error)throw new Error(data.error);showTeacherCreatedCredentials(data.login_id,password,full_name);}
+    catch(e){toast(e.message||"Could not create teacher.","error")}finally{loading(false)}
+  }
+  function showTeacherCreatedCredentials(loginId,password,fullName){
+    const websiteLink="https://rezanadaf9-star.github.io/bcc-kne/";
+    const message=`Assalamu Alaikum ${fullName},\n\nYour BCC Teacher Portal account has been created.\nWebsite: ${websiteLink}\nTeacher ID: ${loginId}\nPassword: ${password}\n\nPlease keep these credentials private.`;
+    modal(`<div class="modal-head"><h2>Teacher created successfully</h2><button class="close-btn" data-created-close><i class="fa-solid fa-xmark"></i></button></div><div class="student-created-card"><div class="student-created-success"><i class="fa-solid fa-circle-check"></i><div><strong>${esc(fullName)}</strong><span>Credentials are ready to send privately.</span></div></div><div class="student-credential-list"><div class="student-credential-row"><span>Teacher ID</span><strong>${esc(loginId)}</strong></div><div class="student-credential-row"><span>Password</span><strong>${esc(password)}</strong></div><div class="student-credential-row"><span>Status</span><strong>Active</strong></div></div><div class="student-created-actions"><button class="small-btn" id="copy-teacher-credentials"><i class="fa-regular fa-copy"></i> Copy WhatsApp message</button><button class="small-btn primary" id="created-teacher-done">Done</button></div></div>`);
+    const finish=async()=>{closeModal();await renderTeachers($("#view-container"));};$('[data-created-close]')?.addEventListener("click",finish);$("#created-teacher-done").onclick=finish;
+    $("#copy-teacher-credentials").onclick=async()=>{try{await navigator.clipboard.writeText(message);toast("Teacher credentials copied. Paste the message into WhatsApp.","success")}catch(_){toast("Clipboard unavailable. Copy the credentials manually.","error")}};
+  }
+  async function setTeacherStatus(id,active){
+    try{const {data,error}=await sb.functions.invoke("admin-create-user",{body:{action:"set-status",user_id:id,is_active:active}});if(error)throw error;if(data?.error)throw new Error(data.error);toast(`Teacher ${active?"activated":"deactivated"}.`,"success");await renderTeachers($("#view-container"));}catch(e){toast(e.message||"Could not update teacher status.","error")}
+  }
+  function showResetTeacherPassword(id,loginId,fullName){
+    modal(`<div class="modal-head"><h2>Reset teacher password</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div><p>Set a new password for <strong>${esc(fullName)}</strong> (${esc(loginId)}). Teachers cannot change their own password.</p><div class="form-group"><label>New password</label><input id="reset-teacher-password" type="text" minlength="8" placeholder="Enter new password"></div><div class="modal-actions"><button class="small-btn" data-close>Cancel</button><button class="small-btn primary" id="confirm-teacher-reset">Reset password</button></div>`);
+    $$('[data-close]').forEach(x=>x.onclick=closeModal);$("#confirm-teacher-reset").onclick=async()=>{const password=$("#reset-teacher-password").value;if(password.length<8)return toast("Use at least 8 characters.","error");loading(true,"Resetting password...");try{const {data,error}=await sb.functions.invoke("admin-create-user",{body:{action:"reset-password",user_id:id,password}});if(error)throw error;if(data?.error)throw new Error(data.error);showTeacherCreatedCredentials(loginId,password,fullName)}catch(e){toast(e.message||"Password reset failed.","error")}finally{loading(false)}};
+  }
+
   async function renderStudents(el){
     const {data,error}=await sb.from("student_profiles").select("*,profiles(full_name,login_id)").order("class_no").order("roll_number");if(error)throw error;
     const rows=data||[];
-    el.innerHTML=`<div class="page-head"><div><h1>Students</h1><p>Create accounts and view student information.</p></div><button class="small-btn primary" id="create-student"><i class="fa-solid fa-user-plus"></i> Create student</button></div>
+    el.innerHTML=`<div class="page-head"><div><h1>Students</h1><p>${state.profile.role==="admin"?"Create accounts and manage student information.":"Review students in your assigned classes."}</p></div>${state.profile.role==="admin"?`<button class="small-btn primary" id="create-student"><i class="fa-solid fa-user-plus"></i> Create student</button>`:""}</div>
       <div class="table-card"><table class="data-table"><thead><tr><th>Name</th><th>ID</th><th>Class</th><th>Roll</th><th>Batch</th><th>Actions</th></tr></thead><tbody>${rows.map(x=>`<tr><td><strong>${esc(x.profiles?.full_name)}</strong></td><td>${esc(x.profiles?.login_id)}</td><td>${x.class_no}</td><td>${esc(x.roll_number)}</td><td>${esc(x.batch)}</td><td><button class="small-btn" data-student="${esc(x.id)}">View</button></td></tr>`).join("")||`<tr><td colspan="6">No students yet.</td></tr>`}</tbody></table></div>`;
     $("#create-student").onclick=showCreateStudent;
     $$("[data-student]",el).forEach(b=>b.onclick=()=>viewStudent(b.dataset.student));
@@ -1272,10 +1344,11 @@
   function normalizeStudentRouteForRole(){
     if(!state.profile)return;
     const studentViews=new Set(["dashboard","lectures","lectures-subject","notes","notes-subject","homework","homework-subject","quizzes","leaderboard","student-marks","student-academic-leaderboard","notebooklm","lecture-player","quiz-run","quiz-result"]);
-    const adminViews=new Set(["admin-dashboard","students","content","quiz-manager","marks","marks-class","academic-leaderboard","academic-leaderboard-exam","leaderboard","leaderboard-class"]);
-    const allowed=state.profile.role==="student"?studentViews:adminViews;
+    const adminViews=new Set(["admin-dashboard","students","teachers","content","quiz-manager","marks","marks-class","academic-leaderboard","academic-leaderboard-exam","leaderboard","leaderboard-class"]);
+    const teacherViews=new Set(["teacher-dashboard","students","content","quiz-manager","marks","marks-class","academic-leaderboard","academic-leaderboard-exam","leaderboard","leaderboard-class"]);
+    const allowed=state.profile.role==="student"?studentViews:(state.profile.role==="admin"?adminViews:teacherViews);
     if(!allowed.has(state.view)){
-      state.view=state.profile.role==="student"?"dashboard":"admin-dashboard";
+      state.view=state.profile.role==="student"?"dashboard":(state.profile.role==="admin"?"admin-dashboard":"teacher-dashboard");
       state.route={};
     }
   }
@@ -1793,7 +1866,7 @@
 
   async function setup(){
     window.addEventListener("popstate", handlePopState);
-    $$(".portal-tab").forEach(b=>b.onclick=()=>{$$(".portal-tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");state.portal=b.dataset.portal;$("#login-hint").textContent=state.portal==="student"?"Student login: use the Student ID given by BCC.":"Teacher login: use the teacher/admin ID given by BCC."});
+    $$(".portal-tab").forEach(b=>b.onclick=()=>{$$(".portal-tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");state.portal=b.dataset.portal;$("#login-hint").textContent=state.portal==="student"?"Student login: use the Student ID given by BCC.":"Teacher login: enter your Teacher ID (e.g. BCCA001) and password given by BCC."});
     $("#login-form").onsubmit=e=>{e.preventDefault();login()};
     $$("[data-toggle-password]").forEach(b=>b.onclick=()=>{const i=$(b.dataset.togglePassword);i.type=i.type==="password"?"text":"password";b.innerHTML=`<i class="fa-regular fa-eye${i.type==="password"?"":"-slash"}"></i>`});
     $$(".logout-btn").forEach(b=>b.onclick=logout);
