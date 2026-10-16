@@ -677,7 +677,7 @@
     if(r.error) throw r.error;
     return {rows:r.data||[],flat};
   }
-  async function discussionAvatars(rows) {
+  async function discussionAvatars(rows, lectureId) {
     const ids=[...new Set(rows.map(r=>r.user_id).filter(Boolean))];
     const photos=new Map();
     if(!ids.length)return photos;
@@ -688,6 +688,13 @@
     if(profiles.error)console.warn('Staff discussion photos unavailable:',profiles.error.message);
     if(students.error)console.warn('Student discussion photos unavailable:',students.error.message);
     const paths=new Map();
+    // Staff profiles can be hidden by RLS from students. This restricted RPC
+    // exposes only avatar paths of participants in the current lecture.
+    if(lectureId){
+      const {data:shared,error:sharedError}=await sb.rpc('get_lecture_discussion_avatars',{p_lecture_id:lectureId});
+      if(sharedError)console.warn('Discussion avatar RPC unavailable:',sharedError.message);
+      (shared||[]).forEach(p=>{if(p.photo_path)paths.set(p.user_id,p.photo_path);});
+    }
     (profiles.data||[]).forEach(p=>{if(p.photo_path)paths.set(p.id,p.photo_path);});
     (students.data||[]).forEach(p=>{if(p.photo_path)paths.set(p.user_id,p.photo_path);});
     const unique=[...new Set(paths.values())];
@@ -707,7 +714,7 @@
     let result;
     try{result=await fetchDiscussionRows(lectureId);}catch(e){host.innerHTML=`<div class="content-card"><h3>Discussion unavailable</h3><p>${esc(e.message)}</p></div>`;return;}
     const {rows,flat}=result;
-    const avatarUrls=await discussionAvatars([...rows,{user_id:state.profile.id}]);
+    const avatarUrls=await discussionAvatars([...rows,{user_id:state.profile.id}],lectureId);
     if(!host.isConnected)return;
     const avatar=(id,name)=>{const url=avatarUrls.get(id);return `<span class="bcc-comment-avatar">${url?`<img src="${esc(url)}" alt="" loading="lazy" onerror="this.remove()">`:''}<span class="bcc-avatar-fallback">${esc(initials(name))}</span></span>`;};
     const replies={};rows.filter(r=>r.parent_id).forEach(r=>(replies[r.parent_id]??=[]).push(r));
