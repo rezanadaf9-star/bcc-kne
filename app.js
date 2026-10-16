@@ -283,7 +283,8 @@
       "marks-class": "marks",
       "academic-leaderboard": "marks",
       "academic-leaderboard-exam": "marks",
-      "leaderboard-class": "leaderboard"
+      "leaderboard-class": "leaderboard",
+      "discussion-thread": "discussions"
     };
     return parentMap[view] || view;
   }
@@ -302,6 +303,7 @@
     try {
       if (state.profile.role === "student") {
         if (state.view === "dashboard") return await renderStudentDashboard(el);
+        if (state.view === "notifications") return await renderNotifications(el);
         if (state.view === "lectures") return await renderLectures(el);
         if (state.view === "lectures-subject") return await renderLectureListForSubject(state.route.subjectId, false);
         if (state.view === "notes") return await renderNotes(el);
@@ -332,6 +334,8 @@
           return await renderQuizResult(el);
         }
       } else {
+        if (state.view === "discussions") return await renderDiscussions(el);
+        if (state.view === "discussion-thread") return await renderDiscussionThread(el, state.route.lectureId);
         if (state.view === "admin-dashboard" && state.profile.role === "admin") return await renderAdminDashboard(el);
         if (state.view === "teacher-dashboard" && state.profile.role === "teacher") return await renderTeacherDashboard(el);
         if (state.view === "teachers" && state.profile.role === "admin") return await renderTeachers(el);
@@ -664,6 +668,69 @@
     $$("[data-lecture]").forEach(b=>b.onclick=()=>openLecture(b.dataset.lecture));
   }
 
+
+  // Cross-platform lecture discussions. The mobile app uses these same Supabase tables.
+  async function fetchDiscussionRows(lectureId) {
+    let flat=false;
+    let r=await sb.from('lecture_comments').select('id,lecture_id,user_id,parent_id,author_name,author_role,body,created_at').eq('lecture_id',lectureId).order('created_at',{ascending:true}).limit(400);
+    if(r.error && /parent_id/i.test(r.error.message||'')) { flat=true; r=await sb.from('lecture_comments').select('id,lecture_id,user_id,author_name,author_role,body,created_at').eq('lecture_id',lectureId).order('created_at',{ascending:true}).limit(400); }
+    if(r.error) throw r.error;
+    return {rows:r.data||[],flat};
+  }
+  async function mountDiscussion(container,lectureId) {
+    let host=container.querySelector('#bcc-discussion');
+    if(!host) { host=document.createElement('section');host.id='bcc-discussion';host.className='bcc-discussion';container.appendChild(host); }
+    host.innerHTML='<div class="content-card">Loading discussion…</div>';
+    let result;
+    try {result=await fetchDiscussionRows(lectureId);} catch(e){host.innerHTML=`<div class="content-card"><h3>Discussion unavailable</h3><p>${esc(e.message)}</p><p>Make sure APP_FEATURES.sql and APP_FEATURES_2_REPLIES.sql have been applied in Supabase.</p></div>`;return;}
+    const {rows,flat}=result;
+    const replies={};rows.filter(r=>r.parent_id).forEach(r=>(replies[r.parent_id]??=[]).push(r));
+    const moderator=state.profile.role!=='student';
+    const item=(r,child=false)=>`<article class="bcc-comment ${child?'bcc-reply':''}"><div class="bcc-comment-avatar">${esc(initials(r.author_name))}</div><div class="bcc-comment-body"><div class="bcc-comment-meta"><strong>${esc(r.author_name||'BCCian')}</strong>${r.author_role!=='student'?`<span class="pill active">${esc(r.author_role)}</span>`:''}<small>${fmtDateTime(r.created_at)}</small></div><p>${esc(r.body)}</p><div class="inline">${!flat?`<button class="bcc-link" data-reply="${esc(r.parent_id||r.id)}" data-name="${esc(r.author_name)}">Reply</button>`:''}${(moderator||r.user_id===state.profile.id)?`<button class="bcc-link danger" data-remove="${esc(r.id)}">Delete</button>`:''}</div></div></article>`;
+    host.innerHTML=`<div class="bcc-discussion-heading"><div><h2><i class="fa-solid fa-comments"></i> Lecture discussion</h2><p>Ask questions, help classmates and discuss this lesson.</p></div><button class="small-btn" id="bcc-refresh-discussion"><i class="fa-solid fa-rotate"></i> Refresh</button></div><div class="bcc-compose"><div id="bcc-reply-indicator" class="hidden"></div><textarea id="bcc-comment-input" maxlength="500" rows="3" placeholder="Ask a doubt or share your thoughts…"></textarea><div class="bcc-compose-actions"><small>Maximum 500 characters</small><button class="small-btn primary" id="bcc-send-comment"><i class="fa-solid fa-paper-plane"></i> Post comment</button></div></div><div class="bcc-comment-list">${rows.filter(r=>!r.parent_id).reverse().map(r=>`<div class="bcc-thread">${item(r)}${(replies[r.id]||[]).map(c=>item(c,true)).join('')}</div>`).join('')||'<div class="content-card">No comments yet. Start the discussion!</div>'}</div>${flat?'<p class="mini-label">Run APP_FEATURES_2_REPLIES.sql to enable threaded replies.</p>':''}`;
+    let parentId=null;
+    const input=host.querySelector('#bcc-comment-input');
+    host.querySelector('#bcc-refresh-discussion').onclick=()=>mountDiscussion(container,lectureId);
+    host.querySelectorAll('[data-reply]').forEach(b=>b.onclick=()=>{parentId=b.dataset.reply;const indicator=host.querySelector('#bcc-reply-indicator');indicator.classList.remove('hidden');indicator.innerHTML=`Replying to ${esc(b.dataset.name)} <button class="bcc-link" id="bcc-cancel-reply">Cancel</button>`;indicator.querySelector('button').onclick=()=>{parentId=null;indicator.classList.add('hidden');};input.focus();});
+    host.querySelector('#bcc-send-comment').onclick=async()=>{const body=input.value.trim();if(!body)return toast('Write a comment first.','error');const btn=host.querySelector('#bcc-send-comment');btn.disabled=true;try{const payload={lecture_id:lectureId,user_id:state.profile.id,body};if(parentId&&!flat)payload.parent_id=parentId;const {error}=await sb.from('lecture_comments').insert(payload);if(error)throw error;toast('Comment posted.','success');await mountDiscussion(container,lectureId);}catch(e){toast(e.message,'error');btn.disabled=false;}};
+    host.querySelectorAll('[data-remove]').forEach(b=>b.onclick=async()=>{if(!confirm('Delete this comment and its replies?'))return;const {error}=await sb.from('lecture_comments').delete().eq('id',b.dataset.remove);if(error)toast(error.message,'error');else await mountDiscussion(container,lectureId);});
+  }
+  async function staffClasses() {
+    if(state.profile.role==='admin')return [10,12];
+    const {data,error}=await sb.from('teacher_class_assignments').select('class_no').eq('teacher_id',state.profile.id);
+    if(error)throw error;
+    return [...new Set((data||[]).map(x=>x.class_no))];
+  }
+  async function renderDiscussions(el){
+    el.innerHTML='<div class="content-card">Loading lecture discussions…</div>';
+    const classes=await staffClasses();
+    if(!classes.length){el.innerHTML=empty('fa-solid fa-comments','No assigned classes','Ask an administrator to assign your classes.');return;}
+    const {data,error}=await sb.from('lectures').select('id,title,class_no,created_at,subjects(name)').in('class_no',classes).order('created_at',{ascending:false}).limit(100);
+    if(error)throw error;
+    const lectures=data||[],ids=lectures.map(x=>x.id);
+    let comments=[];let flat=false;
+    if(ids.length){let r=await sb.from('lecture_comments').select('id,lecture_id,parent_id,author_role').in('lecture_id',ids).limit(5000);if(r.error&&/parent_id/i.test(r.error.message||'')){flat=true;r=await sb.from('lecture_comments').select('id,lecture_id,author_role').in('lecture_id',ids).limit(5000);}if(r.error)throw r.error;comments=r.data||[];}
+    const items=lectures.map(l=>{const cs=comments.filter(c=>c.lecture_id===l.id);const unanswered=flat?0:cs.filter(c=>!c.parent_id&&c.author_role==='student'&&!cs.some(r=>r.parent_id===c.id&&r.author_role!=='student')).length;return {...l,count:cs.length,unanswered};}).sort((a,b)=>b.unanswered-a.unanswered);
+    el.innerHTML=`<div class="page-head"><div><h1>Lecture discussions</h1><p>View student comments, reply to doubts and moderate conversations.</p></div></div><div class="stats-grid">${metric('Lectures',lectures.length,'Available classes')}${metric('Comments',comments.length,'Across lectures')}${metric('Awaiting staff reply',items.reduce((a,x)=>a+x.unanswered,0),'Student threads')}</div><div class="list-stack">${items.map(x=>`<div class="list-item"><div class="list-main"><strong>${esc(x.title)}</strong><span>Class ${esc(x.class_no)} • ${esc(x.subjects?.name||'Subject')} • ${x.count} comments</span></div><div class="inline">${x.unanswered?`<span class="pill">${x.unanswered} awaiting reply</span>`:''}<button class="small-btn primary" data-discussion-id="${esc(x.id)}">Open discussion</button></div></div>`).join('')||emptyInline('No lectures yet.')}</div>`;
+    el.querySelectorAll('[data-discussion-id]').forEach(b=>b.onclick=()=>navigate('discussion-thread',{lectureId:b.dataset.discussionId}));
+  }
+  async function renderDiscussionThread(el,id){
+    const classes=await staffClasses();
+    const {data,error}=await sb.from('lectures').select('id,title,class_no,description,subjects(name)').eq('id',id).single();if(error)throw error;
+    if(!classes.includes(data.class_no))throw new Error('You are not assigned to this lecture class.');
+    el.innerHTML=`<div class="back-row"><button class="small-btn" id="back-discussions"><i class="fa-solid fa-arrow-left"></i> Discussions</button></div><div class="video-info"><h2>${esc(data.title)}</h2><p>Class ${esc(data.class_no)} • ${esc(data.subjects?.name||'Subject')}</p>${data.description?`<p>${esc(data.description)}</p>`:''}</div>`;
+    el.querySelector('#back-discussions').onclick=()=>navigate('discussions');await mountDiscussion(el,id);
+  }
+  async function renderNotifications(el){
+    const {data,error}=await sb.from('app_notifications').select('*').or(`class_no.is.null,class_no.eq.${Number(state.classNo)}`).order('created_at',{ascending:false}).limit(100);if(error)throw error;
+    const {data:reads,error:readError}=await sb.from('notification_reads').select('notification_id').eq('user_id',state.profile.id);if(readError)throw readError;
+    const seen=new Set((reads||[]).map(x=>x.notification_id));const items=data||[];
+    el.innerHTML=`<div class="page-head"><div><h1>Notifications</h1><p>${items.filter(n=>!seen.has(n.id)).length} unread • Updates for your class</p></div><button class="small-btn" id="bcc-mark-all">Mark all read</button></div><div class="list-stack">${items.map(n=>`<div class="list-item ${seen.has(n.id)?'':'bcc-unread'}"><div class="list-main"><strong>${esc(n.title)}</strong><span>${esc(n.body||'')} • ${fmtDateTime(n.created_at)}</span></div><button class="small-btn" data-notification="${esc(n.id)}">${seen.has(n.id)?'Open':'Mark read / Open'}</button></div>`).join('')||emptyInline('No notifications yet.')}</div>`;
+    const mark=async n=>{if(!seen.has(n.id)){const {error}=await sb.from('notification_reads').upsert({user_id:state.profile.id,notification_id:n.id},{onConflict:'user_id,notification_id'});if(error)throw error;seen.add(n.id);}};
+    el.querySelector('#bcc-mark-all').onclick=async()=>{try{for(const n of items)await mark(n);await renderNotifications(el);}catch(e){toast(e.message,'error');}};
+    el.querySelectorAll('[data-notification]').forEach(b=>b.onclick=async()=>{const n=items.find(x=>x.id===b.dataset.notification);if(!n)return;try{await mark(n);if(n.kind==='lecture'&&n.ref_id)return openLecture(n.ref_id);if(n.kind==='note'&&n.ref_subject_id)return navigate('notes-subject',{subjectId:n.ref_subject_id});if(n.kind==='homework'&&n.ref_subject_id)return navigate('homework-subject',{subjectId:n.ref_subject_id});if(n.kind==='quiz')return navigate('quizzes');if(n.kind==='ai')return navigate('notebooklm');if(n.kind==='result')return navigate('student-marks');await renderNotifications(el);}catch(e){toast(e.message,'error');}});
+  }
+
   function lectureRow(x) {
     const live = x.is_live ? `<span class="pill active">LIVE</span>` : "";
     const kind = x.youtube_url ? "YouTube" : x.file_path ? "Uploaded video" : "Lecture";
@@ -692,6 +759,7 @@
     el.innerHTML=`<div class="back-row"><button class="small-btn" id="back-lecture"><i class="fa-solid fa-arrow-left"></i> Back to Lectures</button></div>
       <div class="player-wrap">${media}</div><div class="video-info"><h2>${esc(x.title)}</h2><p>${esc(x.subjects?.name || "Subject")} • ${x.is_live ? "Live lecture" : "Recorded lecture"} • ${fmtDateTime(x.created_at)}</p>${x.description?`<p>${esc(x.description)}</p>`:""}${x.downloadable&&x.file_path?`<button class="small-btn yellow" id="download-current" style="margin-top:12px"><i class="fa-solid fa-download"></i> Download lecture</button>`:""}</div>`;
     $("#back-lecture").onclick=()=>navigate("lectures");
+    await mountDiscussion(el, x.id);
     $("#download-current")?.addEventListener("click",async()=>downloadFile(x.file_path,x.title));
   }
 
