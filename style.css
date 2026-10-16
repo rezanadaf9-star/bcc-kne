@@ -1081,3 +1081,16 @@ body:not(.quiz-active) .sidebar .nav-item[data-view]{pointer-events:auto;opacity
 .bcc-compose-row>.bcc-comment-avatar{width:36px;height:36px;align-self:center}
 .bcc-inline-compose>.bcc-comment-avatar{width:30px;height:30px;float:left;margin:3px 9px 5px 0}
 @media(max-width:600px){.bcc-compose-row>.bcc-comment-avatar{width:30px;height:30px}}
+
+/* Deep, true parent-child discussion threads */
+.bcc-bottom-compose[hidden],.bcc-compose-hidden{display:none!important}
+.bcc-tree-node{position:relative;min-width:0}
+.bcc-tree-children{margin-left:20px;padding-left:18px;border-left:2px solid #dcd8f2}
+.bcc-tree-children>.bcc-tree-node{position:relative}
+.bcc-tree-children>.bcc-tree-node:before{content:"";position:absolute;top:30px;left:-18px;width:15px;height:2px;background:#dcd8f2}
+.bcc-tree-children>.bcc-tree-node:last-child:after{content:"";position:absolute;left:-20px;top:32px;bottom:0;width:3px;background:var(--card,#fff)}
+.bcc-tree-node .bcc-reply{margin:0;padding:12px 0;border-left:0}
+.bcc-tree-node .bcc-comment+.bcc-comment{border-top:0}
+.bcc-thread{overflow-wrap:anywhere}
+.bcc-inline-compose{scroll-margin-bottom:24px}
+@media(max-width:600px){.bcc-tree-children{margin-left:11px;padding-left:11px}.bcc-tree-children>.bcc-tree-node:before{left:-11px;width:9px}.bcc-tree-children>.bcc-tree-node:last-child:after{left:-13px}.bcc-tree-node .bcc-comment{gap:7px}.bcc-tree-node .bcc-comment-avatar{width:28px;height:28px}.bcc-tree-node .bcc-comment-meta{gap:4px}.bcc-tree-node .bcc-comment-body{min-width:0}}

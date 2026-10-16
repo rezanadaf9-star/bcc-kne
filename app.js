@@ -713,8 +713,15 @@
     const replies={};rows.filter(r=>r.parent_id).forEach(r=>(replies[r.parent_id]??=[]).push(r));
     const moderator=state.profile.role!=='student';
     const sendIcon='<i class="fa-solid fa-arrow-right" aria-hidden="true"></i>';
-    const item=(r,child=false)=>`<article class="bcc-comment ${child?'bcc-reply':''}" data-comment-id="${esc(r.id)}">${avatar(r.user_id,r.author_name)}<div class="bcc-comment-body"><div class="bcc-comment-meta"><strong>${esc(r.author_name||'BCCian')}</strong>${r.author_role!=='student'?`<span class="pill active">${esc(r.author_role)}</span>`:''}<small>${fmtDateTime(r.created_at)}</small></div><p>${esc(r.body)}</p><div class="inline">${!flat?`<button class="bcc-link" data-reply="${esc(r.parent_id||r.id)}" data-name="${esc(r.author_name||'BCCian')}" aria-label="Reply to ${esc(r.author_name||'BCCian')}"><i class="fa-regular fa-comment-dots"></i> Reply</button>`:''}${(moderator||r.user_id===state.profile.id)?`<button class="bcc-link danger" data-remove="${esc(r.id)}">Delete</button>`:''}</div><div class="bcc-inline-slot"></div></div></article>`;
-    const thread=(r)=>`<div class="bcc-thread">${item(r)}${(replies[r.id]||[]).map(c=>item(c,true)).join('')}</div>`;
+    const item=(r,child=false)=>`<article class="bcc-comment ${child?'bcc-reply':''}" data-comment-id="${esc(r.id)}">${avatar(r.user_id,r.author_name)}<div class="bcc-comment-body"><div class="bcc-comment-meta"><strong>${esc(r.author_name||'BCCian')}</strong>${r.author_role!=='student'?`<span class="pill active">${esc(r.author_role)}</span>`:''}<small>${fmtDateTime(r.created_at)}</small></div><p>${esc(r.body)}</p><div class="inline">${!flat?`<button class="bcc-link" data-reply="${esc(r.id)}" data-name="${esc(r.author_name||'BCCian')}" aria-label="Reply to ${esc(r.author_name||'BCCian')}"><i class="fa-regular fa-comment-dots"></i> Reply</button>`:''}${(moderator||r.user_id===state.profile.id)?`<button class="bcc-link danger" data-remove="${esc(r.id)}">Delete</button>`:''}</div><div class="bcc-inline-slot"></div></div></article>`;
+    const visited=new Set();
+    const branch=(r,depth=0)=>{
+      if(visited.has(r.id)||depth>60)return '';
+      visited.add(r.id);
+      const children=(replies[r.id]||[]).map(c=>branch(c,depth+1)).join('');
+      return `<div class="bcc-tree-node ${depth?'bcc-tree-child':'bcc-tree-root'}">${item(r,depth>0)}${children?`<div class="bcc-tree-children">${children}</div>`:''}</div>`;
+    };
+    const thread=(r)=>`<div class="bcc-thread">${branch(r)}</div>`;
     host.innerHTML=`<div class="bcc-discussion-heading"><div><h2><i class="fa-solid fa-comments"></i> Lecture discussion</h2><p>Ask questions, help classmates and discuss this lesson.</p></div><button class="small-btn" id="bcc-refresh-discussion"><i class="fa-solid fa-rotate"></i> Refresh</button></div><div class="bcc-comment-list">${rows.filter(r=>!r.parent_id).reverse().map(thread).join('')||'<div class="content-card">No comments yet. Start the discussion!</div>'}</div>${flat?'<p class="mini-label">Run APP_FEATURES_2_REPLIES.sql to enable threaded replies.</p>':''}<div class="bcc-bottom-compose"><label class="bcc-compose-label" for="bcc-comment-input">Join the discussion</label><div class="bcc-compose-row">${avatar(state.profile.id,state.profile.full_name)}<textarea id="bcc-comment-input" maxlength="500" rows="1" placeholder="Write a comment…" aria-label="Write a comment"></textarea><button class="bcc-send-btn" id="bcc-send-comment" disabled>${sendIcon}<span>Send Comment</span></button></div></div>`;
     const input=host.querySelector('#bcc-comment-input');
     const send=host.querySelector('#bcc-send-comment');
@@ -729,20 +736,35 @@
     send.onclick=()=>submit(input.value,null,send);
     input.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();send.click();}});
     let activeSlot=null;
+    const mainComposer=host.querySelector('.bcc-bottom-compose');
+    const closeReply=()=>{if(activeSlot)activeSlot.innerHTML='';activeSlot=null;mainComposer.hidden=false;mainComposer.classList.remove('bcc-compose-hidden');};
     host.querySelectorAll('[data-reply]').forEach(button=>button.onclick=()=>{
       const slot=button.closest('.bcc-comment').querySelector('.bcc-inline-slot');
-      if(activeSlot){activeSlot.innerHTML='';if(activeSlot===slot){activeSlot=null;return;}}
-      activeSlot=slot;
+      if(activeSlot===slot){closeReply();return;}
+      if(activeSlot)activeSlot.innerHTML='';
+      activeSlot=slot;mainComposer.hidden=true;mainComposer.classList.add('bcc-compose-hidden');
       const name=button.dataset.name;
       const mention='@'+name+' ';
       slot.innerHTML=`<div class="bcc-inline-compose"><div class="bcc-inline-title">Replying to <strong>${esc(name)}</strong></div>${avatar(state.profile.id,state.profile.full_name)}<textarea rows="2" maxlength="500" aria-label="Write a reply" placeholder="Write your reply…"></textarea><div class="bcc-inline-actions"><button class="bcc-link bcc-cancel-inline">Cancel</button><button class="bcc-send-btn bcc-submit-inline" disabled>${sendIcon}<span>Send Reply</span></button></div></div>`;
       const t=slot.querySelector('textarea'),submitBtn=slot.querySelector('.bcc-submit-inline');
       t.value=mention;t.setSelectionRange(t.value.length,t.value.length);
       t.addEventListener('input',()=>{fit(t);submitBtn.disabled=!t.value.trim()||t.value.trim()===mention.trim();});
-      slot.querySelector('.bcc-cancel-inline').onclick=()=>{slot.innerHTML='';activeSlot=null;};
+      slot.querySelector('.bcc-cancel-inline').onclick=()=>{closeReply();};
       submitBtn.onclick=()=>submit(t.value,button.dataset.reply,submitBtn);
       t.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();submitBtn.click();}});
-      t.focus({preventScroll:true});requestAnimationFrame(()=>slot.scrollIntoView({block:'nearest',behavior:'smooth'}));
+      const revealReply=()=>{
+        if(!slot.isConnected||activeSlot!==slot)return;
+        const vv=window.visualViewport;
+        const visibleBottom=vv?vv.offsetTop+vv.height:window.innerHeight;
+        const bounds=slot.getBoundingClientRect();
+        const overflow=bounds.bottom-(visibleBottom-18);
+        if(overflow>0)window.scrollBy({top:overflow+12,behavior:'smooth'});
+      };
+      t.focus({preventScroll:true});
+      requestAnimationFrame(revealReply);
+      setTimeout(revealReply,280);
+      const onViewport=()=>{if(activeSlot===slot)revealReply();else window.visualViewport?.removeEventListener('resize',onViewport);};
+      window.visualViewport?.addEventListener('resize',onViewport);
     });
     host.querySelector('#bcc-refresh-discussion').onclick=()=>mountDiscussion(container,lectureId);
     host.querySelectorAll('[data-remove]').forEach(b=>b.onclick=async()=>{if(!confirm('Delete this comment and its replies?'))return;const {error}=await sb.from('lecture_comments').delete().eq('id',b.dataset.remove);if(error)toast(error.message,'error');else await mountDiscussion(container,lectureId);});
