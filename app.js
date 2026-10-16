@@ -677,23 +677,86 @@
     if(r.error) throw r.error;
     return {rows:r.data||[],flat};
   }
+  async function discussionAvatars(rows) {
+    const ids=[...new Set(rows.map(r=>r.user_id).filter(Boolean))];
+    const photos=new Map();
+    if(!ids.length)return photos;
+    const [profiles,students]=await Promise.all([
+      sb.from('profiles').select('id,photo_path').in('id',ids),
+      sb.from('student_profiles').select('user_id,photo_path').in('user_id',ids)
+    ]);
+    if(profiles.error)console.warn('Staff discussion photos unavailable:',profiles.error.message);
+    if(students.error)console.warn('Student discussion photos unavailable:',students.error.message);
+    const paths=new Map();
+    (profiles.data||[]).forEach(p=>{if(p.photo_path)paths.set(p.id,p.photo_path);});
+    (students.data||[]).forEach(p=>{if(p.photo_path)paths.set(p.user_id,p.photo_path);});
+    const unique=[...new Set(paths.values())];
+    if(!unique.length)return photos;
+    try {
+      const {data,error}=await sb.storage.from('student-photos').createSignedUrls(unique,3600);
+      if(error)throw error;
+      const urls=new Map(unique.map((p,i)=>[p,data?.[i]?.signedUrl||'']));
+      paths.forEach((path,id)=>{if(urls.get(path))photos.set(id,urls.get(path));});
+    }catch(e){console.warn('Discussion avatar URLs unavailable:',e);}
+    return photos;
+  }
   async function mountDiscussion(container,lectureId) {
     let host=container.querySelector('#bcc-discussion');
-    if(!host) { host=document.createElement('section');host.id='bcc-discussion';host.className='bcc-discussion';container.appendChild(host); }
+    if(!host){host=document.createElement('section');host.id='bcc-discussion';host.className='bcc-discussion';container.appendChild(host);}
     host.innerHTML='<div class="content-card">Loading discussion…</div>';
     let result;
-    try {result=await fetchDiscussionRows(lectureId);} catch(e){host.innerHTML=`<div class="content-card"><h3>Discussion unavailable</h3><p>${esc(e.message)}</p><p>Make sure APP_FEATURES.sql and APP_FEATURES_2_REPLIES.sql have been applied in Supabase.</p></div>`;return;}
+    try{result=await fetchDiscussionRows(lectureId);}catch(e){host.innerHTML=`<div class="content-card"><h3>Discussion unavailable</h3><p>${esc(e.message)}</p></div>`;return;}
     const {rows,flat}=result;
+    const avatarUrls=await discussionAvatars([...rows,{user_id:state.profile.id}]);
+    if(!host.isConnected)return;
+    const avatar=(id,name)=>{const url=avatarUrls.get(id);return `<span class="bcc-comment-avatar">${url?`<img src="${esc(url)}" alt="" loading="lazy" onerror="this.remove()">`:''}<span class="bcc-avatar-fallback">${esc(initials(name))}</span></span>`;};
     const replies={};rows.filter(r=>r.parent_id).forEach(r=>(replies[r.parent_id]??=[]).push(r));
     const moderator=state.profile.role!=='student';
-    const item=(r,child=false)=>`<article class="bcc-comment ${child?'bcc-reply':''}"><div class="bcc-comment-avatar">${esc(initials(r.author_name))}</div><div class="bcc-comment-body"><div class="bcc-comment-meta"><strong>${esc(r.author_name||'BCCian')}</strong>${r.author_role!=='student'?`<span class="pill active">${esc(r.author_role)}</span>`:''}<small>${fmtDateTime(r.created_at)}</small></div><p>${esc(r.body)}</p><div class="inline">${!flat?`<button class="bcc-link" data-reply="${esc(r.parent_id||r.id)}" data-name="${esc(r.author_name)}">Reply</button>`:''}${(moderator||r.user_id===state.profile.id)?`<button class="bcc-link danger" data-remove="${esc(r.id)}">Delete</button>`:''}</div></div></article>`;
-    host.innerHTML=`<div class="bcc-discussion-heading"><div><h2><i class="fa-solid fa-comments"></i> Lecture discussion</h2><p>Ask questions, help classmates and discuss this lesson.</p></div><button class="small-btn" id="bcc-refresh-discussion"><i class="fa-solid fa-rotate"></i> Refresh</button></div><div class="bcc-compose"><div id="bcc-reply-indicator" class="hidden"></div><textarea id="bcc-comment-input" maxlength="500" rows="3" placeholder="Ask a doubt or share your thoughts…"></textarea><div class="bcc-compose-actions"><small>Maximum 500 characters</small><button class="small-btn primary" id="bcc-send-comment"><i class="fa-solid fa-paper-plane"></i> Post comment</button></div></div><div class="bcc-comment-list">${rows.filter(r=>!r.parent_id).reverse().map(r=>`<div class="bcc-thread">${item(r)}${(replies[r.id]||[]).map(c=>item(c,true)).join('')}</div>`).join('')||'<div class="content-card">No comments yet. Start the discussion!</div>'}</div>${flat?'<p class="mini-label">Run APP_FEATURES_2_REPLIES.sql to enable threaded replies.</p>':''}`;
-    let parentId=null;
+    const sendIcon='<i class="fa-solid fa-arrow-right" aria-hidden="true"></i>';
+    const item=(r,child=false)=>`<article class="bcc-comment ${child?'bcc-reply':''}" data-comment-id="${esc(r.id)}">${avatar(r.user_id,r.author_name)}<div class="bcc-comment-body"><div class="bcc-comment-meta"><strong>${esc(r.author_name||'BCCian')}</strong>${r.author_role!=='student'?`<span class="pill active">${esc(r.author_role)}</span>`:''}<small>${fmtDateTime(r.created_at)}</small></div><p>${esc(r.body)}</p><div class="inline">${!flat?`<button class="bcc-link" data-reply="${esc(r.parent_id||r.id)}" data-name="${esc(r.author_name||'BCCian')}" aria-label="Reply to ${esc(r.author_name||'BCCian')}"><i class="fa-regular fa-comment-dots"></i> Reply</button>`:''}${(moderator||r.user_id===state.profile.id)?`<button class="bcc-link danger" data-remove="${esc(r.id)}">Delete</button>`:''}</div><div class="bcc-inline-slot"></div></div></article>`;
+    const thread=(r)=>`<div class="bcc-thread">${item(r)}${(replies[r.id]||[]).map(c=>item(c,true)).join('')}</div>`;
+    host.innerHTML=`<div class="bcc-discussion-heading"><div><h2><i class="fa-solid fa-comments"></i> Lecture discussion</h2><p>Ask questions, help classmates and discuss this lesson.</p></div><button class="small-btn" id="bcc-refresh-discussion"><i class="fa-solid fa-rotate"></i> Refresh</button></div><div class="bcc-comment-list">${rows.filter(r=>!r.parent_id).reverse().map(thread).join('')||'<div class="content-card">No comments yet. Start the discussion!</div>'}</div>${flat?'<p class="mini-label">Run APP_FEATURES_2_REPLIES.sql to enable threaded replies.</p>':''}<div class="bcc-bottom-compose"><label class="bcc-compose-label" for="bcc-comment-input">Join the discussion</label><div class="bcc-compose-row">${avatar(state.profile.id,state.profile.full_name)}<textarea id="bcc-comment-input" maxlength="500" rows="1" placeholder="Write a comment…" aria-label="Write a comment"></textarea><button class="bcc-send-btn" id="bcc-send-comment" disabled>${sendIcon}<span>Send Comment</span></button></div></div>`;
     const input=host.querySelector('#bcc-comment-input');
+    const send=host.querySelector('#bcc-send-comment');
+    const fit=t=>{t.style.height='auto';t.style.height=Math.min(t.scrollHeight,132)+'px';};
+    input.addEventListener('input',()=>{fit(input);send.disabled=!input.value.trim();});
+    async function submit(body,parentId,button,onSuccess){
+      if(!body.trim())return;
+      button.disabled=true;
+      try{const payload={lecture_id:lectureId,user_id:state.profile.id,body:body.trim()};if(parentId&&!flat)payload.parent_id=parentId;const {error}=await sb.from('lecture_comments').insert(payload);if(error)throw error;toast(parentId?'Reply sent.':'Comment posted.','success');await mountDiscussion(container,lectureId);if(onSuccess)onSuccess();}
+      catch(e){toast(e.message,'error');button.disabled=false;}
+    }
+    send.onclick=()=>submit(input.value,null,send);
+    input.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();send.click();}});
+    let activeSlot=null;
+    host.querySelectorAll('[data-reply]').forEach(button=>button.onclick=()=>{
+      const slot=button.closest('.bcc-comment').querySelector('.bcc-inline-slot');
+      if(activeSlot){activeSlot.innerHTML='';if(activeSlot===slot){activeSlot=null;return;}}
+      activeSlot=slot;
+      const name=button.dataset.name;
+      const mention='@'+name+' ';
+      slot.innerHTML=`<div class="bcc-inline-compose"><div class="bcc-inline-title">Replying to <strong>${esc(name)}</strong></div>${avatar(state.profile.id,state.profile.full_name)}<textarea rows="2" maxlength="500" aria-label="Write a reply" placeholder="Write your reply…"></textarea><div class="bcc-inline-actions"><button class="bcc-link bcc-cancel-inline">Cancel</button><button class="bcc-send-btn bcc-submit-inline" disabled>${sendIcon}<span>Send Reply</span></button></div></div>`;
+      const t=slot.querySelector('textarea'),submitBtn=slot.querySelector('.bcc-submit-inline');
+      t.value=mention;t.setSelectionRange(t.value.length,t.value.length);
+      t.addEventListener('input',()=>{fit(t);submitBtn.disabled=!t.value.trim()||t.value.trim()===mention.trim();});
+      slot.querySelector('.bcc-cancel-inline').onclick=()=>{slot.innerHTML='';activeSlot=null;};
+      submitBtn.onclick=()=>submit(t.value,button.dataset.reply,submitBtn);
+      t.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();submitBtn.click();}});
+      t.focus({preventScroll:true});requestAnimationFrame(()=>slot.scrollIntoView({block:'nearest',behavior:'smooth'}));
+    });
     host.querySelector('#bcc-refresh-discussion').onclick=()=>mountDiscussion(container,lectureId);
-    host.querySelectorAll('[data-reply]').forEach(b=>b.onclick=()=>{parentId=b.dataset.reply;const indicator=host.querySelector('#bcc-reply-indicator');indicator.classList.remove('hidden');indicator.innerHTML=`Replying to ${esc(b.dataset.name)} <button class="bcc-link" id="bcc-cancel-reply">Cancel</button>`;indicator.querySelector('button').onclick=()=>{parentId=null;indicator.classList.add('hidden');};input.focus();});
-    host.querySelector('#bcc-send-comment').onclick=async()=>{const body=input.value.trim();if(!body)return toast('Write a comment first.','error');const btn=host.querySelector('#bcc-send-comment');btn.disabled=true;try{const payload={lecture_id:lectureId,user_id:state.profile.id,body};if(parentId&&!flat)payload.parent_id=parentId;const {error}=await sb.from('lecture_comments').insert(payload);if(error)throw error;toast('Comment posted.','success');await mountDiscussion(container,lectureId);}catch(e){toast(e.message,'error');btn.disabled=false;}};
     host.querySelectorAll('[data-remove]').forEach(b=>b.onclick=async()=>{if(!confirm('Delete this comment and its replies?'))return;const {error}=await sb.from('lecture_comments').delete().eq('id',b.dataset.remove);if(error)toast(error.message,'error');else await mountDiscussion(container,lectureId);});
+    // On mobile browsers, visualViewport reports the area left above the soft keyboard.
+    const composer=host.querySelector('.bcc-bottom-compose');
+    const syncKeyboard=()=>{
+      if(!composer.isConnected){window.visualViewport?.removeEventListener('resize',syncKeyboard);window.visualViewport?.removeEventListener('scroll',syncKeyboard);return;}
+      const vv=window.visualViewport;
+      const overlap=vv?Math.max(0,window.innerHeight-vv.height-vv.offsetTop):0;
+      composer.style.setProperty('--bcc-keyboard-offset',overlap+'px');
+    };
+    window.visualViewport?.addEventListener('resize',syncKeyboard);
+    window.visualViewport?.addEventListener('scroll',syncKeyboard);
+    syncKeyboard();
   }
   async function staffClasses() {
     if(state.profile.role==='admin')return [10,12];
