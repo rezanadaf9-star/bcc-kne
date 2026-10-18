@@ -303,7 +303,7 @@
     el.innerHTML = `
       <section class="bcc-app-page">
         <div class="bcc-app-card">
-          <div class="bcc-app-icon"><i class="fa-brands fa-android"></i></div>
+          <div class="bcc-app-icon"><img src="icon.png" alt="BCC App icon" onerror="this.style.display='none'" /></div>
           <p class="bcc-app-eyebrow">BRILLIANT COACHING CENTRE</p>
           <h1>BCC App</h1>
           <p class="bcc-app-description">Your BCC learning experience, now on your Android phone.</p>
