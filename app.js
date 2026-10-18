@@ -1,6 +1,9 @@
 (() => {
   "use strict";
 
+  // Paste the raw GitHub Releases APK URL here when it is ready.
+  const BCC_APP_APK_URL = "https://github.com/rezanadaf9-star/bcc-kne-App/releases/download/v1.1.4/app-release.apk";
+
   const C = window.BCC_CONFIG || {};
   const hasConfig = C.SUPABASE_URL && !C.SUPABASE_URL.includes("YOUR_") && C.SUPABASE_ANON_KEY && !C.SUPABASE_ANON_KEY.includes("YOUR_");
   const sb = hasConfig ? window.supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY) : null;
@@ -296,11 +299,72 @@
     $("#topbar-section").textContent = active ? active.querySelector("span").textContent : "Dashboard";
   }
 
+  function renderBCCApp(el) {
+    el.innerHTML = `
+      <section class="bcc-app-page">
+        <div class="bcc-app-card">
+          <div class="bcc-app-icon"><i class="fa-brands fa-android"></i></div>
+          <p class="bcc-app-eyebrow">BRILLIANT COACHING CENTRE</p>
+          <h1>BCC App</h1>
+          <p class="bcc-app-description">Your BCC learning experience, now on your Android phone.</p>
+          <div class="bcc-app-features">
+            <div><i class="fa-solid fa-book-open"></i><span>Study resources</span></div>
+            <div><i class="fa-solid fa-circle-question"></i><span>Quizzes & results</span></div>
+            <div><i class="fa-solid fa-bell"></i><span>Important updates</span></div>
+          </div>
+          <a class="bcc-app-download" id="bcc-app-download" href="#" role="button">
+            <i class="fa-solid fa-download"></i><span>Download APK</span>
+          </a>
+          <p class="bcc-app-note"><i class="fa-solid fa-shield-halved"></i><span>Android app • Securely download from the official BCC link</span></p>
+          <p class="bcc-app-help" id="bcc-app-help" aria-live="polite">Your app download link will appear here when configured.</p>
+          <section class="bcc-app-install" aria-labelledby="bcc-app-install-title">
+            <div class="bcc-app-install-heading">
+              <span class="bcc-app-install-badge"><i class="fa-solid fa-mobile-screen-button"></i></span>
+              <div><h2 id="bcc-app-install-title">How to install</h2><p>Follow these steps after downloading the APK.</p></div>
+            </div>
+            <ol class="bcc-app-steps">
+              <li><span class="bcc-app-step-number">1</span><div><strong>Open the downloaded file</strong><p>Tap the download notification, or open your phone's Downloads folder and tap the BCC APK.</p></div></li>
+              <li><span class="bcc-app-step-number">2</span><div><strong>Allow installation if Android asks</strong><p>If prompted, open Settings and enable “Allow from this source” for your browser or file manager. Return to the installer afterward.</p></div></li>
+              <li><span class="bcc-app-step-number">3</span><div><strong>Tap Install, then Open</strong><p>Android will show its installation screen. Tap Install and then Open when the installation finishes.</p></div></li>
+            </ol>
+            <p class="bcc-app-safety"><i class="fa-solid fa-circle-info"></i> Android requires you to confirm installation and any requested permission. This website cannot approve system prompts for you.</p>
+            <section class="bcc-app-privacy" aria-labelledby="bcc-app-privacy-title">
+              <h3 id="bcc-app-privacy-title"><i class="fa-solid fa-shield-halved"></i> Privacy &amp; Security</h3>
+              <p>For your safety, download the APK only from the official BCC Portal. Review Android security prompts and allow only permissions you understand and trust.</p>
+            </section>
+            <section class="bcc-app-temporary" aria-labelledby="bcc-app-temporary-title">
+              <h3 id="bcc-app-temporary-title"><i class="fa-solid fa-circle-info"></i> A Note About This Version</h3>
+              <p>This is a temporary version of the BCC App. We are developing our main app, which we plan to publish on the Google Play Store to make downloading, installing, and updating easier. Until then, this version is available directly through the official BCC Portal. Thank you for your patience while we work on a smoother app experience.</p>
+            </section>
+          </section>
+        </div>
+      </section>`;
+
+    const link = $("#bcc-app-download");
+    const help = $("#bcc-app-help");
+    const configured = BCC_APP_APK_URL && !BCC_APP_APK_URL.includes("PASTE_YOUR_APK");
+    if (configured) {
+      link.href = BCC_APP_APK_URL;
+      link.setAttribute("download", "bcc-app.apk");
+      link.setAttribute("rel", "noopener");
+      link.addEventListener("click", () => {
+        help.innerHTML = '<i class="fa-solid fa-circle-check"></i> Download requested. When it finishes, tap the download notification or follow the installation steps below.';
+        link.querySelector("span").textContent = "Download Again";
+      });
+    } else {
+      link.addEventListener("click", event => {
+        event.preventDefault();
+        help.textContent = "APK link not configured yet. In app.js, replace BCC_APP_APK_URL with your direct APK download URL, then publish the website.";
+      });
+    }
+  }
+
   async function renderView() {
     syncNav();
     const el = $("#view-container");
     const previous = el.innerHTML;
     try {
+      if (state.view === "bcc-app") return renderBCCApp(el);
       if (state.profile.role === "student") {
         if (state.view === "dashboard") return await renderStudentDashboard(el);
         if (state.view === "notifications") return await renderNotifications(el);

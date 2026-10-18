@@ -1094,3 +1094,74 @@ body:not(.quiz-active) .sidebar .nav-item[data-view]{pointer-events:auto;opacity
 .bcc-thread{overflow-wrap:anywhere}
 .bcc-inline-compose{scroll-margin-bottom:24px}
 @media(max-width:600px){.bcc-tree-children{margin-left:11px;padding-left:11px}.bcc-tree-children>.bcc-tree-node:before{left:-11px;width:9px}.bcc-tree-children>.bcc-tree-node:last-child:after{left:-13px}.bcc-tree-node .bcc-comment{gap:7px}.bcc-tree-node .bcc-comment-avatar{width:28px;height:28px}.bcc-tree-node .bcc-comment-meta{gap:4px}.bcc-tree-node .bcc-comment-body{min-width:0}}
+
+
+/* BCC App download page — responsive by default */
+.bcc-app-page {
+  min-height: calc(100dvh - 110px);
+  display: grid;
+  place-items: center;
+  padding: clamp(16px, 4vw, 36px);
+}
+.bcc-app-card {
+  width: min(100%, 560px);
+  box-sizing: border-box;
+  text-align: center;
+  padding: clamp(24px, 5vw, 44px);
+  border: 1px solid rgba(27, 20, 100, .10);
+  border-radius: 26px;
+  background: linear-gradient(145deg, #ffffff 0%, #fffdf0 100%);
+  box-shadow: 0 18px 55px rgba(27, 20, 100, .10);
+}
+.bcc-app-icon {
+  width: 78px; height: 78px; margin: 0 auto 20px;
+  display: grid; place-items: center; border-radius: 24px;
+  color: #fff; font-size: 36px;
+  background: linear-gradient(140deg, #1b1464, #3568d4);
+  box-shadow: 0 10px 25px rgba(27,20,100,.22);
+}
+.bcc-app-eyebrow { margin: 0 0 8px; color: #625c92; font-size: 11px; font-weight: 700; letter-spacing: .16em; }
+.bcc-app-card h1 { margin: 0; color: #1b1464; font-size: clamp(28px, 5vw, 38px); line-height: 1.2; }
+.bcc-app-description { max-width: 370px; margin: 12px auto 24px; color: #626273; font-size: 14px; line-height: 1.7; }
+.bcc-app-features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0 0 26px; }
+.bcc-app-features > div { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 14px 7px; border: 1px solid #eceaf7; border-radius: 15px; background: rgba(255,255,255,.85); color: #35324e; font-size: 11px; font-weight: 600; }
+.bcc-app-features i { color: #1b1464; font-size: 19px; }
+.bcc-app-download { min-height: 54px; width: 100%; box-sizing: border-box; display: flex; justify-content: center; align-items: center; gap: 11px; padding: 14px 20px; border-radius: 15px; color: #fff !important; text-decoration: none !important; font-size: 15px; font-weight: 700; background: linear-gradient(105deg, #1b1464 0%, #315dd0 100%); box-shadow: 0 9px 22px rgba(27,20,100,.20); transition: transform .18s ease, box-shadow .18s ease; }
+.bcc-app-download:hover { transform: translateY(-2px); box-shadow: 0 13px 28px rgba(27,20,100,.25); }
+.bcc-app-note { display: flex; justify-content: center; align-items: flex-start; gap: 7px; margin: 15px 0 0; color: #777487; font-size: 11px; line-height: 1.5; }
+.bcc-app-note i { margin-top: 2px; color: #27845b; }
+.bcc-app-help { min-height: 16px; margin: 12px 0 0; color: #6d6884; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .bcc-app-page { min-height: calc(100dvh - 90px); padding: 14px 10px 24px; }
+  .bcc-app-card { padding: 25px 17px; border-radius: 21px; }
+  .bcc-app-icon { width: 66px; height: 66px; border-radius: 20px; font-size: 30px; margin-bottom: 17px; }
+  .bcc-app-features { gap: 6px; }
+  .bcc-app-features > div { padding: 12px 4px; font-size: 10px; }
+  .bcc-app-features i { font-size: 17px; }
+  .bcc-app-download { min-height: 52px; }
+}
+
+/* BCC App install guide */
+.bcc-app-install{margin-top:25px;padding-top:22px;border-top:1px solid #eeecf7;text-align:left}
+.bcc-app-install-heading{display:flex;align-items:center;gap:12px;margin-bottom:17px}
+.bcc-app-install-badge{flex:0 0 42px;width:42px;height:42px;display:grid;place-items:center;border-radius:13px;background:#f0efff;color:#1b1464;font-size:18px}
+.bcc-app-install-heading h2{margin:0;color:#1b1464;font-size:17px;line-height:1.35}
+.bcc-app-install-heading p{margin:3px 0 0;color:#777487;font-size:12px;line-height:1.5}
+.bcc-app-steps{list-style:none;padding:0;margin:0;display:grid;gap:15px}
+.bcc-app-steps li{display:flex;align-items:flex-start;gap:11px;min-width:0}
+.bcc-app-step-number{flex:0 0 28px;width:28px;height:28px;display:grid;place-items:center;border-radius:50%;background:#fff5bd;color:#1b1464;font-size:12px;font-weight:800}
+.bcc-app-steps li strong{display:block;color:#302d4b;font-size:13px;line-height:1.45}
+.bcc-app-steps li p{margin:4px 0 0;color:#777487;font-size:12px;line-height:1.65;overflow-wrap:anywhere}
+.bcc-app-safety{display:flex;align-items:flex-start;gap:8px;margin:18px 0 0;padding:12px;border-radius:12px;background:#f7f6ff;color:#5f5a7d;font-size:11px;line-height:1.6}
+.bcc-app-safety i{flex:0 0 auto;margin-top:2px;color:#315dd0}
+.bcc-app-help{overflow-wrap:anywhere}
+@media(max-width:480px){.bcc-app-install{margin-top:21px;padding-top:19px}.bcc-app-install-heading h2{font-size:16px}.bcc-app-steps{gap:13px}.bcc-app-steps li strong{font-size:12px}.bcc-app-steps li p{font-size:11px}.bcc-app-safety{padding:10px}}
+
+
+/* BCC App privacy and temporary-release notices */
+.bcc-app-privacy,.bcc-app-temporary{margin-top:13px;padding:14px;border:1px solid #eceaf7;border-radius:14px;background:#fff;text-align:left}
+.bcc-app-privacy h3,.bcc-app-temporary h3{display:flex;align-items:center;gap:8px;margin:0 0 7px;color:#1b1464;font-size:13px;line-height:1.45}
+.bcc-app-privacy h3 i{color:#27845b}
+.bcc-app-temporary h3 i{color:#b58a00}
+.bcc-app-privacy p,.bcc-app-temporary p{margin:0;color:#68657b;font-size:12px;line-height:1.7;overflow-wrap:anywhere}
+@media(max-width:480px){.bcc-app-privacy,.bcc-app-temporary{padding:12px}.bcc-app-privacy p,.bcc-app-temporary p{font-size:11px}}
