@@ -1739,10 +1739,63 @@
     if(id){const {data,error}=await sb.from("quizzes").select("*,quiz_questions(*)").eq("id",id).single();if(error)return toast(error.message,"error");quiz=data;questions=(data.quiz_questions||[]).sort((a,b)=>a.position-b.position)}
     modal(`<div class="modal-head"><h2>${quiz?"Edit quiz":"Create quiz"}</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>
       <div class="form-grid"><div class="form-group"><label>Title</label><input id="q-title" value="${esc(quiz?.title||"")}"></div><div class="form-group"><label>Class</label><select id="q-class"><option value="10" ${quiz?.class_no===10?"selected":""}>10</option><option value="12" ${quiz?.class_no===12?"selected":""}>12</option></select></div><div class="form-group"><label>Type</label><select id="q-type">${["Weekly","Monthly","Chapter-wise"].map(x=>`<option ${quiz?.quiz_type===x?"selected":""}>${x}</option>`).join("")}</select></div><div class="form-group"><label>Subject</label><select id="q-subject">${subjects.map(s=>`<option value="${s.id}" ${quiz?.subject_id===s.id?"selected":""}>Class ${s.class_no} • ${esc(s.name)}</option>`).join("")}</select></div><div class="form-group"><label>Duration (minutes)</label><input id="q-duration" type="number" value="${quiz?.duration_minutes||30}"></div><div class="form-group"><label>Total marks</label><input id="q-total" type="number" value="${quiz ? (quiz.total_marks ?? 0) : 0}" readonly><span class="mini-label">Automatically equals the number of questions.</span></div><div class="form-group"><label>Start</label><input id="q-start" type="datetime-local" value="${localInput(quiz?.start_at)}"></div><div class="form-group"><label>End</label><input id="q-end" type="datetime-local" value="${localInput(quiz?.end_at)}"></div><div class="form-group"><label>Active</label><select id="q-active"><option value="true" ${quiz?.is_active!==false?"selected":""}>Yes</option><option value="false" ${quiz?.is_active===false?"selected":""}>No</option></select></div></div>
-      <h3 class="section-title">Questions</h3><div id="question-editor">${questions.map(questionEditor).join("")}</div><button class="small-btn" id="add-question"><i class="fa-solid fa-plus"></i> Add question</button>
+      <h3 class="section-title">Import questions from Excel</h3>
+      <div class="admin-card" style="padding:15px;margin-bottom:15px;border:1px solid #e8e6f0">
+        <p style="font-size:11px;color:#666;line-height:1.7;margin-bottom:10px">Upload an <strong>.xlsx</strong> or <strong>.xls</strong> file using the 8-column format. Hindi, Urdu and English text are supported. Importing replaces the questions currently shown below; quiz details above remain unchanged.</p>
+        <div class="inline" style="flex-wrap:wrap;margin-bottom:10px"><button class="small-btn" id="download-quiz-template" type="button"><i class="fa-solid fa-download"></i> Download Excel template</button><span class="mini-label">Question No. • Question • Option A • Option B • Option C • Option D • Correct Option • Explanation</span></div>
+        <div class="form-group"><label for="quiz-excel-file">Excel question file</label><input id="quiz-excel-file" type="file" accept=".xlsx,.xls" style="padding:8px"></div>
+        <div id="quiz-import-status" class="mini-label" style="margin-top:8px" aria-live="polite">No file imported yet.</div>
+      </div>
+      <div class="inline" style="justify-content:space-between;flex-wrap:wrap"><h3 class="section-title" style="margin:10px 0 13px">Questions</h3><span id="question-count" class="pill">${questions.length} questions</span></div>
+      <div id="question-editor">${questions.map(questionEditor).join("")}</div><button class="small-btn" id="add-question"><i class="fa-solid fa-plus"></i> Add question manually</button>
       <div class="modal-actions"><button class="small-btn" data-close>Cancel</button><button class="small-btn primary" id="save-quiz">${quiz?"Save changes":"Create quiz"}</button></div>`);
-    $$("[data-close]").forEach(x=>x.onclick=closeModal);let idx=questions.length;$("#add-question").onclick=()=>{idx++;$("#question-editor").insertAdjacentHTML("beforeend",questionEditor({position:idx,id:"",question_text:"",option_a:"",option_b:"",option_c:"",option_d:"",correct_option:"A",correct_marks:1,wrong_marks:0,explanation:""}))};$("#save-quiz").onclick=()=>saveQuiz(quiz?.id||null);
+    $$('[data-close]').forEach(x=>x.onclick=closeModal);let idx=questions.length;
+    const updateQuestionCount=()=>{const n=$$('[data-q-editor]').length;const badge=$("#question-count");if(badge)badge.textContent=`${n} question${n===1?"":"s"}`;const total=$("#q-total");if(total)total.value=n};
+    $("#add-question").onclick=()=>{idx++;$("#question-editor").insertAdjacentHTML("beforeend",questionEditor({position:idx,id:"",question_text:"",option_a:"",option_b:"",option_c:"",option_d:"",correct_option:"A",correct_marks:1,wrong_marks:0,explanation:""}));updateQuestionCount()};
+    $("#download-quiz-template").onclick=downloadQuizExcelTemplate;
+    $("#quiz-excel-file").onchange=async e=>{const file=e.target.files?.[0];if(file)await importQuizExcel(file);e.target.value=""};
+    $("#save-quiz").onclick=()=>saveQuiz(quiz?.id||null);updateQuestionCount();
   }
+  function downloadQuizExcelTemplate(){
+    if(!window.XLSX)return toast("Excel support did not load. Refresh the page and try again.","error");
+    const rows=[["Question Number","Question","Option A","Option B","Option C","Option D","Correct Option","Explanation"],[1,"भारत की राजधानी क्या है?","दिल्ली","मुंबई","पटना","लखनऊ","A","दिल्ली भारत की राजधानी है।"]];
+    const ws=XLSX.utils.aoa_to_sheet(rows);ws["!cols"]=[{wch:16},{wch:42},{wch:25},{wch:25},{wch:25},{wch:25},{wch:16},{wch:42}];
+    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Questions");XLSX.writeFile(wb,"BCC-Quiz-Questions-Template.xlsx");
+  }
+  async function importQuizExcel(file){
+    const status=$("#quiz-import-status");
+    try{
+      if(!window.XLSX)throw new Error("Excel support did not load. Check your internet connection, refresh the page and try again.");
+      if(!/\.xlsx?$/i.test(file.name))throw new Error("Please upload an Excel .xlsx or .xls file.");
+      const buffer=await file.arrayBuffer();const workbook=XLSX.read(buffer,{type:"array"});const sheet=workbook.Sheets[workbook.SheetNames[0]];
+      if(!sheet)throw new Error("The Excel file has no worksheet.");
+      const rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:"",raw:false,blankrows:false});
+      if(!rows.length)throw new Error("The worksheet is empty.");
+      const normalize=v=>String(v??"").trim().toLowerCase().replace(/[._-]+/g," ").replace(/\s+/g," ");
+      const first=(rows[0]||[]).slice(0,8).map(normalize);
+      const looksHeader=first.some(v=>["question","question number","question no","question no.","option a","correct option","explanation"].includes(v));
+      const data=looksHeader?rows.slice(1):rows;
+      const imported=[],issues=[];
+      data.forEach((r,i)=>{
+        const vals=Array.from({length:8},(_,j)=>String(r?.[j]??"").trim());
+        if(vals.every(v=>!v))return;
+        const [number,question,a,b,c,d,correct,explanation]=vals;const answer=correct.toUpperCase().replace(/OPTION/g,"").trim();
+        const rowNum=i+(looksHeader?2:1);
+        if(!question){issues.push(`Row ${rowNum}: question is empty.`);return}
+        if(!a||!b||!c||!d){issues.push(`Row ${rowNum}: all four options (A–D) are required.`);return}
+        if(!["A","B","C","D"].includes(answer)){issues.push(`Row ${rowNum}: correct option must be A, B, C or D.`);return}
+        imported.push({position:imported.length+1,question_text:question,option_a:a,option_b:b,option_c:c,option_d:d,correct_option:answer,explanation,correct_marks:1,wrong_marks:0});
+      });
+      if(!imported.length)throw new Error(issues.length?`No valid questions found. ${issues.slice(0,3).join(" ")}`:"No question rows found. Use the 8-column template.");
+      if(issues.length&&!confirm(`${imported.length} valid question(s) found, but ${issues.length} row(s) have errors and will be skipped. Continue and import valid rows?\n\n${issues.slice(0,5).join("\n")}${issues.length>5?"\n…":""}`))return;
+      $("#question-editor").innerHTML=imported.map(questionEditor).join("");
+      const total=$("#q-total");if(total)total.value=imported.length;
+      $("#question-count").textContent=`${imported.length} questions`;
+      status.textContent=`Imported ${imported.length} questions from ${file.name}.${issues.length?` Skipped ${issues.length} invalid row(s).`:" All rows passed validation."}`;
+      status.style.color=issues.length?"#9a6700":"#166534";toast(`${imported.length} questions imported into the editor. Save the quiz to store them.`,"success");
+    }catch(err){console.error(err);if(status){status.textContent=err.message||"Could not read this Excel file.";status.style.color="#b91c1c"}toast(err.message||"Could not import Excel file.","error")}
+  }
+
   function questionEditor(q){return `<div class="admin-card q-editor" data-q-editor style="margin-bottom:10px"><div class="form-group"><label>Question</label><textarea data-field="question_text">${esc(q.question_text||"")}</textarea></div><div class="form-grid" style="margin-top:10px">${["a","b","c","d"].map(k=>`<div class="form-group"><label>Option ${k.toUpperCase()}</label><input data-field="option_${k}" value="${esc(q[`option_${k}`]||"")}"></div>`).join("")}<div class="form-group"><label>Correct option</label><select data-field="correct_option">${["A","B","C","D"].map(x=>`<option ${q.correct_option===x?"selected":""}>${x}</option>`).join("")}</select></div><div class="form-group"><label>Correct marks</label><input type="number" value="1" readonly><span class="mini-label">Fixed default</span></div><div class="form-group"><label>Wrong marks</label><input type="number" value="0" readonly><span class="mini-label">Fixed default</span></div></div><div class="form-group" style="margin-top:10px"><label>Explanation</label><textarea data-field="explanation">${esc(q.explanation||"")}</textarea></div></div>`}
   function localInput(v){if(!v)return "";const d=new Date(v);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)}
   async function saveQuiz(id){
