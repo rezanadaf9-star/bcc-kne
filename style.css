@@ -1225,3 +1225,17 @@ body::-webkit-scrollbar,
 .academic-import-trigger{border:1px solid #2478c7;color:#2478c7;border-radius:10px}
 .academic-import-preview{padding:14px;margin:12px 0;border:1px solid var(--border,#dde2ea);border-radius:12px;max-height:240px;overflow:auto}
 .academic-import-errors{color:#b42318;font-size:13px;line-height:1.5}
+
+/* Declared exam status: visual hover feedback, no click action. */
+.exam-admin-actions .declared-chip.small-btn {
+  transition: background-color .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease;
+  user-select: none;
+}
+.exam-admin-actions .declared-chip.small-btn:hover {
+  background: var(--green) !important;
+  border-color: var(--green) !important;
+  color: #fff !important;
+}
+.exam-admin-actions .declared-chip.small-btn:hover i {
+  color: #fff !important;
+}
