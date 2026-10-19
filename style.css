@@ -1375,3 +1375,39 @@ body::-webkit-scrollbar,
   .marks-entry-actions #marks-save,
   .marks-entry-actions #marks-next{flex:1 1 calc(50% - 8px);}
 }
+
+/* Marks entry buttons: consistent hover lift and tactile press feedback. */
+.marks-entry-actions #marks-prev,
+.marks-entry-actions #marks-fm-update,
+.marks-entry-actions #marks-save,
+.marks-entry-actions #marks-next {
+  transform:scale(1);
+  transform-origin:center;
+  transition:background-color .2s ease,color .2s ease,border-color .2s ease,transform .18s ease!important;
+}
+.marks-entry-actions #marks-prev:hover:not(:disabled),
+.marks-entry-actions #marks-fm-update:hover:not(:disabled),
+.marks-entry-actions #marks-save:hover:not(:disabled),
+.marks-entry-actions #marks-next:hover:not(:disabled) {
+  transform:scale(1.045);
+}
+.marks-entry-actions #marks-next:hover:not(:disabled) {
+  background:#ffe600!important;
+  border-color:#ffe600!important;
+  color:#fff!important;
+}
+.marks-entry-actions #marks-next:hover:not(:disabled) i,
+.marks-entry-actions #marks-next:hover:not(:disabled) svg {color:#fff!important;fill:currentColor;}
+.marks-entry-actions #marks-prev:active:not(:disabled),
+.marks-entry-actions #marks-fm-update:active:not(:disabled),
+.marks-entry-actions #marks-save:active:not(:disabled),
+.marks-entry-actions #marks-next:active:not(:disabled) {
+  transform:scale(.96)!important;
+  transition-duration:.08s!important;
+}
+@media (prefers-reduced-motion:reduce) {
+  .marks-entry-actions #marks-prev,
+  .marks-entry-actions #marks-fm-update,
+  .marks-entry-actions #marks-save,
+  .marks-entry-actions #marks-next {transition:none!important;transform:none!important;}
+}
