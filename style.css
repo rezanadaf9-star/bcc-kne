@@ -1200,3 +1200,6 @@ body::-webkit-scrollbar,
 .small-btn.done-action{border:1px solid var(--green);background:transparent;color:var(--green);border-radius:5px;transition:background .15s ease,color .15s ease,transform .1s ease}
 .small-btn.done-action:hover,.small-btn.done-action:focus-visible{background:var(--green);color:#fff}
 .small-btn.done-action:disabled{opacity:.55;cursor:wait}
+
+/* Declared status: match the adjacent Leaderboard button dimensions and typography. */
+.exam-admin-actions .declared-chip.small-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;border:1px solid var(--green);border-radius:9px;padding:8px 11px;background:transparent;color:var(--green);font:600 10px Poppins,Arial,sans-serif;line-height:normal;white-space:nowrap;cursor:default;}
