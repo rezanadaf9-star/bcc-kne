@@ -1810,11 +1810,11 @@
 
   async function renderMarks(el){
     const [exams, staffStudents] = await Promise.all([
-      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared").order("created_at",{ascending:false}),
+      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,archived_at").order("created_at",{ascending:false}),
       sb.from("student_profiles").select("user_id,class_no,roll_number,profiles(full_name,login_id)").order("class_no").order("roll_number")
     ]);
     if(exams.error)throw exams.error;if(staffStudents.error)throw staffStudents.error;
-    const rows=staffStudents.data||[], allExams=exams.data||[];const counts=new Map([10,12].map(c=>[c,0]));rows.forEach(s=>counts.set(Number(s.class_no),(counts.get(Number(s.class_no))||0)+1));
+    const rows=staffStudents.data||[], allExams=(exams.data||[]).filter(e=>!e.archived_at);const counts=new Map([10,12].map(c=>[c,0]));rows.forEach(s=>counts.set(Number(s.class_no),(counts.get(Number(s.class_no))||0)+1));
     const grouped={10:allExams.filter(x=>x.class_no===10),12:allExams.filter(x=>x.class_no===12)};
     const declared={10:grouped[10].filter(x=>x.result_declared),12:grouped[12].filter(x=>x.result_declared)};
     el.innerHTML=`<div class="page-head"><div><h1>Marks</h1><p>School exam marks are entered here. Quiz marks and quiz performance are available in Leaderboard.</p></div></div>
@@ -1830,11 +1830,11 @@
     if(![10,12].includes(classNo))return navigate("marks",{},true);
     const [{data:students,error:studentError},{data:exams,error:examError}]=await Promise.all([
       sb.from("student_profiles").select("user_id,class_no,roll_number,profiles(full_name,login_id)").eq("class_no",classNo),
-      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",classNo).order("created_at",{ascending:false})
+      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",classNo).order("created_at",{ascending:false})
     ]);
     if(studentError)throw studentError;if(examError)throw examError;
     const list=(students||[]).sort((a,b)=>String(a.roll_number||"").localeCompare(String(b.roll_number||""),undefined,{numeric:true,sensitivity:"base"}));
-    const examList=exams||[];
+    const examList=(exams||[]).filter(e=>!e.archived_at);
     el.innerHTML=`
       <div class="back-row"><button class="small-btn" id="marks-back"><i class="fa-solid fa-arrow-left"></i> Back to Marks</button></div>
       <div class="page-head"><div><h1>Class ${classNo} Marks</h1><p>Students are arranged by roll number. Create an exam once, then enter each student's subject marks.</p></div><button class="small-btn primary" id="new-academic-exam"><i class="fa-solid fa-plus"></i> New Exam</button></div>
@@ -1842,15 +1842,68 @@
         <div class="marks-student-grid">${list.map((s,i)=>`<button class="marks-student-card" data-academic-student="${esc(s.user_id)}"><span class="marks-student-number">${i+1}</span><span class="marks-student-avatar">${esc(initials(s.profiles?.full_name))}</span><span class="marks-student-info"><strong>${esc(s.profiles?.full_name||"Student")}</strong><small>Roll No. ${esc(s.roll_number||"—")} • ${classText(classNo)}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join("")||`<div class="marks-empty">No students found in this class.</div>`}</div>
       </section>
       <section class="marks-exam-history"><div class="marks-entry-head"><div><span class="pill active">EXAMS</span><h2>Exam setups</h2><p>Continue any unfinished exam, review entries, or declare a completed result.</p></div></div>
-        <div class="marks-exam-grid single">${examList.map(e=>`<div class="marks-exam-item wide exam-admin-card"><button class="exam-admin-main" data-resume-exam="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small>${(e.academic_exam_subjects||[]).length} subjects configured • ${fmtDate(e.created_at)} • ${e.result_declared?'Result declared':'Result not declared'}</small></span><i class="fa-solid fa-arrow-right"></i></button><div class="exam-admin-actions">${e.result_declared?`<span class="small-btn declared-chip"><i class="fa-solid fa-circle-check"></i> Declared</span>`:`<button class="small-btn declare-result-btn" data-declare-exam="${esc(e.id)}"><i class="fa-solid fa-bullhorn"></i> Declare Result</button>`}<button class="small-btn outline-academic-leaderboard" data-admin-academic-leaderboard="${esc(e.id)}"><i class="fa-solid fa-ranking-star"></i> Leaderboard</button></div></div>`).join("")||`<div class="marks-empty">No exam has been created for Class ${classNo} yet.</div>`}</div>
+        <div class="marks-exam-grid single">${examList.map(e=>`<div class="marks-exam-item wide exam-admin-card"><button class="exam-admin-main" data-resume-exam="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small>${(e.academic_exam_subjects||[]).length} subjects configured • ${fmtDate(e.created_at)} • ${e.result_declared?'Result declared':'Result not declared'}</small></span><i class="fa-solid fa-arrow-right"></i></button><div class="exam-admin-actions"><div class="exam-actions-left">${e.result_declared?`<span class="small-btn declared-chip"><i class="fa-solid fa-check" style="color:var(--green)!important"></i> Declared</span>`:`<button class="small-btn declare-result-btn" data-declare-exam="${esc(e.id)}"><i class="fa-solid fa-bullhorn"></i> Declare Result</button>`}<button class="small-btn outline-academic-leaderboard" data-admin-academic-leaderboard="${esc(e.id)}"><i class="fa-solid fa-ranking-star"></i> Leaderboard</button></div><div class="exam-actions-right"><button class="small-btn exam-edit-btn" data-edit-academic-exam="${esc(e.id)}"><i class="fa-solid fa-pen"></i> Edit</button><button class="small-btn exam-delete-btn" data-delete-academic-exam="${esc(e.id)}"><i class="fa-solid fa-trash"></i> Delete</button></div></div></div>`).join("")||`<div class="marks-empty">No exam has been created for Class ${classNo} yet.</div>`}</div>
       </section>`;
     $("#marks-back").onclick=()=>navigate("marks");
     $("#new-academic-exam").onclick=()=>openAcademicExamSetup(classNo);
+    $$('[data-edit-academic-exam]',el).forEach(b=>b.onclick=()=>openAcademicExamEditor(classNo,b.dataset.editAcademicExam));
+    $$('[data-delete-academic-exam]',el).forEach(b=>b.onclick=()=>archiveAcademicExam(classNo,b.dataset.deleteAcademicExam));
     $$(`[data-academic-student]`,el).forEach(b=>b.onclick=()=>showAdminStudentAcademicOverview(classNo,b.dataset.academicStudent));
     $$('[data-resume-exam]',el).forEach(b=>b.onclick=()=>startAcademicMarksEntry(classNo,b.dataset.resumeExam));
     $$('[data-declare-exam]',el).forEach(b=>b.onclick=()=>declareAcademicExam(classNo,b.dataset.declareExam));
     $$('[data-admin-academic-leaderboard]',el).forEach(b=>b.onclick=()=>navigate('academic-leaderboard-exam',{classNo,examId:b.dataset.adminAcademicLeaderboard}));
     if(state.route.examId){const requested=state.route.examId;state.route.examId=null;await startAcademicMarksEntry(classNo,requested);}
+  }
+
+  async function openAcademicExamEditor(classNo,examId){
+    try{
+      const [{data:exam,error:ee},{data:students,error:se},{data:records,error:re}]=await Promise.all([
+        sb.from('academic_exam_sets').select('id,exam_name,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)').eq('id',examId).eq('class_no',classNo).single(),
+        sb.from('student_profiles').select('user_id,roll_number,profiles(full_name)').eq('class_no',classNo),
+        sb.from('student_exam_marks').select('student_id,status').eq('exam_id',examId)
+      ]);
+      if(ee||se||re)throw ee||se||re;
+      if(exam.archived_at)throw Error('Archived exams cannot be edited.');
+      const status=new Map((records||[]).map(r=>[r.student_id,r.status]));
+      const list=(students||[]).sort((a,b)=>String(a.roll_number||'').localeCompare(String(b.roll_number||''),undefined,{numeric:true}));
+      modal(`<div class="modal-head"><div><span class="pill active">EDIT MARKS</span><h2>${esc(exam.exam_name)}</h2><p class="modal-subtitle">Class ${classNo} • Select a student to correct their marks.</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div><div class="form-group"><label for="academic-edit-search">Search student name or roll number</label><input id="academic-edit-search" placeholder="Search students..."></div><div class="academic-edit-students">${list.map(st=>`<button class="academic-edit-student" data-edit-student="${esc(st.user_id)}"><span><strong>${esc(st.profiles?.full_name||'Student')}</strong><small>Roll ${esc(st.roll_number||'—')}</small></span><span class="status-chip ${status.get(st.user_id)==='completed'?'success':''}">${status.get(st.user_id)==='completed'?'Completed':'Pending'}</span><i class="fa-solid fa-chevron-right"></i></button>`).join('')}</div>`);
+      $$('[data-close-modal]').forEach(b=>b.onclick=closeModal);
+      $('#academic-edit-search').oninput=e=>{const q=e.target.value.toLowerCase();$$('.academic-edit-student').forEach(b=>b.hidden=!b.textContent.toLowerCase().includes(q))};
+      $$('[data-edit-student]').forEach(b=>b.onclick=()=>openAcademicMarksCorrection(classNo,exam,list.find(st=>st.user_id===b.dataset.editStudent)));
+    }catch(e){toast(e.message||'Unable to open editor.','error')}
+  }
+
+  async function openAcademicMarksCorrection(classNo,exam,student){
+    try{
+      const {data:record,error}=await sb.from('student_exam_marks').select('marks,included_subject_ids,status').eq('exam_id',exam.id).eq('student_id',student.user_id).maybeSingle();if(error)throw error;
+      const subjects=exam.academic_exam_subjects||[];
+      const ids=Array.isArray(record?.included_subject_ids)&&record.included_subject_ids.length?record.included_subject_ids.map(String):subjects.map(x=>String(x.subject_id));
+      const active=subjects.filter(x=>ids.includes(String(x.subject_id)));
+      modal(`<div class="modal-head"><div><span class="pill active">MARKS CORRECTION</span><h2>${esc(student.profiles?.full_name||'Student')}</h2><p class="modal-subtitle">${esc(exam.exam_name)} • Roll ${esc(student.roll_number||'—')}</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>${exam.result_declared?'<div class="notice">This result is already published. Saving corrections will update the student result and leaderboard.</div>':''}<div class="marks-input-grid">${active.map(x=>`<div class="form-group"><label>${esc(x.subject_name)}</label><div class="marks-input-with-full"><input class="academic-correction-input" data-subject-id="${esc(x.subject_id)}" type="number" min="0" max="${esc(x.full_marks)}" step="0.01" value="${record?.marks?.[x.subject_id]??''}" placeholder="Obtained marks"><span>/ ${esc(x.full_marks)}</span></div></div>`).join('')}</div><div class="form-group"><label>Reason for correction (required)</label><textarea id="academic-correction-reason" rows="2" placeholder="e.g. Corrected Mathematics marks after checking answer sheet"></textarea></div><div class="modal-actions"><button class="small-btn" id="academic-edit-back">Back to students</button><button class="small-btn primary" id="academic-correction-save"><i class="fa-solid fa-check"></i> Save Changes</button></div><div class="academic-correction-history"><h3>Correction history</h3><div id="academic-history-rows">Loading history...</div></div>`);
+      $$('[data-close-modal]').forEach(b=>b.onclick=closeModal);
+      $('#academic-edit-back').onclick=()=>openAcademicExamEditor(classNo,exam.id);
+      const {data:history,error:he}=await sb.from('academic_marks_audit').select('created_at,old_marks,new_marks,reason,actor_id').eq('exam_id',exam.id).eq('student_id',student.user_id).order('created_at',{ascending:false}).limit(30);
+      if(he)throw he;
+      $('#academic-history-rows').innerHTML=(history||[]).map(h=>`<div class="academic-history-item"><small>${esc(fmtDate(h.created_at))} • ${esc(h.reason||'Updated')}</small><div>${active.filter(x=>h.old_marks?.[x.subject_id]!==h.new_marks?.[x.subject_id]).map(x=>`${esc(x.subject_name)}: ${esc(h.old_marks?.[x.subject_id]??'—')} → ${esc(h.new_marks?.[x.subject_id]??'—')}`).join(' • ')||'Record updated'}</div></div>`).join('')||'<p class="mini-label">No corrections yet.</p>';
+      $('#academic-correction-save').onclick=async()=>{
+        const btn=$('#academic-correction-save');if(btn.disabled)return;
+        const reason=$('#academic-correction-reason').value.trim();if(!reason)return toast('Enter a reason for the correction.','error');
+        const marks={};for(const x of $$('.academic-correction-input')){if(x.value.trim()===''||!Number.isFinite(Number(x.value))||Number(x.value)<0||Number(x.value)>Number(x.max))return toast('Enter valid marks for every subject.','error');marks[x.dataset.subjectId]=Number(x.value)}
+        if(exam.result_declared&&!confirm('This exam is DECLARED. Save these corrected marks and update the published leaderboard?'))return;
+        btn.disabled=true;
+        try{const {error:saveError}=await sb.rpc('correct_academic_student_marks',{p_exam_id:exam.id,p_student_id:student.user_id,p_marks:marks,p_included_subject_ids:ids,p_reason:reason});if(saveError)throw saveError;toast('Marks corrected and history recorded.','success');await openAcademicMarksCorrection(classNo,exam,student)}catch(e){toast(e.message||'Correction failed.','error');btn.disabled=false}
+      };
+    }catch(e){toast(e.message||'Unable to load marks correction.','error')}
+  }
+
+  async function archiveAcademicExam(classNo,examId){
+    try{
+      const {data:exam,error}=await sb.from('academic_exam_sets').select('exam_name,result_declared,archived_at').eq('id',examId).eq('class_no',classNo).single();if(error)throw error;
+      if(exam.archived_at)return toast('Exam already archived.','error');
+      modal(`<div class="modal-head"><div><h2>Archive examination?</h2><p class="modal-subtitle">${esc(exam.exam_name)} • Class ${classNo}</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div><div class="notice">${exam.result_declared?'Warning: This declared result will disappear from student leaderboards.':'This saved examination will be hidden from active exam lists.'} Marks and correction history will be retained in the database for recovery.</div><div class="form-group"><label>Type the exact exam name to confirm</label><input id="academic-archive-confirm" autocomplete="off" placeholder="${esc(exam.exam_name)}"></div><div class="modal-actions"><button class="small-btn" data-close-modal>Cancel</button><button class="small-btn exam-delete-btn" id="academic-archive-submit"><i class="fa-solid fa-trash"></i> Archive Exam</button></div>`);
+      $$('[data-close-modal]').forEach(b=>b.onclick=closeModal);
+      $('#academic-archive-submit').onclick=async()=>{if($('#academic-archive-confirm').value.trim()!==exam.exam_name)return toast('Exam name does not match.','error');if(exam.result_declared&&!confirm('Final confirmation: hide this published examination and its leaderboard?'))return;const b=$('#academic-archive-submit');b.disabled=true;try{const {error:ae}=await sb.rpc('archive_academic_exam',{p_exam_id:examId});if(ae)throw ae;closeModal();toast('Exam archived. Records preserved.','success');await renderView()}catch(e){toast(e.message||'Archive failed.','error');b.disabled=false}};
+    }catch(e){toast(e.message||'Could not archive exam.','error')}
   }
 
   async function openAcademicExamSetup(classNo){
@@ -1860,9 +1913,9 @@
       <p class="mini-label" style="margin-bottom:14px">Enter the exam name and full marks once. <strong>Only subjects where you enter full marks will be included in this exam.</strong> Leave a subject blank if the coaching does not teach it for this exam.</p>
       <div class="form-grid"><div class="form-group" style="grid-column:1/-1"><label>Exam name</label><input id="academic-exam-name" placeholder="e.g. First Terminal Examination"></div></div>
       <div class="marks-full-grid">${subjects.map(s=>`<div class="form-group"><label>${esc(s.name)} — Full marks</label><input class="academic-full-mark" data-subject-id="${esc(s.id)}" data-subject-name="${esc(s.name)}" type="number" min="1" step="0.01" placeholder="Leave blank if not taught"></div>`).join("")}</div>
-      <div class="modal-actions"><button class="small-btn" data-close-modal>Cancel</button><button class="small-btn primary" id="create-academic-exam"><i class="fa-solid fa-check"></i> Create & Start</button></div>`);
+      <div class="modal-actions academic-create-methods"><button class="small-btn" data-close-modal>Cancel</button><button class="small-btn primary" id="create-academic-manual"><i class="fa-solid fa-keyboard"></i> Enter Manually</button><button class="small-btn academic-import-trigger" id="create-academic-import"><i class="fa-solid fa-file-arrow-up"></i> Import CSV / Excel</button></div>`);
     $$("[data-close-modal]").forEach(b=>b.onclick=()=>$("#modal-root").innerHTML="");
-    $("#create-academic-exam").onclick=async()=>{
+    const createExam=async(method)=>{
       const examName=$("#academic-exam-name").value.trim(), inputs=$$(".academic-full-mark");
       if(!examName)return toast("Enter the exam name.","error");
       const subjectRows=inputs.filter(i=>i.value.trim()!=="").map(i=>({subject_id:i.dataset.subjectId,subject_name:i.dataset.subjectName,full_marks:Number(i.value)}));
@@ -1874,8 +1927,91 @@
         if(error)throw error;
         const {error:subError}=await sb.from("academic_exam_subjects").insert(subjectRows.map(x=>({...x,exam_id:exam.id})));
         if(subError)throw subError;
-        $("#modal-root").innerHTML="";toast("Exam created. Start entering marks.","success");await startAcademicMarksEntry(classNo,exam.id);
+        $("#modal-root").innerHTML="";toast("Exam created.","success");if(method==="import")await openAcademicMarksImport(classNo,exam.id);else await startAcademicMarksEntry(classNo,exam.id);
       }catch(e){toast(e.message||"Could not create exam.","error")}finally{loading(false)}
+    };
+    $("#create-academic-manual").onclick=()=>createExam("manual");
+    $("#create-academic-import").onclick=()=>createExam("import");
+  }
+
+  function academicImportNormalize(v){return String(v??'').trim().toLocaleLowerCase().replace(/\s+/g,' ')}
+  async function openAcademicMarksImport(classNo,examId){
+    const [{data:exam,error:ee},{data:students,error:se}]=await Promise.all([
+      sb.from('academic_exam_sets').select('id,exam_name,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)').eq('id',examId).single(),
+      sb.from('student_profiles').select('user_id,roll_number,profiles(full_name)').eq('class_no',classNo)
+    ]);
+    if(ee||se)throw ee||se;
+    const subjects=(exam.academic_exam_subjects||[]).slice().sort((a,b)=>String(a.subject_name).localeCompare(String(b.subject_name)));
+    const roster=(students||[]).sort((a,b)=>String(a.roll_number||'').localeCompare(String(b.roll_number||''),undefined,{numeric:true}));
+    if(!roster.length||!subjects.length)return toast('No students or exam subjects available.','error');
+    const headers=['Roll Number','Student Name',...subjects.map(x=>x.subject_name)];
+    modal(`<div class="modal-head"><div><h2>Import marks</h2><p class="modal-subtitle">${esc(exam.exam_name)} • Class ${classNo}</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
+      <p class="mini-label">Download the template, fill obtained marks only, then upload CSV, XLS or XLSX. Google Sheets: File → Download → Microsoft Excel (.xlsx) or CSV. Leave a subject cell blank if that student does not take the subject: its obtained marks AND full marks will be excluded. Enter 0 for an actual zero score. Full marks stay as configured for applicable subjects.</p>
+      <div class="modal-actions"><button class="small-btn" id="academic-download-template"><i class="fa-solid fa-download"></i> Download template</button></div>
+      <div class="form-group"><label>Upload spreadsheet</label><input type="file" id="academic-import-file" accept=".csv,.xls,.xlsx"></div>
+      <div id="academic-import-preview" class="academic-import-preview"><p class="mini-label">No file selected yet.</p></div>
+      <div class="modal-actions"><button class="small-btn" id="academic-import-cancel">Enter Manually</button><button class="small-btn done-action" id="academic-import-save" disabled><i class="fa-solid fa-check"></i> Done — Save Marks</button></div>`);
+    $$('[data-close-modal]').forEach(b=>b.onclick=closeModal);
+    $('#academic-import-cancel').onclick=()=>{closeModal();startAcademicMarksEntry(classNo,examId)};
+    $('#academic-download-template').onclick=()=>{
+      if(typeof XLSX==='undefined')return toast('Spreadsheet library unavailable.','error');
+      const rows=[headers,...roster.map(st=>[String(st.roll_number??''),st.profiles?.full_name||'',...subjects.map(()=>'')])];
+      const ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Marks');XLSX.writeFile(wb,`BCC_Class_${classNo}_Marks_Template.xlsx`);
+    };
+    let validated=null;
+    $('#academic-import-file').onchange=async(ev)=>{
+      validated=null;$('#academic-import-save').disabled=true;
+      const f=ev.target.files?.[0];if(!f)return;
+      try{
+        if(typeof XLSX==='undefined')throw Error('Excel parser is unavailable. Reload the page and try again.');
+        if(!/\.(csv|xls|xlsx)$/i.test(f.name))throw Error('Upload a CSV, XLS or XLSX file.');
+        if(f.size>5*1024*1024)throw Error('File is too large (maximum 5 MB).');
+        const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
+        const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:'',raw:false});
+        if(rows.length<2)throw Error('Spreadsheet has no student marks.');
+        const head=rows[0].map(academicImportNormalize);
+        if(!['roll number','roll no','roll no.','roll_number','serial number'].includes(head[0])||!['student name','name'].includes(head[1]))throw Error('First two columns must be Roll Number and Student Name. Download the template.');
+        if(subjects.some((sub,i)=>head[i+2]!==academicImportNormalize(sub.subject_name)))throw Error('Subject columns must match the downloaded template in the same order.');
+        const byRoll=new Map(),byName=new Map();
+        for(const st of roster){const roll=academicImportNormalize(st.roll_number),name=academicImportNormalize(st.profiles?.full_name);if(roll){if(!byRoll.has(roll))byRoll.set(roll,[]);byRoll.get(roll).push(st)}if(name){if(!byName.has(name))byName.set(name,[]);byName.get(name).push(st)}}
+        const errors=[],matches=[],seen=new Set();
+        rows.slice(1).forEach((r,j)=>{
+          if(!r.some(x=>String(x??'').trim()))return;
+          const line=j+2,roll=academicImportNormalize(r[0]),name=academicImportNormalize(r[1]);
+          let candidates=roll?byRoll.get(roll)||[]:[];
+          if(candidates.length===1&&name&&academicImportNormalize(candidates[0].profiles?.full_name)!==name){errors.push(`Row ${line}: roll number and student name disagree`);return}
+          if(!candidates.length&&name)candidates=byName.get(name)||[];
+          if(candidates.length!==1){errors.push(`Row ${line}: ${candidates.length?'ambiguous':'unknown'} student`);return}
+          const st=candidates[0];if(seen.has(st.user_id)){errors.push(`Row ${line}: duplicate student`);return}seen.add(st.user_id);
+          const marks={},includedSubjectIds=[];let invalid=false;
+          for(let i=0;i<subjects.length;i++){
+            const val=String(r[i+2]??'').trim();
+            // Blank = subject not taken. Do not include its full marks in the result.
+            if(val==='')continue;
+            const max=Number(subjects[i].full_marks),n=Number(val);
+            if(!Number.isFinite(n)||n<0||n>max){errors.push(`Row ${line}: invalid ${subjects[i].subject_name} marks (0–${max}, or leave blank to exclude)`);invalid=true;break}
+            marks[subjects[i].subject_id]=n;
+            includedSubjectIds.push(subjects[i].subject_id);
+          }
+          // An empty subject list is interpreted elsewhere as all subjects; never save it.
+          if(!invalid&&!includedSubjectIds.length){errors.push(`Row ${line}: enter marks for at least one subject, or omit this student to enter later`);invalid=true}
+          if(!invalid)matches.push({exam_id:examId,student_id:st.user_id,marks,status:'completed',included_subject_ids:includedSubjectIds,updated_at:new Date().toISOString()});
+        });
+        const missing=roster.filter(st=>!seen.has(st.user_id));
+        const preview=$('#academic-import-preview');
+        preview.innerHTML=`<p><strong>${matches.length}</strong> valid students • <strong>${missing.length}</strong> not in file • <strong>${errors.length}</strong> errors</p>${errors.length?`<div class="academic-import-errors">${errors.slice(0,12).map(e=>`<p>${esc(e)}</p>`).join('')}${errors.length>12?'<p>More errors exist.</p>':''}</div>`:''}<p class="mini-label">Only validated rows will be saved. Missing students remain unfinished and can be entered manually. Results are NOT declared automatically.</p>`;
+        if(!errors.length&&matches.length){validated=matches;$('#academic-import-save').disabled=false}
+      }catch(e){$('#academic-import-preview').textContent=e.message||'Could not read spreadsheet.'}
+    };
+    $('#academic-import-save').onclick=async()=>{
+      if(!validated?.length)return;
+      const btn=$('#academic-import-save');btn.disabled=true;
+      try{
+        // Save in small batches; do not claim completion until Supabase confirms every batch.
+        for(let i=0;i<validated.length;i+=50){const {error}=await sb.from('student_exam_marks').upsert(validated.slice(i,i+50),{onConflict:'exam_id,student_id'});if(error)throw error}
+        closeModal();toast(`${validated.length} student marks imported and saved. Result is not declared.`,'success');
+        await renderView();
+      }catch(e){toast(e.message||'Import failed. Some batches may have saved; reimport is safe.','error');btn.disabled=false}
     };
   }
 
@@ -1891,11 +2027,11 @@
 
   async function startAcademicMarksEntry(classNo,examId,startStudentId=null){
     const [{data:exam,error:examError},{data:students,error:studentError},{data:records,error:recordError}]=await Promise.all([
-      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("id",examId).single(),
+      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("id",examId).single(),
       sb.from("student_profiles").select("user_id,class_no,roll_number,profiles(full_name,login_id)").eq("class_no",classNo),
       sb.from("student_exam_marks").select("student_id,status,included_subject_ids").eq("exam_id",examId)
     ]);
-    if(examError)throw examError;if(studentError)throw studentError;if(recordError)throw recordError;
+    if(examError)throw examError;if(studentError)throw studentError;if(recordError)throw recordError;if(exam.archived_at)return toast("This exam is archived.","error");
     const list=(students||[]).sort((a,b)=>String(a.roll_number||"").localeCompare(String(b.roll_number||""),undefined,{numeric:true,sensitivity:"base"}));
     const subjects=exam.academic_exam_subjects||[],recordMap=new Map((records||[]).map(r=>[r.student_id,r]));
     if(!list.length)return toast("No students found.","error");
@@ -1999,7 +2135,7 @@
     if(!examId)return navigate('student-marks',{},true);
     const {data:exam,error}=await sb.from('academic_exam_sets').select('id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)').eq('id',examId).eq('class_no',classNo).single();
     if(error)throw error;
-    if(!exam.result_declared)return navigate('student-marks',{},true);
+    if(exam.archived_at||!exam.result_declared)return navigate('student-marks',{},true);
     const rows=await fetchAcademicExamLeaderboard(examId),me=rows.find(r=>r.student_id===state.profile.id);
     el.innerHTML=`<div class="back-row"><button class="small-btn" id="student-academic-back"><i class="fa-solid fa-arrow-left"></i> Back to Marks</button></div>
       <div class="page-head"><div><h1>${esc(exam.exam_name)} Leaderboard</h1><p>${classText(classNo)} • Declared academic result • Ranked by percentage.</p></div></div>
@@ -2012,9 +2148,9 @@
 
   async function renderAcademicLeaderboard(el,classNo){
     if(![10,12].includes(classNo))return navigate('marks',{},true);
-    const {data:exams,error}=await sb.from('academic_exam_sets').select('id,class_no,exam_name,created_at,result_declared').eq('class_no',classNo).eq('result_declared',true).order('created_at',{ascending:false});
+    const {data:exams,error}=await sb.from('academic_exam_sets').select('id,class_no,exam_name,created_at,result_declared,archived_at').eq('class_no',classNo).eq('result_declared',true).order('created_at',{ascending:false});
     if(error)throw error;
-    el.innerHTML=`<div class="back-row"><button class="small-btn" id="academic-leaderboard-back"><i class="fa-solid fa-arrow-left"></i> Back to Marks</button></div><div class="page-head"><div><h1>Class ${classNo} Exam Leaderboards</h1><p>Declared academic examinations with podium and complete ranked student list.</p></div></div><section class="marks-exam-history"><div class="marks-exam-grid single">${(exams||[]).map(e=>`<button class="marks-exam-item wide leaderboard-exam-card" data-academic-exam-card="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small><i class="fa-solid fa-circle-check"></i> Result declared • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-arrow-right"></i></button>`).join('')||`<div class="marks-empty">No declared exam results for Class ${classNo} yet.</div>`}</div></section>`;
+    el.innerHTML=`<div class="back-row"><button class="small-btn" id="academic-leaderboard-back"><i class="fa-solid fa-arrow-left"></i> Back to Marks</button></div><div class="page-head"><div><h1>Class ${classNo} Exam Leaderboards</h1><p>Declared academic examinations with podium and complete ranked student list.</p></div></div><section class="marks-exam-history"><div class="marks-exam-grid single">${(exams||[]).filter(e=>!e.archived_at).map(e=>`<button class="marks-exam-item wide leaderboard-exam-card" data-academic-exam-card="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small><i class="fa-solid fa-circle-check"></i> Result declared • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-arrow-right"></i></button>`).join('')||`<div class="marks-empty">No declared exam results for Class ${classNo} yet.</div>`}</div></section>`;
     $('#academic-leaderboard-back').onclick=()=>navigate('marks');
     $$('[data-academic-exam-card]',el).forEach(b=>b.onclick=()=>navigate('academic-leaderboard-exam',{classNo,examId:b.dataset.academicExamCard}));
   }
@@ -2023,14 +2159,14 @@
     if(!examId)return navigate('academic-leaderboard',{classNo},true);
     const {data:exam,error}=await sb.from('academic_exam_sets').select('id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)').eq('id',examId).eq('class_no',classNo).single();
     if(error)throw error;
-    if(!exam.result_declared)return navigate('academic-leaderboard',{classNo},true);
-    const rows=await fetchAcademicExamLeaderboard(examId);
+    if(exam.archived_at||!exam.result_declared)return navigate('academic-leaderboard',{classNo},true);
+    if(exam.archived_at)return navigate("marks",{},true);const rows=await fetchAcademicExamLeaderboard(examId);
     el.innerHTML=`<div class="back-row"><button class="small-btn" id="academic-exam-back"><i class="fa-solid fa-arrow-left"></i> Back to Exam Leaderboards</button></div><div class="page-head"><div><h1>${esc(exam.exam_name)} Leaderboard</h1><p>Class ${classNo} • All students ranked by percentage.</p></div></div><section class="academic-leaderboard-page admin-view"><div class="academic-leaderboard-hero"><span class="academic-ribbon"><i class="fa-solid fa-crown"></i> DECLARED RESULT</span><h2>${esc(exam.exam_name)}</h2><p>${rows.length} student result${rows.length===1?'':'s'} • ${fmtDate(exam.created_at)}</p></div>${academicPodium(rows,null,true)}${academicRankList(rows,null,true)}</section>`;
     $('#academic-exam-back').onclick=()=>navigate('academic-leaderboard',{classNo});
   }
 
   async function renderStudentMarks(el){
-    const {data:exams,error:examError}=await sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",state.classNo).order("created_at",{ascending:false});
+    const {data:exams,error:examError}=await sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",state.classNo).order("created_at",{ascending:false});
     if(examError)throw examError;const examList=exams||[],declaredExams=examList.filter(e=>e.result_declared),latest=declaredExams[0]||null;
     if(!examList.length){
       el.innerHTML=`<div class="page-head"><div><h1>Marks</h1><p>${classText(state.classNo)} academic marks and examination performance.</p></div></div><section class="marks-student-leaderboard"><div class="marks-student-rank-head"><div><span class="pill active">LATEST EXAM LEADERBOARD</span><h2>Your class position</h2><p>The leaderboard will appear automatically after an academic result is declared.</p></div></div><div class="marks-empty student-marks-empty-card"><i class="fa-solid fa-ranking-star"></i><strong>No academic exam has been added yet.</strong><span>Your rank and the top students will appear here after your teacher declares a result.</span></div></section><section class="marks-exam-cards"><div class="marks-student-rank-head"><div><span class="pill">EXAMS</span><h2>Your exam records</h2><p>Exam cards will appear here when your teacher creates them.</p></div></div><div class="student-exam-grid empty-exam-placeholders">${[1,2,3].map(i=>`<div class="student-exam-card empty-exam-card"><span class="exam-card-icon"><i class="fa-solid fa-file-lines"></i></span><span><strong>Exam ${i}</strong><small>Not added yet</small></span></div>`).join('')}</div></section><section class="marks-exam-cards"><div class="marks-student-rank-head"><div><span class="pill active">EXAMS LEADERBOARD</span><h2>Declared exam leaderboards</h2></div></div><div class="student-exam-grid"><div class="marks-empty">No declared exam results yet.</div></div></section>`;return;
@@ -2057,7 +2193,7 @@
   }
 
   async function renderAdminAcademicExamSummary(classNo){
-    const {data:exams,error}=await sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",classNo).order("created_at",{ascending:false});
+    const {data:exams,error}=await sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",classNo).order("created_at",{ascending:false});
     if(error)throw error;const container=$("#admin-academic-exams");if(!container)return;
     container.innerHTML=(exams||[]).map(e=>`<button class="marks-exam-item wide" data-admin-exam="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small>${(e.academic_exam_subjects||[]).length} subjects • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join("")||`<div class="marks-empty">No school exam records yet.</div>`;
     $$("[data-admin-exam]",container).forEach(b=>b.onclick=()=>showAdminExamStudentPerformance(b.dataset.adminExam,classNo));
@@ -2065,11 +2201,11 @@
 
   async function showAdminExamStudentPerformance(examId,classNo){
     const [{data:exam,error:examError},{data:students,error:studentError},{data:records,error:recordError}]=await Promise.all([
-      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("id",examId).single(),
+      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("id",examId).single(),
       sb.from("student_profiles").select("user_id,roll_number,profiles(full_name,login_id)").eq("class_no",classNo),
       sb.from("student_exam_marks").select("student_id,marks,status,updated_at").eq("exam_id",examId)
     ]);
-    if(examError)throw examError;if(studentError)throw studentError;if(recordError)throw recordError;
+    if(examError)throw examError;if(studentError)throw studentError;if(recordError)throw recordError;if(exam.archived_at)return toast("This exam is archived.","error");
     const map=new Map((records||[]).map(r=>[r.student_id,r])),rows=(students||[]).sort((a,b)=>String(a.roll_number||"").localeCompare(String(b.roll_number||""),undefined,{numeric:true}));
     modal(`<div class="modal-head"><div><span class="pill active">${esc(exam.exam_name)}</span><h2>Class ${classNo} student performance</h2><p class="modal-subtitle">Click a student to open complete subject-wise marks.</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
       <div class="marks-student-grid">${rows.map((s,i)=>{const r=map.get(s.user_id),marks=r?.marks||{},subs=includedAcademicSubjects(exam,r),total=subs.reduce((a,x)=>a+Number(marks[x.subject_id]||0),0),full=subs.reduce((a,x)=>a+Number(x.full_marks||0),0);return `<button class="marks-student-card" data-admin-student="${esc(s.user_id)}"><span class="marks-student-number">${i+1}</span><span class="marks-student-avatar">${esc(initials(s.profiles?.full_name))}</span><span class="marks-student-info"><strong>${esc(s.profiles?.full_name||"Student")}</strong><small>Roll No. ${esc(s.roll_number||"—")} • ${r?.status==="completed"?`${total}/${full} • ${full?((total/full)*100).toFixed(2):"0.00"}%`:"Not completed"}</small></span><i class="fa-solid fa-chevron-right"></i></button>`}).join("")}</div>`);
@@ -2080,11 +2216,11 @@
   async function showAdminStudentAcademicOverview(classNo,studentId){
     const [{data:student,error:studentError},{data:exams,error:examError}]=await Promise.all([
       sb.from("student_profiles").select("user_id,class_no,roll_number,batch,phone,photo_path,profiles(full_name,login_id)").eq("user_id",studentId).eq("class_no",classNo).single(),
-      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",classNo).order("created_at",{ascending:false})
+      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",classNo).order("created_at",{ascending:false})
     ]);
     if(studentError)throw studentError;if(examError)throw examError;
     const profile=(await addPhotoUrls([student]))[0]||student;
-    const examList=exams||[];
+    const examList=(exams||[]).filter(e=>!e.archived_at);
     let records=[];
     if(examList.length){const {data,error}=await sb.from("student_exam_marks").select("exam_id,student_id,marks,status,updated_at").in("exam_id",examList.map(e=>e.id));if(error)throw error;records=data||[];}
     const recordMap=new Map(records.map(r=>[r.exam_id,r]));

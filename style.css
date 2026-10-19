@@ -1203,3 +1203,25 @@ body::-webkit-scrollbar,
 
 /* Declared status: match the adjacent Leaderboard button dimensions and typography. */
 .exam-admin-actions .declared-chip.small-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;border:1px solid var(--green);border-radius:9px;padding:8px 11px;background:transparent;color:var(--green);font:600 10px Poppins,Arial,sans-serif;line-height:normal;white-space:nowrap;cursor:default;}
+
+/* BCC marks exam actions: separate safe and destructive controls */
+.exam-admin-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.exam-actions-left,.exam-actions-right{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.exam-actions-right{margin-left:auto}
+.exam-admin-actions .declared-chip.small-btn{border:1px solid var(--green)!important;border-radius:9px!important;background:transparent!important;color:var(--green)!important;font:600 10px Poppins,Arial,sans-serif!important;padding:8px 11px!important;display:inline-flex;align-items:center;gap:5px}
+.exam-admin-actions .declared-chip i{color:var(--green)!important}
+.exam-edit-btn{border:1px solid #808795!important;color:#596171!important;background:transparent!important}
+.exam-edit-btn:hover{background:#596171!important;color:#fff!important}
+.exam-delete-btn{border:1px solid var(--red)!important;color:var(--red)!important;background:transparent!important}
+.exam-delete-btn:hover{background:var(--red)!important;color:#fff!important}
+.academic-edit-students{max-height:340px;overflow-y:auto;display:grid;gap:7px;margin:12px 0}
+.academic-edit-student{width:100%;background:#fff;border:1px solid var(--line);border-radius:9px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;cursor:pointer}
+.academic-edit-student strong,.academic-edit-student small{display:block}.academic-edit-student small{opacity:.7;margin-top:3px}.academic-edit-student[hidden]{display:none}
+.academic-correction-history{margin-top:20px;border-top:1px solid var(--line);padding-top:12px}.academic-history-item{border-bottom:1px solid var(--line);padding:9px 0}.academic-history-item small{display:block;color:#667085;margin-bottom:4px}
+@media(max-width:520px){.exam-actions-right{margin-left:0}.exam-admin-actions{justify-content:space-between}}
+
+/* Bulk examination import */
+.academic-create-methods{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between}
+.academic-import-trigger{border:1px solid #2478c7;color:#2478c7;border-radius:10px}
+.academic-import-preview{padding:14px;margin:12px 0;border:1px solid var(--border,#dde2ea);border-radius:12px;max-height:240px;overflow:auto}
+.academic-import-errors{color:#b42318;font-size:13px;line-height:1.5}
