@@ -1830,7 +1830,7 @@
     if(![10,12].includes(classNo))return navigate("marks",{},true);
     const [{data:students,error:studentError},{data:exams,error:examError}]=await Promise.all([
       sb.from("student_profiles").select("user_id,class_no,roll_number,profiles(full_name,login_id)").eq("class_no",classNo),
-      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",classNo).order("created_at",{ascending:false})
+      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",classNo).order("created_at",{ascending:false})
     ]);
     if(studentError)throw studentError;if(examError)throw examError;
     const list=(students||[]).sort((a,b)=>String(a.roll_number||"").localeCompare(String(b.roll_number||""),undefined,{numeric:true,sensitivity:"base"}));
@@ -1850,7 +1850,7 @@
     $$('[data-resume-exam]',el).forEach(b=>b.onclick=()=>startAcademicMarksEntry(classNo,b.dataset.resumeExam));
     $$('[data-declare-exam]',el).forEach(b=>b.onclick=()=>declareAcademicExam(classNo,b.dataset.declareExam));
     $$('[data-admin-academic-leaderboard]',el).forEach(b=>b.onclick=()=>navigate('academic-leaderboard-exam',{classNo,examId:b.dataset.adminAcademicLeaderboard}));
-    if(state.route.examId)startAcademicMarksEntry(classNo,state.route.examId);
+    if(state.route.examId){const requested=state.route.examId;state.route.examId=null;await startAcademicMarksEntry(classNo,requested);}
   }
 
   async function openAcademicExamSetup(classNo){
@@ -1891,7 +1891,7 @@
 
   async function startAcademicMarksEntry(classNo,examId,startStudentId=null){
     const [{data:exam,error:examError},{data:students,error:studentError},{data:records,error:recordError}]=await Promise.all([
-      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("id",examId).single(),
+      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("id",examId).single(),
       sb.from("student_profiles").select("user_id,class_no,roll_number,profiles(full_name,login_id)").eq("class_no",classNo),
       sb.from("student_exam_marks").select("student_id,status,included_subject_ids").eq("exam_id",examId)
     ]);
@@ -1899,8 +1899,22 @@
     const list=(students||[]).sort((a,b)=>String(a.roll_number||"").localeCompare(String(b.roll_number||""),undefined,{numeric:true,sensitivity:"base"}));
     const subjects=exam.academic_exam_subjects||[],recordMap=new Map((records||[]).map(r=>[r.student_id,r]));
     if(!list.length)return toast("No students found.","error");
-    let idx;if(startStudentId){idx=list.findIndex(s=>s.user_id===startStudentId);if(idx<0)idx=0}else{idx=list.findIndex(s=>recordMap.get(s.user_id)?.status!=="completed");if(idx<0)idx=0}
+    let idx;if(startStudentId){idx=list.findIndex(s=>s.user_id===startStudentId);if(idx<0)idx=0}else{idx=list.findIndex(s=>recordMap.get(s.user_id)?.status!=="completed");}
+    if(idx<0){if(exam.result_declared){toast("This exam is already declared. Open Leaderboard to view its results.","success");return;}await showAcademicExamFinished(classNo,exam,list.length);return;}
     await showAcademicStudentCard({classNo,exam,list,subjects,index:idx});
+  }
+
+  async function showAcademicExamFinished(classNo,exam,totalStudents){
+    const {data:latest,error}=await sb.from('academic_exam_sets').select('result_declared').eq('id',exam.id).single();
+    if(error)throw error;
+    const declared=!!latest.result_declared;
+    modal(`<div class="modal-head"><div><span class="pill active">EXAM COMPLETED</span><h2>${esc(exam.exam_name)}</h2></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
+      <div class="academic-finish-body"><img src="assets/logo.png" alt="BCC logo" class="academic-finish-logo"><div class="academic-finish-icon"><i class="fa-solid fa-circle-check"></i></div><h2>All student marks saved!</h2><p>${esc(exam.exam_name)} • Class ${classNo}</p><p><strong>${totalStudents}</strong> students completed • <strong>${(exam.academic_exam_subjects||[]).length}</strong> configured subjects</p><span class="status-chip ${declared?'success':''}">${declared?'✓ Result Declared':'Result saved — not declared'}</span></div>
+      <div class="modal-actions academic-finish-actions">${declared?`<button class="small-btn primary" id="academic-finish-leaderboard"><i class="fa-solid fa-ranking-star"></i> Leaderboard</button>`:`<button class="small-btn declare-result-btn" id="academic-finish-declare"><i class="fa-solid fa-bullhorn"></i> Declare Result</button>`}<button class="small-btn" id="academic-finish-skip">${declared?'Close':'Skip for Now'}</button></div>`);
+    $$('[data-close-modal]').forEach(b=>b.onclick=closeModal);
+    $('#academic-finish-skip').onclick=async()=>{closeModal();await renderView()};
+    if(declared)$('#academic-finish-leaderboard').onclick=()=>{closeModal();navigate('academic-leaderboard-exam',{classNo,examId:exam.id})};
+    else $('#academic-finish-declare').onclick=async()=>{const ok=await declareAcademicExam(classNo,exam.id);if(ok)closeModal()};
   }
 
   async function saveAcademicStudentMarks(examId,studentId,inputs,status,includedSubjectIds=null){
@@ -1943,25 +1957,31 @@
       <div class="marks-student-meta"><span><strong>${esc(student.profiles?.full_name||'Student')}</strong></span><span>Roll No. ${esc(student.roll_number||'—')}</span><span>${classText(classNo)}</span><span>${activeSubjects.length} subject${activeSubjects.length===1?'':'s'}</span>${completed?'<span class="status-chip success">Completed</span>':'<span class="status-chip">Pending / Draft</span>'}</div>
       <div class="marks-input-grid">${activeSubjects.map(s=>`<div class="form-group"><label>${esc(s.subject_name)}</label><div class="marks-input-with-full"><input class="academic-mark-input" data-subject-id="${esc(s.subject_id)}" type="number" min="0" max="${esc(s.full_marks)}" step="0.01" value="${saved[s.subject_id]!=null?esc(saved[s.subject_id]):''}" placeholder="0"><span>/ ${esc(s.full_marks)}</span></div></div>`).join('')}</div>
       <div class="marks-total-preview"><span>Total: <strong id="academic-total-preview">0</strong> / ${activeSubjects.reduce((n,s)=>n+Number(s.full_marks||0),0)}</span><span id="academic-percent-preview">0.00%</span></div>
-      <div class="modal-actions marks-entry-actions"><button class="small-btn" id="marks-prev" ${prev===null?'disabled':''}><i class="fa-solid fa-arrow-left"></i> Previous</button><button class="small-btn fm-update-action" id="marks-fm-update"><i class="fa-solid fa-sliders"></i> FM Update</button><span class="marks-entry-spacer"></span><button class="small-btn save-action" id="marks-save"><i class="fa-solid fa-floppy-disk"></i> Save</button><button class="small-btn done-action" id="marks-done"><i class="fa-solid fa-check"></i> Done</button></div>`);
+      <div class="modal-actions marks-entry-actions"><button class="small-btn" id="marks-prev" ${prev===null?'disabled':''}><i class="fa-solid fa-arrow-left"></i> Previous</button><button class="small-btn fm-update-action" id="marks-fm-update"><i class="fa-solid fa-sliders"></i> FM Update</button><span class="marks-entry-spacer"></span><button class="small-btn done-action" id="marks-done"><i class="fa-solid fa-check"></i> Done</button></div>`);
     $$('[data-close-modal]').forEach(b=>b.onclick=closeModal);
     const inputs=$$('.academic-mark-input');
     const updatePreview=()=>{let total=0;inputs.forEach(i=>{const v=Number(i.value);if(Number.isFinite(v)&&v>=0)total+=v});const full=activeSubjects.reduce((n,s)=>n+Number(s.full_marks||0),0);$('#academic-total-preview').textContent=total.toFixed(2).replace(/\.00$/,'');$('#academic-percent-preview').textContent=full?`${((total/full)*100).toFixed(2)}%`:'0.00%'};
     inputs.forEach(i=>i.addEventListener('input',updatePreview));updatePreview();
     $('#marks-prev').onclick=()=>{if(prev!==null)showAcademicStudentCard({classNo,exam,list,subjects,index:prev})};
     $('#marks-fm-update').onclick=()=>updateStudentFM(exam,student.user_id,subjects,includedIds);
-    $('#marks-save').onclick=async()=>{try{await saveAcademicStudentMarks(exam.id,student.user_id,inputs,'draft',includedIds);closeModal();toast(`Progress saved for ${student.profiles?.full_name||'this student'}. You can continue from the first unfinished student later.`,'success')}catch(e){toast(e.message||'Could not save progress.','error')}};
-    $('#marks-done').onclick=async()=>{try{await saveAcademicStudentMarks(exam.id,student.user_id,inputs,'completed',includedIds);if(next!==null){toast(`${student.profiles?.full_name||'Student'} completed. Next student loaded.`,'success');await showAcademicStudentCard({classNo,exam,list,subjects,index:next})}else{closeModal();toast(`All ${list.length} students have been processed for ${exam.exam_name}.`,'success');await renderView()}}catch(e){toast(e.message||'Could not save marks.','error')}};
+    $('#marks-done').onclick=async()=>{const doneButton=$('#marks-done');if(doneButton.disabled)return;doneButton.disabled=true;try{await saveAcademicStudentMarks(exam.id,student.user_id,inputs,'completed',includedIds);const {data:progress,error:progressError}=await sb.from('student_exam_marks').select('student_id,status').eq('exam_id',exam.id);
+      if(progressError)throw progressError;
+      const completedIds=new Set((progress||[]).filter(r=>r.status==='completed').map(r=>r.student_id));
+      const remaining=list.findIndex(s=>!completedIds.has(s.user_id));
+      if(remaining<0){await showAcademicExamFinished(classNo,exam,list.length)}else{const target=next!==null&&!completedIds.has(list[next].user_id)?next:remaining;toast(`${student.profiles?.full_name||'Student'} completed. Next unfinished student loaded.`,'success');await showAcademicStudentCard({classNo,exam,list,subjects,index:target})}}catch(e){toast(e.message||'Could not save marks.','error');doneButton.disabled=false}};
   }
 
   async function declareAcademicExam(classNo,examId){
-    if(!confirm('Declare this exam result? Students will be able to see this exam leaderboard after declaration.'))return;
+    if(!confirm('Declare this exam result? Students will be able to see this exam leaderboard after declaration.'))return false;
     loading(true,'Declaring result...');
     try{
       const {data:rows,error:rowError}=await sb.from('student_exam_marks').select('student_id,status').eq('exam_id',examId);
       if(rowError)throw rowError;
-      const pending=(rows||[]).filter(r=>r.status!=='completed').length;
-      if(pending>0 && !confirm(`${pending} student${pending===1?'':'s'} still have unfinished marks. Declare anyway?`))return;
+      const {data:students, error:studentError}=await sb.from('student_profiles').select('user_id').eq('class_no',classNo);
+      if(studentError)throw studentError;
+      const completedIds=new Set((rows||[]).filter(r=>r.status==='completed').map(r=>r.student_id));
+      const pending=(students||[]).filter(s=>!completedIds.has(s.user_id)).length;
+      if(pending>0){toast(`${pending} student${pending===1?'':'s'} still need completed marks. Finish all entries before declaring.`, 'error');return false;}
       const {error}=await sb.from('academic_exam_sets').update({result_declared:true}).eq('id',examId).eq('class_no',classNo);
       if(error)throw error;
       toast('Result declared. The exam leaderboard is now visible to students.','success');
@@ -2037,7 +2057,7 @@
   }
 
   async function renderAdminAcademicExamSummary(classNo){
-    const {data:exams,error}=await sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",classNo).order("created_at",{ascending:false});
+    const {data:exams,error}=await sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",classNo).order("created_at",{ascending:false});
     if(error)throw error;const container=$("#admin-academic-exams");if(!container)return;
     container.innerHTML=(exams||[]).map(e=>`<button class="marks-exam-item wide" data-admin-exam="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small>${(e.academic_exam_subjects||[]).length} subjects • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join("")||`<div class="marks-empty">No school exam records yet.</div>`;
     $$("[data-admin-exam]",container).forEach(b=>b.onclick=()=>showAdminExamStudentPerformance(b.dataset.adminExam,classNo));
@@ -2045,7 +2065,7 @@
 
   async function showAdminExamStudentPerformance(examId,classNo){
     const [{data:exam,error:examError},{data:students,error:studentError},{data:records,error:recordError}]=await Promise.all([
-      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("id",examId).single(),
+      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("id",examId).single(),
       sb.from("student_profiles").select("user_id,roll_number,profiles(full_name,login_id)").eq("class_no",classNo),
       sb.from("student_exam_marks").select("student_id,marks,status,updated_at").eq("exam_id",examId)
     ]);
@@ -2060,7 +2080,7 @@
   async function showAdminStudentAcademicOverview(classNo,studentId){
     const [{data:student,error:studentError},{data:exams,error:examError}]=await Promise.all([
       sb.from("student_profiles").select("user_id,class_no,roll_number,batch,phone,photo_path,profiles(full_name,login_id)").eq("user_id",studentId).eq("class_no",classNo).single(),
-      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",classNo).order("created_at",{ascending:false})
+      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",classNo).order("created_at",{ascending:false})
     ]);
     if(studentError)throw studentError;if(examError)throw examError;
     const profile=(await addPhotoUrls([student]))[0]||student;
