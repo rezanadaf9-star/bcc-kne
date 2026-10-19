@@ -1240,3 +1240,22 @@ body::-webkit-scrollbar,
 .marks-exam-item.leaderboard-exam-card{transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease,background .2s ease!important}
 .marks-exam-item.leaderboard-exam-card:hover{transform:translateY(-2px);border-color:#a99ce9!important;background:#f4f1ff!important;box-shadow:0 8px 20px rgba(27,20,100,.10)}
 @media(max-width:480px){.academic-finish-actions{flex-wrap:nowrap}.academic-finish-actions .small-btn{flex:1;white-space:nowrap;text-align:center}}
+
+/* BCC 2026: student profile and password management */
+.student-admin-avatar,.student-admin-avatar img{border-radius:13px!important;transform:none!important}
+.bcc-student-id-heading,.bcc-student-id-bottom{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.bcc-student-id-bottom{margin-top:5px}.bcc-student-id-bottom h3{min-width:0;overflow-wrap:anywhere}
+.bcc-student-password-eye{width:27px;height:27px;display:grid;place-items:center;border:1px solid #e5e3ef;background:#fff;color:#777;border-radius:8px;cursor:pointer;transition:.2s}
+.bcc-student-password-eye:hover{background:#f0effb;color:var(--navy);border-color:#c9c4ef}
+.bcc-student-id-shield{font-size:14px;color:#16a34a;flex:none}
+.bcc-password-student{display:flex;flex-direction:column;gap:5px;padding:13px 15px;background:#f8f7fd;border:1px solid #e8e6f0;border-radius:12px;overflow-wrap:anywhere}
+.bcc-password-student strong{color:var(--navy);font-size:13px}.bcc-password-student span{font-size:11px;color:#555}
+.bcc-password-note{font-size:11px;line-height:1.7;color:#666;margin:14px 0}
+.bcc-password-input-row{display:flex;gap:8px}.bcc-password-input-row input{flex:1;min-width:0}
+/* Discussion metrics: separate the summary cards from the lecture list. */
+.bcc-discussion-stats{margin-bottom:16px}
+/* Preserve text contrast on navy hover backgrounds throughout all portals. */
+.feature-card:hover:not(.active){color:#fff}
+.feature-card:hover:not(.active) :is(h1,h2,h3,h4,h5,h6,p,small,strong,span,.metric-value,.metric-sub,.mini-label){color:#fff!important}
+.feature-card:hover:not(.active) .feature-icon,.feature-card:hover:not(.active) .feature-icon i{color:var(--navy)!important}
+@media(max-width:760px){.bcc-discussion-stats{margin-bottom:14px}}
