@@ -2025,6 +2025,31 @@
     $$("[data-select-exam]").forEach(b=>b.onclick=()=>{$("#modal-root").innerHTML="";startAcademicMarksEntry(classNo,b.dataset.selectExam,studentId)});
   }
 
+  // Pending entries are kept locally until Save is clicked.
+  const academicPending = new Map();
+  const pendingKey = examId => `bcc_academic_pending_${state.profile?.id || 'admin'}_${examId}`;
+  function getAcademicPending(examId){
+    if(!academicPending.has(examId)){
+      let rows={};try{rows=JSON.parse(sessionStorage.getItem(pendingKey(examId))||'{}')||{}}catch(_){}
+      academicPending.set(examId,rows);
+    }
+    return academicPending.get(examId);
+  }
+  function persistAcademicPending(examId){try{sessionStorage.setItem(pendingKey(examId),JSON.stringify(getAcademicPending(examId)))}catch(_){}}
+  function academicUnsaved(examId){return Object.keys(getAcademicPending(examId)).length>0}
+  function collectAcademicInputs(inputs,includedIds){
+    const marks={};for(const input of inputs){const raw=input.value.trim();if(raw==='')throw new Error('Enter marks for every selected subject before continuing.');const value=Number(raw),max=Number(input.max);if(!Number.isFinite(value)||value<0||value>max)throw new Error(`Marks must be between 0 and ${max}.`);marks[input.dataset.subjectId]=value;}
+    return {marks,included_subject_ids:[...includedIds]};
+  }
+  async function saveAcademicPending(examId){
+    const pending=getAcademicPending(examId),ids=Object.keys(pending);
+    if(!ids.length)return 0;
+    const payload=ids.map(id=>({exam_id:examId,student_id:id,marks:pending[id].marks,included_subject_ids:pending[id].included_subject_ids,status:'completed',updated_at:new Date().toISOString()}));
+    const {error}=await sb.from('student_exam_marks').upsert(payload,{onConflict:'exam_id,student_id'});
+    if(error)throw error;
+    ids.forEach(id=>delete pending[id]);persistAcademicPending(examId);
+    return ids.length;
+  }
   async function startAcademicMarksEntry(classNo,examId,startStudentId=null){
     const [{data:exam,error:examError},{data:students,error:studentError},{data:records,error:recordError}]=await Promise.all([
       sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("id",examId).single(),
@@ -2036,6 +2061,8 @@
     const subjects=exam.academic_exam_subjects||[],recordMap=new Map((records||[]).map(r=>[r.student_id,r]));
     if(!list.length)return toast("No students found.","error");
     let idx;if(startStudentId){idx=list.findIndex(s=>s.user_id===startStudentId);if(idx<0)idx=0}else{idx=list.findIndex(s=>recordMap.get(s.user_id)?.status!=="completed");}
+    const pending=getAcademicPending(examId);
+    if(!startStudentId && Object.keys(pending).length){idx=list.findIndex(s=>recordMap.get(s.user_id)?.status!=='completed' && !pending[s.user_id]);if(idx<0)idx=list.findIndex(s=>recordMap.get(s.user_id)?.status!=='completed');}
     if(idx<0){if(exam.result_declared){toast("This exam is already declared. Open Leaderboard to view its results.","success");return;}await showAcademicExamFinished(classNo,exam,list.length);return;}
     await showAcademicStudentCard({classNo,exam,list,subjects,index:idx});
   }
@@ -2046,7 +2073,7 @@
     const declared=!!latest.result_declared;
     modal(`<div class="modal-head"><div><span class="pill active">EXAM COMPLETED</span><h2>${esc(exam.exam_name)}</h2></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
       <div class="academic-finish-body"><img src="assets/logo.png" alt="BCC logo" class="academic-finish-logo"><div class="academic-finish-icon"><i class="fa-solid fa-circle-check"></i></div><h2>All student marks saved!</h2><p>${esc(exam.exam_name)} • Class ${classNo}</p><p><strong>${totalStudents}</strong> students completed • <strong>${(exam.academic_exam_subjects||[]).length}</strong> configured subjects</p><span class="status-chip ${declared?'success':''}">${declared?'✓ Result Declared':'Result saved — not declared'}</span></div>
-      <div class="modal-actions academic-finish-actions">${declared?`<button class="small-btn primary" id="academic-finish-leaderboard"><i class="fa-solid fa-ranking-star"></i> Leaderboard</button>`:`<button class="small-btn declare-result-btn" id="academic-finish-declare"><i class="fa-solid fa-bullhorn"></i> Declare Result</button>`}<button class="small-btn" id="academic-finish-skip">${declared?'Close':'Skip for Now'}</button></div>`);
+      <div class="modal-actions academic-finish-actions">${declared?`<button class="small-btn primary" id="academic-finish-leaderboard"><i class="fa-solid fa-ranking-star"></i> Leaderboard</button>`:`<button class="small-btn declare-result-btn" id="academic-finish-declare"><i class="fa-solid fa-bullhorn"></i> Declare Result</button>`}<button class="small-btn" id="academic-finish-skip" class="finish-skip-btn">${declared?'Close':'Skip for Now'}</button></div>`);
     $$('[data-close-modal]').forEach(b=>b.onclick=closeModal);
     $('#academic-finish-skip').onclick=async()=>{closeModal();await renderView()};
     if(declared)$('#academic-finish-leaderboard').onclick=()=>{closeModal();navigate('academic-leaderboard-exam',{classNo,examId:exam.id})};
@@ -2086,25 +2113,42 @@
     const {data:existing,error}=await sb.from('student_exam_marks').select('marks,status,updated_at,included_subject_ids').eq('exam_id',exam.id).eq('student_id',student.user_id).maybeSingle();
     if(error)throw error;
     const allSubjectIds=subjects.map(s=>String(s.subject_id));
-    const includedIds=Array.isArray(existing?.included_subject_ids)&&existing.included_subject_ids.length?existing.included_subject_ids.map(String):allSubjectIds;
+    const draftEntry=getAcademicPending(exam.id)[student.user_id];
+    const storedIds=draftEntry?.included_subject_ids||existing?.included_subject_ids;
+    const includedIds=Array.isArray(storedIds)&&storedIds.length?storedIds.map(String):allSubjectIds;
     const activeSubjects=subjects.filter(s=>includedIds.includes(String(s.subject_id)));
-    const saved=existing?.marks||{},completed=existing?.status==='completed',next=index+1<list.length?index+1:null,prev=index>0?index-1:null;
+    const draft=getAcademicPending(exam.id)[student.user_id];
+    const saved=draft?.marks||existing?.marks||{},completed=existing?.status==='completed',next=index+1<list.length?index+1:null,prev=index>0?index-1:null;
     modal(`<div class="modal-head"><div><span class="pill active">${esc(exam.exam_name)}</span><h2>${esc(student.profiles?.full_name||'Student')}</h2><p class="modal-subtitle">Roll No. ${esc(student.roll_number||'—')} • Class ${classNo} • Student ${index+1} of ${list.length}</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
       <div class="marks-student-meta"><span><strong>${esc(student.profiles?.full_name||'Student')}</strong></span><span>Roll No. ${esc(student.roll_number||'—')}</span><span>${classText(classNo)}</span><span>${activeSubjects.length} subject${activeSubjects.length===1?'':'s'}</span>${completed?'<span class="status-chip success">Completed</span>':'<span class="status-chip">Pending / Draft</span>'}</div>
       <div class="marks-input-grid">${activeSubjects.map(s=>`<div class="form-group"><label>${esc(s.subject_name)}</label><div class="marks-input-with-full"><input class="academic-mark-input" data-subject-id="${esc(s.subject_id)}" type="number" min="0" max="${esc(s.full_marks)}" step="0.01" value="${saved[s.subject_id]!=null?esc(saved[s.subject_id]):''}" placeholder="0"><span>/ ${esc(s.full_marks)}</span></div></div>`).join('')}</div>
       <div class="marks-total-preview"><span>Total: <strong id="academic-total-preview">0</strong> / ${activeSubjects.reduce((n,s)=>n+Number(s.full_marks||0),0)}</span><span id="academic-percent-preview">0.00%</span></div>
-      <div class="modal-actions marks-entry-actions"><button class="small-btn" id="marks-prev" ${prev===null?'disabled':''}><i class="fa-solid fa-arrow-left"></i> Previous</button><button class="small-btn fm-update-action" id="marks-fm-update"><i class="fa-solid fa-sliders"></i> FM Update</button><span class="marks-entry-spacer"></span><button class="small-btn done-action" id="marks-done"><i class="fa-solid fa-check"></i> Done</button></div>`);
-    $$('[data-close-modal]').forEach(b=>b.onclick=closeModal);
+      <div class="modal-actions marks-entry-actions"><button class="small-btn" id="marks-prev" ${prev===null?'disabled':''}><i class="fa-solid fa-arrow-left"></i> Previous</button><button class="small-btn fm-update-action" id="marks-fm-update"><i class="fa-solid fa-sliders"></i> FM Update</button><span class="marks-entry-spacer"></span><button class="small-btn academic-save-btn" id="marks-save"><i class="fa-solid fa-floppy-disk"></i> Save</button><button class="small-btn academic-next-btn" id="marks-next"><i class="fa-solid fa-arrow-right"></i> Next</button></div>`);
+    $$('[data-close-modal]').forEach(b=>b.onclick=()=>{if(academicUnsaved(exam.id)&&!confirm('Unsaved marks are stored only in this browser until you click Save. Close anyway?'))return;closeModal()});
     const inputs=$$('.academic-mark-input');
     const updatePreview=()=>{let total=0;inputs.forEach(i=>{const v=Number(i.value);if(Number.isFinite(v)&&v>=0)total+=v});const full=activeSubjects.reduce((n,s)=>n+Number(s.full_marks||0),0);$('#academic-total-preview').textContent=total.toFixed(2).replace(/\.00$/,'');$('#academic-percent-preview').textContent=full?`${((total/full)*100).toFixed(2)}%`:'0.00%'};
     inputs.forEach(i=>i.addEventListener('input',updatePreview));updatePreview();
-    $('#marks-prev').onclick=()=>{if(prev!==null)showAcademicStudentCard({classNo,exam,list,subjects,index:prev})};
-    $('#marks-fm-update').onclick=()=>updateStudentFM(exam,student.user_id,subjects,includedIds);
-    $('#marks-done').onclick=async()=>{const doneButton=$('#marks-done');if(doneButton.disabled)return;doneButton.disabled=true;try{await saveAcademicStudentMarks(exam.id,student.user_id,inputs,'completed',includedIds);const {data:progress,error:progressError}=await sb.from('student_exam_marks').select('student_id,status').eq('exam_id',exam.id);
-      if(progressError)throw progressError;
-      const completedIds=new Set((progress||[]).filter(r=>r.status==='completed').map(r=>r.student_id));
-      const remaining=list.findIndex(s=>!completedIds.has(s.user_id));
-      if(remaining<0){await showAcademicExamFinished(classNo,exam,list.length)}else{const target=next!==null&&!completedIds.has(list[next].user_id)?next:remaining;toast(`${student.profiles?.full_name||'Student'} completed. Next unfinished student loaded.`,'success');await showAcademicStudentCard({classNo,exam,list,subjects,index:target})}}catch(e){toast(e.message||'Could not save marks.','error');doneButton.disabled=false}};
+    const cacheCurrent=()=>{const values=inputs.map(i=>i.value.trim());if(values.every(v=>v===''))return false;const entry=collectAcademicInputs(inputs,includedIds);getAcademicPending(exam.id)[student.user_id]=entry;persistAcademicPending(exam.id);return true;};
+    const moveTo=async target=>{try{cacheCurrent();await showAcademicStudentCard({classNo,exam,list,subjects,index:target})}catch(e){toast(e.message||'Invalid marks.','error')}};
+    $('#marks-prev').onclick=()=>{if(prev!==null)moveTo(prev)};
+    $('#marks-fm-update').onclick=()=>{if(academicUnsaved(exam.id)&&!confirm('Unsaved marks are waiting. Save them before updating subjects?'))return;updateStudentFM(exam,student.user_id,subjects,includedIds)};
+    $('#marks-next').onclick=async()=>{
+      try{cacheCurrent();if(next!==null)await showAcademicStudentCard({classNo,exam,list,subjects,index:next});else toast('No more students. Click Save to save all entered marks.','info')}
+      catch(e){toast(e.message||'Invalid marks.','error')}
+    };
+    $('#marks-save').onclick=async()=>{
+      const button=$('#marks-save');if(button.disabled)return;
+      try{
+        cacheCurrent();button.disabled=true;button.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+        const count=await saveAcademicPending(exam.id);
+        toast(`${count} student${count===1?'':'s'} saved successfully.`,'success');
+        const {data:progress,error}=await sb.from('student_exam_marks').select('student_id,status').eq('exam_id',exam.id);
+        if(error)throw error;
+        const complete=new Set((progress||[]).filter(r=>r.status==='completed').map(r=>r.student_id));
+        if(list.every(st=>complete.has(st.user_id)))await showAcademicExamFinished(classNo,exam,list.length);
+        else {button.disabled=false;button.innerHTML='<i class="fa-solid fa-floppy-disk"></i> Save';}
+      }catch(e){toast(e.message||'Save failed. Your pending entries are retained; please retry.','error');button.disabled=false;button.innerHTML='<i class="fa-solid fa-floppy-disk"></i> Save';}
+    };
   }
 
   async function declareAcademicExam(classNo,examId){

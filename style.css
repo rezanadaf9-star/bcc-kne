@@ -1226,16 +1226,17 @@ body::-webkit-scrollbar,
 .academic-import-preview{padding:14px;margin:12px 0;border:1px solid var(--border,#dde2ea);border-radius:12px;max-height:240px;overflow:auto}
 .academic-import-errors{color:#b42318;font-size:13px;line-height:1.5}
 
-/* Declared exam status: visual hover feedback, no click action. */
-.exam-admin-actions .declared-chip.small-btn {
-  transition: background-color .18s ease, border-color .18s ease, color .18s ease, box-shadow .18s ease;
-  user-select: none;
-}
-.exam-admin-actions .declared-chip.small-btn:hover {
-  background: var(--green) !important;
-  border-color: var(--green) !important;
-  color: #fff !important;
-}
-.exam-admin-actions .declared-chip.small-btn:hover i {
-  color: #fff !important;
-}
+/* BCC: quick Next navigation, explicit batch Save and matching leaderboard hover */
+.academic-save-btn{border:1px solid #16a34a!important;color:#16a34a!important;background:transparent!important;transition:all .2s ease!important}
+.academic-save-btn:hover:not(:disabled){background:#16a34a!important;color:#fff!important}
+.academic-next-btn{border:1px solid var(--navy)!important;color:var(--navy)!important;background:transparent!important;transition:all .2s ease!important}
+.academic-next-btn:hover{background:var(--navy)!important;color:#fff!important}
+.academic-finish-actions{display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:12px}
+.academic-finish-actions .small-btn{border-radius:9px;padding:9px 13px;font:600 10px Poppins;transition:background .2s,color .2s,border-color .2s}
+.academic-finish-actions .declare-result-btn{border:1px solid var(--red)!important;color:var(--red)!important;background:transparent!important}
+.academic-finish-actions .declare-result-btn:hover{background:var(--red)!important;color:#fff!important}
+.academic-finish-actions .finish-skip-btn{border:1px solid #777786!important;color:#777786!important;background:transparent!important}
+.academic-finish-actions .finish-skip-btn:hover{background:#777786!important;color:#fff!important}
+.marks-exam-item.leaderboard-exam-card{transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease,background .2s ease!important}
+.marks-exam-item.leaderboard-exam-card:hover{transform:translateY(-2px);border-color:#a99ce9!important;background:#f4f1ff!important;box-shadow:0 8px 20px rgba(27,20,100,.10)}
+@media(max-width:480px){.academic-finish-actions{flex-wrap:nowrap}.academic-finish-actions .small-btn{flex:1;white-space:nowrap;text-align:center}}
