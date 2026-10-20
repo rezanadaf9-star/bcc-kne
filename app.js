@@ -2,11 +2,18 @@
   "use strict";
 
   // Paste the raw GitHub Releases APK URL here when it is ready.
-  const BCC_APP_APK_URL = "https://github.com/rezanadaf9-star/bcc-kne-App/releases/download/v1.1.4/app-release.apk";
+  const BCC_APP_APK_URL =
+    "https://github.com/rezanadaf9-star/bcc-kne-App/releases/download/v1.1.11/app-release.apk";
 
   const C = window.BCC_CONFIG || {};
-  const hasConfig = C.SUPABASE_URL && !C.SUPABASE_URL.includes("YOUR_") && C.SUPABASE_ANON_KEY && !C.SUPABASE_ANON_KEY.includes("YOUR_");
-  const sb = hasConfig ? window.supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY) : null;
+  const hasConfig =
+    C.SUPABASE_URL &&
+    !C.SUPABASE_URL.includes("YOUR_") &&
+    C.SUPABASE_ANON_KEY &&
+    !C.SUPABASE_ANON_KEY.includes("YOUR_");
+  const sb = hasConfig
+    ? window.supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY)
+    : null;
 
   const state = {
     portal: "student",
@@ -22,27 +29,78 @@
     quizTimer: null,
     quizSessionId: null,
     quizExpiresAt: null,
-    quizSecurity: { active: false, submitting: false, allowExit: false, reason: null },
+    quizSecurity: {
+      active: false,
+      submitting: false,
+      allowExit: false,
+      reason: null,
+    },
     quizGuardInstalled: false,
     currentLecture: null,
-    route: {}
+    route: {},
   };
 
   const $ = (s, root = document) => root.querySelector(s);
   const $$ = (s, root = document) => [...root.querySelectorAll(s)];
-  const esc = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
-  const fmtDate = v => v ? new Date(v).toLocaleDateString("en-IN", { day:"2-digit", month:"short", year:"numeric" }) : "—";
-  const fmtDateTime = v => v ? new Date(v).toLocaleString("en-IN", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" }) : "—";
-  const initials = n => (n || "B").trim().split(/\s+/).map(x => x[0]).join("").slice(0,2).toUpperCase();
+  const esc = (v) =>
+    String(v ?? "").replace(
+      /[&<>"']/g,
+      (c) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        })[c],
+    );
+  const fmtDate = (v) =>
+    v
+      ? new Date(v).toLocaleDateString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        })
+      : "—";
+  const fmtDateTime = (v) =>
+    v
+      ? new Date(v).toLocaleString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "—";
+  const initials = (n) =>
+    (n || "B")
+      .trim()
+      .split(/\s+/)
+      .map((x) => x[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
   async function addPhotoUrls(rows) {
     const list = rows || [];
-    const paths = [...new Set(list.map(r => r.photo_path).filter(Boolean))];
+    const paths = [...new Set(list.map((r) => r.photo_path).filter(Boolean))];
     if (!paths.length) return list;
     try {
-      const { data, error } = await sb.storage.from("student-photos").createSignedUrls(paths, 3600);
+      const { data, error } = await sb.storage
+        .from("student-photos")
+        .createSignedUrls(paths, 3600);
       if (error) throw error;
-      const map = new Map(paths.map((p,i) => [p, data?.[i]?.signedUrl ? `${data[i].signedUrl}${data[i].signedUrl.includes("?") ? "&" : "?"}photo_v=${encodeURIComponent(p + Date.now())}` : ""]));
-      return list.map(r => ({ ...r, photo_url: map.get(r.photo_path) || "" }));
+      const map = new Map(
+        paths.map((p, i) => [
+          p,
+          data?.[i]?.signedUrl
+            ? `${data[i].signedUrl}${data[i].signedUrl.includes("?") ? "&" : "?"}photo_v=${encodeURIComponent(p + Date.now())}`
+            : "",
+        ]),
+      );
+      return list.map((r) => ({
+        ...r,
+        photo_url: map.get(r.photo_path) || "",
+      }));
     } catch (e) {
       console.warn("Student photo URLs could not be generated", e);
       return list;
@@ -51,9 +109,13 @@
   async function studentPhotoUrl(path) {
     if (!path) return "";
     try {
-      const { data, error } = await sb.storage.from("student-photos").createSignedUrl(path, 3600);
+      const { data, error } = await sb.storage
+        .from("student-photos")
+        .createSignedUrl(path, 3600);
       if (error) throw error;
-      return data?.signedUrl ? `${data.signedUrl}${data.signedUrl.includes("?") ? "&" : "?"}photo_v=${encodeURIComponent(path + Date.now())}` : "";
+      return data?.signedUrl
+        ? `${data.signedUrl}${data.signedUrl.includes("?") ? "&" : "?"}photo_v=${encodeURIComponent(path + Date.now())}`
+        : "";
     } catch (e) {
       console.warn("Student photo URL could not be generated", e);
       return "";
@@ -69,14 +131,28 @@
     const img = new Image();
     img.className = "avatar-image";
     img.alt = name || "Profile";
-    img.onload = () => { avatar.innerHTML = ""; avatar.appendChild(img); };
-    img.onerror = () => { avatar.innerHTML = esc(initials(name)); };
+    img.onload = () => {
+      avatar.innerHTML = "";
+      avatar.appendChild(img);
+    };
+    img.onerror = () => {
+      avatar.innerHTML = esc(initials(name));
+    };
     img.src = url;
   }
 
-  const slug = s => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-  const classText = c => c ? `Class ${c}` : "Class";
-  const roleLabel = p => p?.role === "admin" ? "Administrator" : p?.role === "teacher" ? "Teacher" : "Student";
+  const slug = (s) =>
+    String(s || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+  const classText = (c) => (c ? `Class ${c}` : "Class");
+  const roleLabel = (p) =>
+    p?.role === "admin"
+      ? "Administrator"
+      : p?.role === "teacher"
+        ? "Teacher"
+        : "Student";
 
   function toast(message, type = "info") {
     const el = document.createElement("div");
@@ -87,15 +163,21 @@
   }
   function loading(on, text = "Loading...") {
     $("#loader").classList.toggle("hidden", !on);
-    const s = $("#loader span"); if (s) s.textContent = text;
+    const s = $("#loader span");
+    if (s) s.textContent = text;
   }
   function modal(html) {
-    $("#modal-root").innerHTML = `<div class="modal-backdrop" data-modal-backdrop><div class="modal">${html}</div></div>`;
-    $("#modal-root").querySelector("[data-modal-backdrop]").addEventListener("click", e => {
-      if (e.target.matches("[data-modal-backdrop]")) closeModal();
-    });
+    $("#modal-root").innerHTML =
+      `<div class="modal-backdrop" data-modal-backdrop><div class="modal">${html}</div></div>`;
+    $("#modal-root")
+      .querySelector("[data-modal-backdrop]")
+      .addEventListener("click", (e) => {
+        if (e.target.matches("[data-modal-backdrop]")) closeModal();
+      });
   }
-  function closeModal() { $("#modal-root").innerHTML = ""; }
+  function closeModal() {
+    $("#modal-root").innerHTML = "";
+  }
 
   // Browser/mobile back-button navigation for this single-page portal.
   function writeRoute(view, route = {}, replace = false) {
@@ -117,9 +199,16 @@
     // This also protects against a stale quiz-active class after a submit race.
     if (view !== "quiz-run") {
       document.body.classList.remove("quiz-active");
-      if (state.quizTimer && state.view !== "quiz-run") { clearInterval(state.quizTimer); state.quizTimer = null; }
+      if (state.quizTimer && state.view !== "quiz-run") {
+        clearInterval(state.quizTimer);
+        state.quizTimer = null;
+      }
     }
-    if (state.profile?.role === "student" && state.quizSecurity?.active && state.view === "quiz-run") {
+    if (
+      state.profile?.role === "student" &&
+      state.quizSecurity?.active &&
+      state.view === "quiz-run"
+    ) {
       const submitted = await submitQuiz(true, "navigation");
       if (!submitted) return;
       if (state.quizSecurity) state.quizSecurity.allowExit = true;
@@ -132,11 +221,20 @@
   async function handlePopState(event) {
     // A running quiz is a locked navigation state. If the browser Back button
     // fires, immediately restore the quiz entry and submit before leaving it.
-    if (state.profile?.role === "student" && state.quizSecurity?.active && state.view === "quiz-run" && !state.quizSecurity.allowExit) {
+    if (
+      state.profile?.role === "student" &&
+      state.quizSecurity?.active &&
+      state.view === "quiz-run" &&
+      !state.quizSecurity.allowExit
+    ) {
       history.replaceState(
-        { bccPortal: true, view: "quiz-run", route: { quizId: state.quiz?.id } },
+        {
+          bccPortal: true,
+          view: "quiz-run",
+          route: { quizId: state.quiz?.id },
+        },
         "",
-        `${location.pathname}${location.search}#quiz-run`
+        `${location.pathname}${location.search}#quiz-run`,
       );
       await submitQuiz(true, "browser_back");
       return;
@@ -147,12 +245,23 @@
     // If the user reaches a history entry that belongs to the page before
     // the portal, keep the user inside the portal instead of leaving Chrome.
     if (!event.state?.bccPortal) {
-      const home = state.profile.role === "student" ? "dashboard" : (state.profile.role === "admin" ? "admin-dashboard" : "teacher-dashboard");
+      const home =
+        state.profile.role === "student"
+          ? "dashboard"
+          : state.profile.role === "admin"
+            ? "admin-dashboard"
+            : "teacher-dashboard";
       writeRoute(home, {}, false);
       return;
     }
 
-    state.view = event.state.view || (state.profile.role === "student" ? "dashboard" : (state.profile.role === "admin" ? "admin-dashboard" : "teacher-dashboard"));
+    state.view =
+      event.state.view ||
+      (state.profile.role === "student"
+        ? "dashboard"
+        : state.profile.role === "admin"
+          ? "admin-dashboard"
+          : "teacher-dashboard");
     state.route = event.state.route || {};
     toggleSidebar(false);
     await renderView();
@@ -173,20 +282,31 @@
 
   async function currentProfile() {
     if (!sb || !state.session?.user) return null;
-    const { data, error } = await sb.from("profiles").select("*").eq("id", state.session.user.id).single();
+    const { data, error } = await sb
+      .from("profiles")
+      .select("*")
+      .eq("id", state.session.user.id)
+      .single();
     if (error) throw error;
     return data;
   }
 
   async function getStudentProfile() {
-    const { data, error } = await sb.from("student_profiles").select("*").eq("user_id", state.session.user.id).single();
+    const { data, error } = await sb
+      .from("student_profiles")
+      .select("*")
+      .eq("user_id", state.session.user.id)
+      .single();
     if (error) throw error;
     return data;
   }
 
   async function login() {
     if (!sb) {
-      toast("Add your Supabase URL and publishable/anon key in config.js first.", "error");
+      toast(
+        "Add your Supabase URL and publishable/anon key in config.js first.",
+        "error",
+      );
       return;
     }
     const id = $("#login-id").value.trim();
@@ -194,56 +314,110 @@
     if (!id || !password) return toast("Enter your ID and password.", "error");
     loading(true, "Signing in...");
     try {
-      const { data, error } = await sb.auth.signInWithPassword({ email: authEmail(id), password });
+      const { data, error } = await sb.auth.signInWithPassword({
+        email: authEmail(id),
+        password,
+      });
       if (error) throw error;
       state.session = data.session;
       state.profile = await currentProfile();
-      if (!state.profile) throw new Error("Your account exists, but its BCC profile is missing.");
-      if (state.portal === "student" && state.profile.role !== "student") throw new Error("This ID is not a student account.");
-      if (state.portal === "teacher" && !["teacher","admin"].includes(state.profile.role)) throw new Error("This ID is not a teacher account.");
-      if (state.profile.is_active === false) { await sb.auth.signOut(); state.session=null; state.profile=null; throw new Error("This account is inactive. Please contact BCC administration."); }
+      if (!state.profile)
+        throw new Error("Your account exists, but its BCC profile is missing.");
+      if (state.portal === "student" && state.profile.role !== "student")
+        throw new Error("This ID is not a student account.");
+      if (
+        state.portal === "teacher" &&
+        !["teacher", "admin"].includes(state.profile.role)
+      )
+        throw new Error("This ID is not a teacher account.");
+      if (state.profile.is_active === false) {
+        await sb.auth.signOut();
+        state.session = null;
+        state.profile = null;
+        throw new Error(
+          "This account is inactive. Please contact BCC administration.",
+        );
+      }
       await enterApp();
     } catch (e) {
       toast(e.message || "Login failed.", "error");
-    } finally { loading(false); }
+    } finally {
+      loading(false);
+    }
   }
 
   async function enterApp(options = {}) {
     $("#boot-screen")?.classList.add("hidden");
     $("#login-screen").classList.add("hidden");
     $("#app-shell").classList.remove("hidden");
-    $("#student-nav").classList.toggle("hidden", state.profile.role !== "student");
+    $("#student-nav").classList.toggle(
+      "hidden",
+      state.profile.role !== "student",
+    );
     $("#admin-nav").classList.toggle("hidden", state.profile.role !== "admin");
-    $("#teacher-nav").classList.toggle("hidden", state.profile.role !== "teacher");
-    $$(".admin-only").forEach(x=>x.classList.toggle("hidden",state.profile.role!=="admin"));
+    $("#teacher-nav").classList.toggle(
+      "hidden",
+      state.profile.role !== "teacher",
+    );
+    $$(".admin-only").forEach((x) =>
+      x.classList.toggle("hidden", state.profile.role !== "admin"),
+    );
     $("#profile-name").textContent = state.profile.full_name || "BCCian";
-    $("#profile-role").textContent = state.profile.role === "student" ? "Student" : roleLabel(state.profile);
+    $("#profile-role").textContent =
+      state.profile.role === "student" ? "Student" : roleLabel(state.profile);
     $("#profile-avatar").innerHTML = esc(initials(state.profile.full_name));
     $("#menu-name").textContent = state.profile.full_name || "BCCian";
     $("#menu-id").textContent = state.profile.login_id || "—";
-    $("#staff-photo-action")?.classList.toggle("hidden", state.profile.role === "student");
-    $("#staff-photo-action")?.querySelector("span") && ($("#staff-photo-action").querySelector("span").textContent = state.profile.photo_path ? "Replace profile photo" : "Add profile photo");
+    $("#staff-photo-action")?.classList.toggle(
+      "hidden",
+      state.profile.role === "student",
+    );
+    $("#staff-photo-action")?.querySelector("span") &&
+      ($("#staff-photo-action").querySelector("span").textContent = state
+        .profile.photo_path
+        ? "Replace profile photo"
+        : "Add profile photo");
     let homeView;
     normalizeStudentRouteForRole();
     if (state.profile.role === "student") {
-      const sp = options.skipStudentFetch && state.student ? state.student : await getStudentProfile();
+      const sp =
+        options.skipStudentFetch && state.student
+          ? state.student
+          : await getStudentProfile();
       state.classNo = sp.class_no;
       state.student = sp;
-      await loadProfileAvatar(sp.photo_path, state.profile.full_name || "Student");
-      $("#topbar-context").textContent = `${classText(sp.class_no)} • Batch ${sp.batch}`;
+      await loadProfileAvatar(
+        sp.photo_path,
+        state.profile.full_name || "Student",
+      );
+      $("#topbar-context").textContent =
+        `${classText(sp.class_no)} • Batch ${sp.batch}`;
       homeView = options.preserveRoute && state.view ? state.view : "dashboard";
     } else {
       state.classNo = null;
-      await loadProfileAvatar(state.profile.photo_path, state.profile.full_name || "Administrator");
-      $("#topbar-context").textContent = state.profile.role === "admin" ? "BCC Administration Portal" : "BCC Teacher Portal";
-      homeView = state.profile.role === "admin" ? "admin-dashboard" : "teacher-dashboard";
+      await loadProfileAvatar(
+        state.profile.photo_path,
+        state.profile.full_name || "Administrator",
+      );
+      $("#topbar-context").textContent =
+        state.profile.role === "admin"
+          ? "BCC Administration Portal"
+          : "BCC Teacher Portal";
+      homeView =
+        state.profile.role === "admin"
+          ? "admin-dashboard"
+          : "teacher-dashboard";
     }
 
     // Create portal history entries as soon as login succeeds. This is what
     // makes the Android/iPhone browser Back button navigate between portal
     // screens instead of immediately leaving the page.
     if (!options.preserveRoute) {
-      history.replaceState({ bccPortal: true, view: homeView, route: {} }, "", `${location.pathname}${location.search}#${encodeURIComponent(homeView)}`);
+      history.replaceState(
+        { bccPortal: true, view: homeView, route: {} },
+        "",
+        `${location.pathname}${location.search}#${encodeURIComponent(homeView)}`,
+      );
       state.view = homeView;
       state.route = {};
     }
@@ -260,10 +434,20 @@
     }
     if (state.quizTimer) clearInterval(state.quizTimer);
     if (sb) await sb.auth.signOut();
-    state.session = null; state.profile = null; state.student = null;
-    state.quizSessionId = null; state.quizExpiresAt = null;
-    state.quizSecurity = { active:false, submitting:false, allowExit:false, reason:null };
-    try { sessionStorage.removeItem("bcc_identity_cache"); } catch (_) {}
+    state.session = null;
+    state.profile = null;
+    state.student = null;
+    state.quizSessionId = null;
+    state.quizExpiresAt = null;
+    state.quizSecurity = {
+      active: false,
+      submitting: false,
+      allowExit: false,
+      reason: null,
+    };
+    try {
+      sessionStorage.removeItem("bcc_identity_cache");
+    } catch (_) {}
     state.route = {};
     history.replaceState(null, "", `${location.pathname}${location.search}`);
     $("#app-shell").classList.add("hidden");
@@ -287,16 +471,20 @@
       "academic-leaderboard": "marks",
       "academic-leaderboard-exam": "marks",
       "leaderboard-class": "leaderboard",
-      "discussion-thread": "discussions"
+      "discussion-thread": "discussions",
     };
     return parentMap[view] || view;
   }
 
   function syncNav() {
     const activeView = getActiveNavView(state.view);
-    $$(".nav-item[data-view]").forEach(b => b.classList.toggle("active", b.dataset.view === activeView));
+    $$(".nav-item[data-view]").forEach((b) =>
+      b.classList.toggle("active", b.dataset.view === activeView),
+    );
     const active = $(`.nav-item[data-view="${activeView}"]`);
-    $("#topbar-section").textContent = active ? active.querySelector("span").textContent : "Dashboard";
+    $("#topbar-section").textContent = active
+      ? active.querySelector("span").textContent
+      : "Dashboard";
   }
 
   function renderBCCApp(el) {
@@ -342,19 +530,22 @@
 
     const link = $("#bcc-app-download");
     const help = $("#bcc-app-help");
-    const configured = BCC_APP_APK_URL && !BCC_APP_APK_URL.includes("PASTE_YOUR_APK");
+    const configured =
+      BCC_APP_APK_URL && !BCC_APP_APK_URL.includes("PASTE_YOUR_APK");
     if (configured) {
       link.href = BCC_APP_APK_URL;
       link.setAttribute("download", "bcc-app.apk");
       link.setAttribute("rel", "noopener");
       link.addEventListener("click", () => {
-        help.innerHTML = '<i class="fa-solid fa-circle-check"></i> Download requested. When it finishes, tap the download notification or follow the installation steps below.';
+        help.innerHTML =
+          '<i class="fa-solid fa-circle-check"></i> Download requested. When it finishes, tap the download notification or follow the installation steps below.';
         link.querySelector("span").textContent = "Download Again";
       });
     } else {
-      link.addEventListener("click", event => {
+      link.addEventListener("click", (event) => {
         event.preventDefault();
-        help.textContent = "APK link not configured yet. In app.js, replace BCC_APP_APK_URL with your direct APK download URL, then publish the website.";
+        help.textContent =
+          "APK link not configured yet. In app.js, replace BCC_APP_APK_URL with your direct APK download URL, then publish the website.";
       });
     }
   }
@@ -367,20 +558,36 @@
       if (state.view === "bcc-app") return renderBCCApp(el);
       if (state.profile.role === "student") {
         if (state.view === "dashboard") return await renderStudentDashboard(el);
-        if (state.view === "notifications") return await renderNotifications(el);
+        if (state.view === "notifications")
+          return await renderNotifications(el);
         if (state.view === "lectures") return await renderLectures(el);
-        if (state.view === "lectures-subject") return await renderLectureListForSubject(state.route.subjectId, false);
+        if (state.view === "lectures-subject")
+          return await renderLectureListForSubject(
+            state.route.subjectId,
+            false,
+          );
         if (state.view === "notes") return await renderNotes(el);
-        if (state.view === "notes-subject") return await renderNotesList(state.route.subjectId, false);
+        if (state.view === "notes-subject")
+          return await renderNotesList(state.route.subjectId, false);
         if (state.view === "homework") return await renderHomework(el);
-        if (state.view === "homework-subject") return await renderHomeworkList(state.route.subjectId, false);
+        if (state.view === "homework-subject")
+          return await renderHomeworkList(state.route.subjectId, false);
         if (state.view === "quizzes") return await renderQuizzes(el);
-        if (state.view === "leaderboard") return await renderStudentLeaderboard(el);
+        if (state.view === "leaderboard")
+          return await renderStudentLeaderboard(el);
         if (state.view === "student-marks") return await renderStudentMarks(el);
-        if (state.view === "student-academic-leaderboard") return await renderStudentAcademicLeaderboard(el, Number(state.classNo), state.route.examId);
+        if (state.view === "student-academic-leaderboard")
+          return await renderStudentAcademicLeaderboard(
+            el,
+            Number(state.classNo),
+            state.route.examId,
+          );
         if (state.view === "notebooklm") return await renderNotebookLM(el);
         if (state.view === "lecture-player") {
-          if (!state.currentLecture || state.currentLecture.id !== state.route.lectureId) {
+          if (
+            !state.currentLecture ||
+            state.currentLecture.id !== state.route.lectureId
+          ) {
             return await openLecture(state.route.lectureId, false);
           }
           return await renderLecturePlayer(el);
@@ -392,50 +599,102 @@
           return await renderQuizRun(el);
         }
         if (state.view === "quiz-result") {
-          if (!state.lastAttempt || !state.quiz || state.quiz.id !== state.route.quizId) {
+          if (
+            !state.lastAttempt ||
+            !state.quiz ||
+            state.quiz.id !== state.route.quizId
+          ) {
             return await showAttemptResult(state.route.quizId, false);
           }
           return await renderQuizResult(el);
         }
       } else {
         if (state.view === "discussions") return await renderDiscussions(el);
-        if (state.view === "discussion-thread") return await renderDiscussionThread(el, state.route.lectureId);
-        if (state.view === "admin-dashboard" && state.profile.role === "admin") return await renderAdminDashboard(el);
-        if (state.view === "teacher-dashboard" && state.profile.role === "teacher") return await renderTeacherDashboard(el);
-        if (state.view === "teachers" && state.profile.role === "admin") return await renderTeachers(el);
+        if (state.view === "discussion-thread")
+          return await renderDiscussionThread(el, state.route.lectureId);
+        if (state.view === "admin-dashboard" && state.profile.role === "admin")
+          return await renderAdminDashboard(el);
+        if (
+          state.view === "teacher-dashboard" &&
+          state.profile.role === "teacher"
+        )
+          return await renderTeacherDashboard(el);
+        if (state.view === "teachers" && state.profile.role === "admin")
+          return await renderTeachers(el);
         if (state.view === "students") return await renderStudents(el);
         if (state.view === "content") return await renderContent(el);
         if (state.view === "quiz-manager") return await renderQuizManager(el);
         if (state.view === "marks") return await renderMarks(el);
-        if (state.view === "marks-class") return await renderMarksClass(el, Number(state.route.classNo));
-        if (state.view === "academic-leaderboard") return await renderAcademicLeaderboard(el, Number(state.route.classNo));
-        if (state.view === "academic-leaderboard-exam") return await renderAcademicLeaderboardExam(el, Number(state.route.classNo), state.route.examId);
-        if (state.view === "leaderboard") return await renderAdminLeaderboard(el);
-        if (state.view === "leaderboard-class") return await renderAdminLeaderboardClass(el, Number(state.route.classNo));
+        if (state.view === "marks-class")
+          return await renderMarksClass(el, Number(state.route.classNo));
+        if (state.view === "academic-leaderboard")
+          return await renderAcademicLeaderboard(
+            el,
+            Number(state.route.classNo),
+          );
+        if (state.view === "academic-leaderboard-exam")
+          return await renderAcademicLeaderboardExam(
+            el,
+            Number(state.route.classNo),
+            state.route.examId,
+          );
+        if (state.view === "leaderboard")
+          return await renderAdminLeaderboard(el);
+        if (state.view === "leaderboard-class")
+          return await renderAdminLeaderboardClass(
+            el,
+            Number(state.route.classNo),
+          );
       }
     } catch (e) {
       console.error(e);
-      if (!el.innerHTML.trim()) el.innerHTML = previous || `<div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i><h3>Could not load this page</h3><p>${esc(e.message)}</p></div>`;
+      if (!el.innerHTML.trim())
+        el.innerHTML =
+          previous ||
+          `<div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i><h3>Could not load this page</h3><p>${esc(e.message)}</p></div>`;
       else toast(e.message || "Something went wrong.", "error");
       toast(e.message || "Something went wrong.", "error");
     }
   }
 
-  function dashboardCard(icon, title, desc, view, extra="") {
+  function dashboardCard(icon, title, desc, view, extra = "") {
     return `<article class="feature-card" data-go="${view}"><div class="feature-icon"><i class="${icon}"></i></div><div><h3>${title}</h3><p>${desc}</p>${extra}</div></article>`;
   }
 
   async function renderStudentDashboard(el) {
     const [lectures, notes, homework, quizzes, attempts] = await Promise.all([
-      sb.from("lectures").select("id", { count:"exact", head:true }).eq("class_no", state.classNo),
-      sb.from("notes").select("id", { count:"exact", head:true }).eq("class_no", state.classNo),
-      sb.from("homework").select("id", { count:"exact", head:true }).eq("class_no", state.classNo),
-      sb.from("quizzes").select("id", { count:"exact", head:true }).eq("class_no", state.classNo).eq("is_active", true),
-      sb.from("quiz_attempts").select("id,score,total_marks,submitted_at").eq("student_id", state.profile.id).order("submitted_at",{ascending:false}).limit(5)
+      sb
+        .from("lectures")
+        .select("id", { count: "exact", head: true })
+        .eq("class_no", state.classNo),
+      sb
+        .from("notes")
+        .select("id", { count: "exact", head: true })
+        .eq("class_no", state.classNo),
+      sb
+        .from("homework")
+        .select("id", { count: "exact", head: true })
+        .eq("class_no", state.classNo),
+      sb
+        .from("quizzes")
+        .select("id", { count: "exact", head: true })
+        .eq("class_no", state.classNo)
+        .eq("is_active", true),
+      sb
+        .from("quiz_attempts")
+        .select("id,score,total_marks,submitted_at")
+        .eq("student_id", state.profile.id)
+        .order("submitted_at", { ascending: false })
+        .limit(5),
     ]);
     if (lectures.error) throw lectures.error;
     const attemptsData = attempts.data || [];
-    const avg = attemptsData.length ? Math.round(attemptsData.reduce((a,x)=>a+(Number(x.score)||0),0)/attemptsData.length) : 0;
+    const avg = attemptsData.length
+      ? Math.round(
+          attemptsData.reduce((a, x) => a + (Number(x.score) || 0), 0) /
+            attemptsData.length,
+        )
+      : 0;
     el.innerHTML = `
       <div class="banner">
         <div><h2>Keep learning, ${esc(state.profile.full_name?.split(" ")[0] || "BCCian")}! 👋</h2><p>${classText(state.classNo)} • Batch ${esc(state.student.batch)} • Stay consistent and keep moving forward.</p></div>
@@ -448,241 +707,371 @@
       </div>
       <h2 class="section-title">Learning</h2>
       <div class="feature-grid">
-        ${dashboardCard("fa-solid fa-video","Live Lecture","Join an available live class","lectures")}
-        ${dashboardCard("fa-solid fa-circle-play","Recorded Lecture","Watch recorded classes in BCC","lectures")}
-        ${dashboardCard("fa-solid fa-download","Downloaded Lecture","Access downloadable lecture files","lectures")}
+        ${dashboardCard("fa-solid fa-video", "Live Lecture", "Join an available live class", "lectures")}
+        ${dashboardCard("fa-solid fa-circle-play", "Recorded Lecture", "Watch recorded classes in BCC", "lectures")}
+        ${dashboardCard("fa-solid fa-download", "Downloaded Lecture", "Access downloadable lecture files", "lectures")}
       </div>
       <h2 class="section-title">Study Material</h2>
       <div class="feature-grid">
-        ${dashboardCard("fa-solid fa-file-lines","Today's Lecture Notes","Open notes for today's classes","notes")}
-        ${dashboardCard("fa-solid fa-folder-open","Subject-wise Lecture Notes","Browse notes by subject","notes")}
-        ${dashboardCard("fa-solid fa-file-arrow-down","Downloaded Lecture Notes","Open or download available notes","notes")}
+        ${dashboardCard("fa-solid fa-file-lines", "Today's Lecture Notes", "Open notes for today's classes", "notes")}
+        ${dashboardCard("fa-solid fa-folder-open", "Subject-wise Lecture Notes", "Browse notes by subject", "notes")}
+        ${dashboardCard("fa-solid fa-file-arrow-down", "Downloaded Lecture Notes", "Open or download available notes", "notes")}
       </div>
       <h2 class="section-title">Quizzes</h2>
       <div class="feature-grid">
-        ${dashboardCard("fa-solid fa-circle-question","Active Quizzes","Attempt your available quizzes","quizzes")}
-        ${dashboardCard("fa-solid fa-chart-simple","Recent Quiz Score",`${avg}% average across recent attempts`,"quizzes")}
-        ${dashboardCard("fa-solid fa-book-open","Homework","Open subject-wise homework","homework")}
-        ${dashboardCard("fa-solid fa-wand-magic-sparkles","AI Study Hub","NotebookLM resources, notes, lectures and doubt-solving links","notebooklm")}
+        ${dashboardCard("fa-solid fa-circle-question", "Active Quizzes", "Attempt your available quizzes", "quizzes")}
+        ${dashboardCard("fa-solid fa-chart-simple", "Recent Quiz Score", `${avg}% average across recent attempts`, "quizzes")}
+        ${dashboardCard("fa-solid fa-book-open", "Homework", "Open subject-wise homework", "homework")}
+        ${dashboardCard("fa-solid fa-wand-magic-sparkles", "AI Study Hub", "NotebookLM resources, notes, lectures and doubt-solving links", "notebooklm")}
       </div>`;
-    $$(`[data-go]`,el).forEach(x=>x.onclick=()=>navigate(x.dataset.go));
+    $$(`[data-go]`, el).forEach(
+      (x) => (x.onclick = () => navigate(x.dataset.go)),
+    );
   }
 
-  function metric(label,value,sub){return `<div class="feature-card metric-card"><div><small>${label}</small><div class="metric-value">${esc(value)}</div><div class="metric-sub">${sub}</div></div></div>`}
-
-
-  function rankLabel(rank){
-    const n=Number(rank);
-    if(!Number.isFinite(n))return "—";
-    const mod100=n%100;
-    if(mod100>=11&&mod100<=13)return `${n}th`;
-    return `${n}${n%10===1?"st":n%10===2?"nd":n%10===3?"rd":"th"}`;
+  function metric(label, value, sub) {
+    return `<div class="feature-card metric-card"><div><small>${label}</small><div class="metric-value">${esc(value)}</div><div class="metric-sub">${sub}</div></div></div>`;
   }
 
-  function leaderboardRow(r, showClass=false, currentStudentId=null){
-    const isMe=Boolean(currentStudentId && r.student_id===currentStudentId);
-    return `<tr class="${isMe?"leaderboard-me-row":""}">
+  function rankLabel(rank) {
+    const n = Number(rank);
+    if (!Number.isFinite(n)) return "—";
+    const mod100 = n % 100;
+    if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+    return `${n}${n % 10 === 1 ? "st" : n % 10 === 2 ? "nd" : n % 10 === 3 ? "rd" : "th"}`;
+  }
+
+  function leaderboardRow(r, showClass = false, currentStudentId = null) {
+    const isMe = Boolean(currentStudentId && r.student_id === currentStudentId);
+    return `<tr class="${isMe ? "leaderboard-me-row" : ""}">
       <td><strong class="rank-badge">${esc(rankLabel(r.rank))}</strong></td>
-      <td><div class="leader-student"><span class="leader-avatar">${r.photo_url?`<img src="${esc(r.photo_url)}" alt="">`:esc(initials(r.full_name))}</span><span><strong>${esc(r.full_name)}${isMe?' <span class="you-badge">YOU</span>':''}</strong><span class="table-sub">${esc(r.login_id)}</span></span></div></td>
-      ${showClass?`<td>Class ${esc(r.class_no)}</td>`:""}
-      <td>${esc(r.score ?? r.total_score ?? 0)}${r.total_marks != null?` / ${esc(r.total_marks)}`:""}</td>
-      ${(r.percentage != null || (r.total_marks != null && r.total_marks > 0))?`<td>${Number(r.percentage != null ? r.percentage : (Number(r.score ?? r.total_score ?? 0) / Number(r.total_marks)) * 100).toFixed(2)}%</td>`:""}
-      ${r.attempted_quizzes != null?`<td>${esc(r.attempted_quizzes)}</td>`:""}
-      <td>${r.submitted_at?fmtDate(r.submitted_at):"—"}</td>
+      <td><div class="leader-student"><span class="leader-avatar">${r.photo_url ? `<img src="${esc(r.photo_url)}" alt="">` : esc(initials(r.full_name))}</span><span><strong>${esc(r.full_name)}${isMe ? ' <span class="you-badge">YOU</span>' : ""}</strong><span class="table-sub">${esc(r.login_id)}</span></span></div></td>
+      ${showClass ? `<td>Class ${esc(r.class_no)}</td>` : ""}
+      <td>${esc(r.score ?? r.total_score ?? 0)}${r.total_marks != null ? ` / ${esc(r.total_marks)}` : ""}</td>
+      ${r.percentage != null || (r.total_marks != null && r.total_marks > 0) ? `<td>${Number(r.percentage != null ? r.percentage : (Number(r.score ?? r.total_score ?? 0) / Number(r.total_marks)) * 100).toFixed(2)}%</td>` : ""}
+      ${r.attempted_quizzes != null ? `<td>${esc(r.attempted_quizzes)}</td>` : ""}
+      <td>${r.submitted_at ? fmtDate(r.submitted_at) : "—"}</td>
     </tr>`;
   }
 
-  async function fetchLatestClassQuiz(classNo){
-    const {data,error}=await sb.from("quizzes")
-      .select("id,title,quiz_type,total_marks,duration_minutes,created_at,start_at,class_no")
-      .eq("class_no",classNo)
-      .order("created_at",{ascending:false})
+  async function fetchLatestClassQuiz(classNo) {
+    const { data, error } = await sb
+      .from("quizzes")
+      .select(
+        "id,title,quiz_type,total_marks,duration_minutes,created_at,start_at,class_no",
+      )
+      .eq("class_no", classNo)
+      .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    if(error)throw error;
-    return data||null;
+    if (error) throw error;
+    return data || null;
   }
 
-  function rankWindow(rows,currentId){
-    const all=rows||[];
-    if(!all.length)return [];
-    const me=all.find(r=>r.student_id===currentId);
-    const base=all.slice(3,10);
-    const out=[...base];
-    if(me && me.rank>10){ out.push({__ellipsis:true}); out.push(me); }
+  function rankWindow(rows, currentId) {
+    const all = rows || [];
+    if (!all.length) return [];
+    const me = all.find((r) => r.student_id === currentId);
+    const base = all.slice(3, 10);
+    const out = [...base];
+    if (me && me.rank > 10) {
+      out.push({ __ellipsis: true });
+      out.push(me);
+    }
     return out;
   }
 
-  function quizPodium(rows,currentId,compact=false){
-    const top=(rows||[]).slice(0,3);
-    if(!top.length)return empty("fa-solid fa-ranking-star","No ranked students yet","The leaderboard will appear after students submit the quiz.");
-    return `<div class="rank-podium quiz-podium">${top.map((r,i)=>`<div class="podium-item place-${i+1} ${r.student_id===currentId?'is-me':''}">
+  function quizPodium(rows, currentId, compact = false) {
+    const top = (rows || []).slice(0, 3);
+    if (!top.length)
+      return empty(
+        "fa-solid fa-ranking-star",
+        "No ranked students yet",
+        "The leaderboard will appear after students submit the quiz.",
+      );
+    return `<div class="rank-podium quiz-podium">${top
+      .map(
+        (
+          r,
+          i,
+        ) => `<div class="podium-item place-${i + 1} ${r.student_id === currentId ? "is-me" : ""}">
       <div class="podium-crown-wrap"><img src="assets/crown.png" class="podium-crown" alt="Crown"></div>
-      <div class="podium-photo">${r.photo_url?`<img src="${esc(r.photo_url)}" alt="">`:esc(initials(r.full_name))}</div>
-      <strong>${esc(r.full_name||"Student")}${r.student_id===currentId?' <span class="you-badge">YOU</span>':''}</strong>
-      <span>${Number(r.score??r.total_score??0)} / ${Number(r.total_marks??0)}</span>
-      <small>${r.percentage!=null?Number(r.percentage).toFixed(2)+"%":"—"}</small>
-      <div class="podium-block"><b>${i+1}</b><em>${rankLabel(i+1)}</em></div>
-    </div>`).join('')}</div>`;
+      <div class="podium-photo">${r.photo_url ? `<img src="${esc(r.photo_url)}" alt="">` : esc(initials(r.full_name))}</div>
+      <strong>${esc(r.full_name || "Student")}${r.student_id === currentId ? ' <span class="you-badge">YOU</span>' : ""}</strong>
+      <span>${Number(r.score ?? r.total_score ?? 0)} / ${Number(r.total_marks ?? 0)}</span>
+      <small>${r.percentage != null ? Number(r.percentage).toFixed(2) + "%" : "—"}</small>
+      <div class="podium-block"><b>${i + 1}</b><em>${rankLabel(i + 1)}</em></div>
+    </div>`,
+      )
+      .join("")}</div>`;
   }
 
-  function rankList(rows,currentId,kind="quiz"){
-    const visible=rankWindow(rows,currentId);
-    if(!visible.length)return "";
-    return `<div class="rank-list-card"><div class="rank-list-head"><span>Rank</span><span>Student</span><span>Marks</span><span>Percentage</span></div>${visible.map(r=>{
-      if(r.__ellipsis)return `<div class="rank-ellipsis"><span>•••</span><span>More students</span><span>•••</span><span>•••</span></div>`;
-      const me=r.student_id===currentId;
-      const score=r.score??r.total_score??0,full=r.total_marks??0,pct=r.percentage!=null?Number(r.percentage):(Number(full)?Number(score)/Number(full)*100:0);
-      return `<div class="rank-list-row ${me?'is-me':''}"><strong>${esc(rankLabel(r.rank))}</strong><div class="rank-list-student"><span class="rank-list-avatar">${r.photo_url?`<img src="${esc(r.photo_url)}" alt="">`:esc(initials(r.full_name))}</span><span><b>${esc(r.full_name||"Student")}${me?' <span class="you-badge">YOU</span>':''}</b><small>${esc(r.login_id||"")}</small></span></div><span>${esc(score)} / ${esc(full)}</span><span>${pct.toFixed(2)}%</span></div>`;
-    }).join('')}</div>`;
+  function rankList(rows, currentId, kind = "quiz") {
+    const visible = rankWindow(rows, currentId);
+    if (!visible.length) return "";
+    return `<div class="rank-list-card"><div class="rank-list-head"><span>Rank</span><span>Student</span><span>Marks</span><span>Percentage</span></div>${visible
+      .map((r) => {
+        if (r.__ellipsis)
+          return `<div class="rank-ellipsis"><span>•••</span><span>More students</span><span>•••</span><span>•••</span></div>`;
+        const me = r.student_id === currentId;
+        const score = r.score ?? r.total_score ?? 0,
+          full = r.total_marks ?? 0,
+          pct =
+            r.percentage != null
+              ? Number(r.percentage)
+              : Number(full)
+                ? (Number(score) / Number(full)) * 100
+                : 0;
+        return `<div class="rank-list-row ${me ? "is-me" : ""}"><strong>${esc(rankLabel(r.rank))}</strong><div class="rank-list-student"><span class="rank-list-avatar">${r.photo_url ? `<img src="${esc(r.photo_url)}" alt="">` : esc(initials(r.full_name))}</span><span><b>${esc(r.full_name || "Student")}${me ? ' <span class="you-badge">YOU</span>' : ""}</b><small>${esc(r.login_id || "")}</small></span></div><span>${esc(score)} / ${esc(full)}</span><span>${pct.toFixed(2)}%</span></div>`;
+      })
+      .join("")}</div>`;
   }
 
-  function academicPodium(rows,currentId,admin=false){
-    const top=(rows||[]).slice(0,3);
-    if(!top.length)return empty("fa-solid fa-ranking-star","No completed results yet","The exam leaderboard will appear after the result is declared.");
-    return `<div class="rank-podium academic-podium">${top.map((r,i)=>`<div class="podium-item place-${i+1} ${!admin&&r.student_id===currentId?'is-me':''}">
+  function academicPodium(rows, currentId, admin = false) {
+    const top = (rows || []).slice(0, 3);
+    if (!top.length)
+      return empty(
+        "fa-solid fa-ranking-star",
+        "No completed results yet",
+        "The exam leaderboard will appear after the result is declared.",
+      );
+    return `<div class="rank-podium academic-podium">${top
+      .map(
+        (
+          r,
+          i,
+        ) => `<div class="podium-item place-${i + 1} ${!admin && r.student_id === currentId ? "is-me" : ""}">
       <div class="podium-crown-wrap"><img src="assets/crown.png" class="podium-crown" alt="Crown"></div>
-      <div class="podium-photo">${r.photo_url?`<img src="${esc(r.photo_url)}" alt="">`:esc(initials(r.full_name))}</div>
-      <strong>${esc(r.full_name||"Student")}${!admin&&r.student_id===currentId?' <span class="you-badge">YOU</span>':''}</strong>
-      <span>Roll ${esc(r.roll_number||"—")}</span>
-      <small>${Number(r.total_score||0)} / ${Number(r.total_full_marks||0)} • ${Number(r.percentage||0).toFixed(2)}%</small>
-      <div class="podium-block"><b>${i+1}</b><em>${rankLabel(i+1)}</em></div>
-    </div>`).join('')}</div>`;
+      <div class="podium-photo">${r.photo_url ? `<img src="${esc(r.photo_url)}" alt="">` : esc(initials(r.full_name))}</div>
+      <strong>${esc(r.full_name || "Student")}${!admin && r.student_id === currentId ? ' <span class="you-badge">YOU</span>' : ""}</strong>
+      <span>Roll ${esc(r.roll_number || "—")}</span>
+      <small>${Number(r.total_score || 0)} / ${Number(r.total_full_marks || 0)} • ${Number(r.percentage || 0).toFixed(2)}%</small>
+      <div class="podium-block"><b>${i + 1}</b><em>${rankLabel(i + 1)}</em></div>
+    </div>`,
+      )
+      .join("")}</div>`;
   }
 
-  function academicRankList(rows,currentId,admin=false){
-    const visible=admin ? (rows||[]).slice(3) : rankWindow(rows,currentId);
-    if(!visible.length)return "";
-    return `<div class="rank-list-card academic-rank-list"><div class="rank-list-head"><span>Rank</span><span>Student</span><span>Marks</span><span>Percentage</span></div>${visible.map(r=>{
-      if(r.__ellipsis)return `<div class="rank-ellipsis"><span>•••</span><span>More students</span><span>•••</span><span>•••</span></div>`;
-      const me=!admin&&r.student_id===currentId;
-      return `<div class="rank-list-row ${me?'is-me':''}"><strong>${esc(rankLabel(r.rank))}</strong><div class="rank-list-student"><span class="rank-list-avatar">${r.photo_url?`<img src="${esc(r.photo_url)}" alt="">`:esc(initials(r.full_name))}</span><span><b>${esc(r.full_name||"Student")}${me?' <span class="you-badge">YOU</span>':''}</b><small>Roll No. ${esc(r.roll_number||"—")}</small></span></div><span>${esc(r.total_score)} / ${esc(r.total_full_marks)}</span><span>${Number(r.percentage||0).toFixed(2)}%</span></div>`;
-    }).join('')}</div>`;
+  function academicRankList(rows, currentId, admin = false) {
+    const visible = admin ? (rows || []).slice(3) : rankWindow(rows, currentId);
+    if (!visible.length) return "";
+    return `<div class="rank-list-card academic-rank-list"><div class="rank-list-head"><span>Rank</span><span>Student</span><span>Marks</span><span>Percentage</span></div>${visible
+      .map((r) => {
+        if (r.__ellipsis)
+          return `<div class="rank-ellipsis"><span>•••</span><span>More students</span><span>•••</span><span>•••</span></div>`;
+        const me = !admin && r.student_id === currentId;
+        return `<div class="rank-list-row ${me ? "is-me" : ""}"><strong>${esc(rankLabel(r.rank))}</strong><div class="rank-list-student"><span class="rank-list-avatar">${r.photo_url ? `<img src="${esc(r.photo_url)}" alt="">` : esc(initials(r.full_name))}</span><span><b>${esc(r.full_name || "Student")}${me ? ' <span class="you-badge">YOU</span>' : ""}</b><small>Roll No. ${esc(r.roll_number || "—")}</small></span></div><span>${esc(r.total_score)} / ${esc(r.total_full_marks)}</span><span>${Number(r.percentage || 0).toFixed(2)}%</span></div>`;
+      })
+      .join("")}</div>`;
   }
 
-  async function renderStudentLeaderboard(el){
-    const [cumulative,history,latestQuiz,classCount]=await Promise.all([
-      sb.rpc("get_class_leaderboard",{p_class_no:state.classNo}),
+  async function renderStudentLeaderboard(el) {
+    const [cumulative, history, latestQuiz, classCount] = await Promise.all([
+      sb.rpc("get_class_leaderboard", { p_class_no: state.classNo }),
       sb.rpc("get_my_quiz_history"),
       fetchLatestClassQuiz(state.classNo),
-      sb.from("student_profiles").select("user_id",{count:"exact",head:true}).eq("class_no",state.classNo)
+      sb
+        .from("student_profiles")
+        .select("user_id", { count: "exact", head: true })
+        .eq("class_no", state.classNo),
     ]);
-    if(cumulative.error)throw cumulative.error;
-    if(history.error)throw history.error;
-    const classSize=classCount?.count ?? (cumulative.data||[]).length;
-    let latestRows=[];
-    if(latestQuiz){
-      const {data,error}=await sb.rpc("get_quiz_leaderboard",{p_quiz_id:latestQuiz.id});
-      if(error)throw error;
-      latestRows=await addPhotoUrls(data||[]);
+    if (cumulative.error) throw cumulative.error;
+    if (history.error) throw history.error;
+    const classSize = classCount?.count ?? (cumulative.data || []).length;
+    let latestRows = [];
+    if (latestQuiz) {
+      const { data, error } = await sb.rpc("get_quiz_leaderboard", {
+        p_quiz_id: latestQuiz.id,
+      });
+      if (error) throw error;
+      latestRows = await addPhotoUrls(data || []);
     }
-    cumulative.data=await addPhotoUrls(cumulative.data||[]);
-    const me=(cumulative.data||[]).find(x=>x.student_id===state.profile.id);
-    const latestMe=latestRows.find(x=>x.student_id===state.profile.id);
-    const historyRows=history.data||[];
-    el.innerHTML=`
+    cumulative.data = await addPhotoUrls(cumulative.data || []);
+    const me = (cumulative.data || []).find(
+      (x) => x.student_id === state.profile.id,
+    );
+    const latestMe = latestRows.find((x) => x.student_id === state.profile.id);
+    const historyRows = history.data || [];
+    el.innerHTML = `
       <div class="page-head"><div><h1>Leaderboard</h1><p>${classText(state.classNo)} rankings, latest quiz performance and your quiz history.</p></div></div>
       <div class="leaderboard-summary-grid">
-        <div class="leader-stat-card"><span class="leader-stat-icon"><i class="fa-solid fa-ranking-star"></i></span><div><span class="mini-label">Your class rank</span><strong>${me?rankLabel(me.rank):"—"}</strong><small>${me?`${Number(me.percentage).toFixed(2)}% overall`:"No quiz attempts yet"}</small></div></div>
-        <div class="leader-stat-card"><span class="leader-stat-icon"><i class="fa-solid fa-medal"></i></span><div><span class="mini-label">Total marks</span><strong>${me?`${esc(me.total_score)} / ${esc(me.total_marks)}`:"0 / 0"}</strong><small>${me?`${esc(me.attempted_quizzes)} quiz${Number(me.attempted_quizzes)===1?"":"zes"} attempted`:"No attempts yet"}</small></div></div>
+        <div class="leader-stat-card"><span class="leader-stat-icon"><i class="fa-solid fa-ranking-star"></i></span><div><span class="mini-label">Your class rank</span><strong>${me ? rankLabel(me.rank) : "—"}</strong><small>${me ? `${Number(me.percentage).toFixed(2)}% overall` : "No quiz attempts yet"}</small></div></div>
+        <div class="leader-stat-card"><span class="leader-stat-icon"><i class="fa-solid fa-medal"></i></span><div><span class="mini-label">Total marks</span><strong>${me ? `${esc(me.total_score)} / ${esc(me.total_marks)}` : "0 / 0"}</strong><small>${me ? `${esc(me.attempted_quizzes)} quiz${Number(me.attempted_quizzes) === 1 ? "" : "zes"} attempted` : "No attempts yet"}</small></div></div>
         <div class="leader-stat-card"><span class="leader-stat-icon"><i class="fa-solid fa-users"></i></span><div><span class="mini-label">Class size</span><strong>${classSize}</strong><small>${classText(state.classNo)}</small></div></div>
       </div>
       <section class="leaderboard-panel">
-        <div class="leaderboard-panel-head"><div><span class="pill active">LATEST QUIZ</span><h2>${esc(latestQuiz?.title||"No quiz yet")}</h2><p>${latestQuiz?`${esc(latestQuiz.quiz_type)} • ${esc(latestQuiz.total_marks)} marks • ${fmtDate(latestQuiz.created_at)}`:"A published quiz leaderboard will appear here."}</p></div></div>
-        ${latestQuiz&&latestRows.length?`<div class="leaderboard-me-card"><div><span class="mini-label">Your latest quiz position</span><strong>${latestMe?rankLabel(latestMe.rank):"Not attempted"}</strong><small>${latestMe?`${esc(latestMe.score)}/${esc(latestMe.total_marks)} marks`:"You have not attempted this quiz."}</small></div><div><i class="fa-solid fa-chart-line"></i></div></div>${quizPodium(latestRows,state.profile.id)}${rankList(latestRows,state.profile.id)}`:empty("fa-solid fa-ranking-star","No leaderboard yet","The latest quiz has no submitted attempts yet.")}
+        <div class="leaderboard-panel-head"><div><span class="pill active">LATEST QUIZ</span><h2>${esc(latestQuiz?.title || "No quiz yet")}</h2><p>${latestQuiz ? `${esc(latestQuiz.quiz_type)} • ${esc(latestQuiz.total_marks)} marks • ${fmtDate(latestQuiz.created_at)}` : "A published quiz leaderboard will appear here."}</p></div></div>
+        ${latestQuiz && latestRows.length ? `<div class="leaderboard-me-card"><div><span class="mini-label">Your latest quiz position</span><strong>${latestMe ? rankLabel(latestMe.rank) : "Not attempted"}</strong><small>${latestMe ? `${esc(latestMe.score)}/${esc(latestMe.total_marks)} marks` : "You have not attempted this quiz."}</small></div><div><i class="fa-solid fa-chart-line"></i></div></div>${quizPodium(latestRows, state.profile.id)}${rankList(latestRows, state.profile.id)}` : empty("fa-solid fa-ranking-star", "No leaderboard yet", "The latest quiz has no submitted attempts yet.")}
       </section>
       <section class="leaderboard-panel">
         <div class="leaderboard-panel-head"><div><span class="pill">CUMULATIVE</span><h2>${classText(state.classNo)} overall ranking</h2><p>Overall ranking across all submitted quizzes, using cumulative percentage.</p></div></div>
-        ${(cumulative.data||[]).length?`${quizPodium(cumulative.data,state.profile.id)}${rankList(cumulative.data,state.profile.id,"cumulative")}`:empty("fa-solid fa-ranking-star","No overall ranking yet","No submitted quiz attempts yet.")}
+        ${(cumulative.data || []).length ? `${quizPodium(cumulative.data, state.profile.id)}${rankList(cumulative.data, state.profile.id, "cumulative")}` : empty("fa-solid fa-ranking-star", "No overall ranking yet", "No submitted quiz attempts yet.")}
       </section>
-      <section class="leaderboard-panel"><div class="leaderboard-panel-head"><div><span class="pill">HISTORY</span><h2>Your quiz history</h2><p>Your position is calculated within your class for each quiz you have submitted.</p></div></div><div class="table-card"><table class="data-table leaderboard-table"><thead><tr><th>Quiz</th><th>Score</th><th>Rank</th><th>Date</th></tr></thead><tbody>${historyRows.map(r=>`<tr><td><strong>${esc(r.quiz_title)}</strong><span class="table-sub">${esc(r.quiz_type)}</span></td><td>${esc(r.score)} / ${esc(r.total_marks)}</td><td><strong class="rank-badge">${esc(rankLabel(r.rank))}</strong></td><td>${fmtDate(r.submitted_at)}</td></tr>`).join("")||`<tr><td colspan="4">No quiz history yet.</td></tr>`}</tbody></table></div></section>`;
+      <section class="leaderboard-panel"><div class="leaderboard-panel-head"><div><span class="pill">HISTORY</span><h2>Your quiz history</h2><p>Your position is calculated within your class for each quiz you have submitted.</p></div></div><div class="table-card"><table class="data-table leaderboard-table"><thead><tr><th>Quiz</th><th>Score</th><th>Rank</th><th>Date</th></tr></thead><tbody>${historyRows.map((r) => `<tr><td><strong>${esc(r.quiz_title)}</strong><span class="table-sub">${esc(r.quiz_type)}</span></td><td>${esc(r.score)} / ${esc(r.total_marks)}</td><td><strong class="rank-badge">${esc(rankLabel(r.rank))}</strong></td><td>${fmtDate(r.submitted_at)}</td></tr>`).join("") || `<tr><td colspan="4">No quiz history yet.</td></tr>`}</tbody></table></div></section>`;
   }
 
-  async function renderAdminLeaderboard(el){
-    el.innerHTML=`
+  async function renderAdminLeaderboard(el) {
+    el.innerHTML = `
       <div class="page-head"><div><h1>Leaderboard</h1><p>Open the cumulative ranking and quiz performance for each class.</p></div></div>
       <div class="leader-class-grid">
         <article class="leader-class-card" data-leader-class="10"><span><i class="fa-solid fa-graduation-cap"></i></span><div><h2>Class 10</h2><p>View Class 10 student ranks, marks and quiz performance.</p></div><i class="fa-solid fa-arrow-right"></i></article>
         <article class="leader-class-card" data-leader-class="12"><span><i class="fa-solid fa-graduation-cap"></i></span><div><h2>Class 12</h2><p>View Class 12 student ranks, marks and quiz performance.</p></div><i class="fa-solid fa-arrow-right"></i></article>
       </div>`;
-    $$("[data-leader-class]",el).forEach(c=>c.onclick=()=>navigate("leaderboard-class",{classNo:Number(c.dataset.leaderClass)}));
+    $$("[data-leader-class]", el).forEach(
+      (c) =>
+        (c.onclick = () =>
+          navigate("leaderboard-class", {
+            classNo: Number(c.dataset.leaderClass),
+          })),
+    );
   }
 
-  async function renderAdminLeaderboardClass(el,classNo){
-    if(![10,12].includes(classNo))return navigate("leaderboard",{},true);
-    const [cumulative,latestQuiz,studentRes]=await Promise.all([
-      sb.rpc("get_class_leaderboard",{p_class_no:classNo}),
+  async function renderAdminLeaderboardClass(el, classNo) {
+    if (![10, 12].includes(classNo)) return navigate("leaderboard", {}, true);
+    const [cumulative, latestQuiz, studentRes] = await Promise.all([
+      sb.rpc("get_class_leaderboard", { p_class_no: classNo }),
       fetchLatestClassQuiz(classNo),
-      sb.from("student_profiles").select("user_id,class_no,roll_number,phone,photo_path,profiles(full_name,login_id)").eq("class_no",classNo).order("roll_number")
+      sb
+        .from("student_profiles")
+        .select(
+          "user_id,class_no,roll_number,phone,photo_path,profiles(full_name,login_id)",
+        )
+        .eq("class_no", classNo)
+        .order("roll_number"),
     ]);
-    if(cumulative.error)throw cumulative.error;
-    if(studentRes.error)throw studentRes.error;
-    cumulative.data=await addPhotoUrls(cumulative.data||[]);
-    let latestRows=[];
-    if(latestQuiz){
-      const {data,error}=await sb.rpc("get_quiz_leaderboard",{p_quiz_id:latestQuiz.id});
-      if(error)throw error;
-      latestRows=await addPhotoUrls(data||[]);
+    if (cumulative.error) throw cumulative.error;
+    if (studentRes.error) throw studentRes.error;
+    cumulative.data = await addPhotoUrls(cumulative.data || []);
+    let latestRows = [];
+    if (latestQuiz) {
+      const { data, error } = await sb.rpc("get_quiz_leaderboard", {
+        p_quiz_id: latestQuiz.id,
+      });
+      if (error) throw error;
+      latestRows = await addPhotoUrls(data || []);
     }
 
-    const students=await addPhotoUrls(studentRes.data||[]);
-    const quizRes=await sb.from("quizzes").select("id,title,total_marks,created_at").eq("class_no",classNo).order("created_at",{ascending:false});
-    if(quizRes.error)throw quizRes.error;
-    const quizzes=quizRes.data||[];
-    const quizIds=quizzes.map(q=>q.id);
-    let attempts=[];
-    if(quizIds.length){
-      const {data,error}=await sb.from("quiz_attempts").select("student_id,quiz_id,score,total_marks,submitted_at").in("quiz_id",quizIds).order("submitted_at",{ascending:false});
-      if(error)throw error;
-      attempts=data||[];
+    const students = await addPhotoUrls(studentRes.data || []);
+    const quizRes = await sb
+      .from("quizzes")
+      .select("id,title,total_marks,created_at")
+      .eq("class_no", classNo)
+      .order("created_at", { ascending: false });
+    if (quizRes.error) throw quizRes.error;
+    const quizzes = quizRes.data || [];
+    const quizIds = quizzes.map((q) => q.id);
+    let attempts = [];
+    if (quizIds.length) {
+      const { data, error } = await sb
+        .from("quiz_attempts")
+        .select("student_id,quiz_id,score,total_marks,submitted_at")
+        .in("quiz_id", quizIds)
+        .order("submitted_at", { ascending: false });
+      if (error) throw error;
+      attempts = data || [];
     }
-    const cumulativeMap=new Map((cumulative.data||[]).map(r=>[r.student_id,r]));
-    const latestMap=new Map((latestRows||[]).map(r=>[r.student_id,r]));
-    const attemptMap=new Map();
-    for(const a of attempts){
-      if(!attemptMap.has(a.student_id))attemptMap.set(a.student_id,[]);
-      const arr=attemptMap.get(a.student_id);
-      if(!arr.some(x=>x.quiz_id===a.quiz_id))arr.push(a);
+    const cumulativeMap = new Map(
+      (cumulative.data || []).map((r) => [r.student_id, r]),
+    );
+    const latestMap = new Map((latestRows || []).map((r) => [r.student_id, r]));
+    const attemptMap = new Map();
+    for (const a of attempts) {
+      if (!attemptMap.has(a.student_id)) attemptMap.set(a.student_id, []);
+      const arr = attemptMap.get(a.student_id);
+      if (!arr.some((x) => x.quiz_id === a.quiz_id)) arr.push(a);
     }
-    const monitor=students.map(s=>{
-      const hist=attemptMap.get(s.user_id)||[];
-      const latestAttempt=hist[0]||null;
-      const previousAttempt=hist[1]||null;
-      const latestPct=latestAttempt&&Number(latestAttempt.total_marks)>0?(Number(latestAttempt.score)/Number(latestAttempt.total_marks))*100:null;
-      const previousPct=previousAttempt&&Number(previousAttempt.total_marks)>0?(Number(previousAttempt.score)/Number(previousAttempt.total_marks))*100:null;
-      const change=latestPct!=null&&previousPct!=null?latestPct-previousPct:null;
-      return {student:s,cumulative:cumulativeMap.get(s.user_id),latest:latestMap.get(s.user_id),latestAttempt,previousAttempt,latestPct,previousPct,change,count:hist.length};
+    const monitor = students.map((s) => {
+      const hist = attemptMap.get(s.user_id) || [];
+      const latestAttempt = hist[0] || null;
+      const previousAttempt = hist[1] || null;
+      const latestPct =
+        latestAttempt && Number(latestAttempt.total_marks) > 0
+          ? (Number(latestAttempt.score) / Number(latestAttempt.total_marks)) *
+            100
+          : null;
+      const previousPct =
+        previousAttempt && Number(previousAttempt.total_marks) > 0
+          ? (Number(previousAttempt.score) /
+              Number(previousAttempt.total_marks)) *
+            100
+          : null;
+      const change =
+        latestPct != null && previousPct != null
+          ? latestPct - previousPct
+          : null;
+      return {
+        student: s,
+        cumulative: cumulativeMap.get(s.user_id),
+        latest: latestMap.get(s.user_id),
+        latestAttempt,
+        previousAttempt,
+        latestPct,
+        previousPct,
+        change,
+        count: hist.length,
+      };
     });
-    const rankMap=new Map((cumulative.data||[]).map(r=>[r.student_id,r.rank]));
-    monitor.sort((a,b)=>String(a.student.roll_number||"").localeCompare(String(b.student.roll_number||""),undefined,{numeric:true,sensitivity:"base"}));
-    const rows=cumulative.data||[];
-    el.innerHTML=`
+    const rankMap = new Map(
+      (cumulative.data || []).map((r) => [r.student_id, r.rank]),
+    );
+    monitor.sort((a, b) =>
+      String(a.student.roll_number || "").localeCompare(
+        String(b.student.roll_number || ""),
+        undefined,
+        { numeric: true, sensitivity: "base" },
+      ),
+    );
+    const rows = cumulative.data || [];
+    el.innerHTML = `
       <div class="back-row"><button class="small-btn" id="back-leaderboard"><i class="fa-solid fa-arrow-left"></i> Back to Classes</button></div>
       <div class="page-head"><div><h1>Class ${classNo} Leaderboard</h1><p>Quiz performance, cumulative ranking and student-wise academic monitoring.</p></div></div>
       <div class="stats-grid">
-        ${metric("Students",students.length,`Class ${classNo}`)}
-        ${metric("Quiz attempts",rows.reduce((n,x)=>n+Number(x.attempted_quizzes||0),0),"Submitted attempts")}
-        ${metric("Top percentage",rows[0]?`${Number(rows[0].percentage).toFixed(2)}%`:"—","Current cumulative leader")}
+        ${metric("Students", students.length, `Class ${classNo}`)}
+        ${metric(
+          "Quiz attempts",
+          rows.reduce((n, x) => n + Number(x.attempted_quizzes || 0), 0),
+          "Submitted attempts",
+        )}
+        ${metric("Top percentage", rows[0] ? `${Number(rows[0].percentage).toFixed(2)}%` : "—", "Current cumulative leader")}
       </div>
       <section class="leaderboard-panel">
         <div class="leaderboard-panel-head"><div><span class="pill">CUMULATIVE</span><h2>All Class ${classNo} students</h2><p>Overall percentage across all submitted quizzes.</p></div></div>
-        <div class="table-card"><table class="data-table leaderboard-table"><thead><tr><th>Rank</th><th>Student</th><th>Total score</th><th>Percentage</th><th>Quizzes</th></tr></thead><tbody>${rows.map(r=>`<tr><td><strong class="rank-badge">${esc(rankLabel(r.rank))}</strong></td><td><div class="leader-student"><span class="leader-avatar">${r.photo_url?`<img src="${esc(r.photo_url)}" alt="">`:esc(initials(r.full_name))}</span><span><strong>${esc(r.full_name)}</strong><span class="table-sub">${esc(r.login_id||"")}</span></span></div></td><td>${esc(r.total_score)} / ${esc(r.total_marks)}</td><td>${Number(r.percentage).toFixed(2)}%</td><td>${esc(r.attempted_quizzes)}</td></tr>`).join("")||`<tr><td colspan="5">No students found.</td></tr>`}</tbody></table></div>
+        <div class="table-card"><table class="data-table leaderboard-table"><thead><tr><th>Rank</th><th>Student</th><th>Total score</th><th>Percentage</th><th>Quizzes</th></tr></thead><tbody>${rows.map((r) => `<tr><td><strong class="rank-badge">${esc(rankLabel(r.rank))}</strong></td><td><div class="leader-student"><span class="leader-avatar">${r.photo_url ? `<img src="${esc(r.photo_url)}" alt="">` : esc(initials(r.full_name))}</span><span><strong>${esc(r.full_name)}</strong><span class="table-sub">${esc(r.login_id || "")}</span></span></div></td><td>${esc(r.total_score)} / ${esc(r.total_marks)}</td><td>${Number(r.percentage).toFixed(2)}%</td><td>${esc(r.attempted_quizzes)}</td></tr>`).join("") || `<tr><td colspan="5">No students found.</td></tr>`}</tbody></table></div>
       </section>
       <section class="leaderboard-panel">
-        <div class="leaderboard-panel-head"><div><span class="pill active">LATEST QUIZ</span><h2>${esc(latestQuiz?.title||"No quiz yet")}</h2><p>${latestQuiz?"Latest published quiz leaderboard for this class.":"No quiz has been published for this class yet."}</p></div></div>
-        ${latestRows.length?`${quizPodium(latestRows,null,true)}${rankList(latestRows,null,"admin")}`:empty("fa-solid fa-ranking-star","No latest quiz attempts","No students have submitted the latest quiz yet.")}
+        <div class="leaderboard-panel-head"><div><span class="pill active">LATEST QUIZ</span><h2>${esc(latestQuiz?.title || "No quiz yet")}</h2><p>${latestQuiz ? "Latest published quiz leaderboard for this class." : "No quiz has been published for this class yet."}</p></div></div>
+        ${latestRows.length ? `${quizPodium(latestRows, null, true)}${rankList(latestRows, null, "admin")}` : empty("fa-solid fa-ranking-star", "No latest quiz attempts", "No students have submitted the latest quiz yet.")}
       </section>
       <section class="leaderboard-panel">
         <div class="leaderboard-panel-head"><div><span class="pill">STUDENT MONITORING</span><h2>Class ${classNo} quiz performance</h2><p>Individual student progress, marks, percentage and change from the previous submitted quiz.</p></div></div>
         <div class="table-card"><table class="data-table leaderboard-table quiz-monitor-table"><thead><tr><th>Rank</th><th>Student</th><th>Roll</th><th>Total marks</th><th>Overall %</th><th>Latest quiz</th><th>Change</th><th>Quizzes</th></tr></thead><tbody>
-          ${monitor.map(x=>{const c=x.cumulative,l=x.latestAttempt;const change=x.change;const changeHtml=change==null?`<span class="trend neutral">—</span>`:change>0?`<span class="trend up"><i class="fa-solid fa-arrow-up"></i> +${change.toFixed(2)}%</span>`:change<0?`<span class="trend down"><i class="fa-solid fa-arrow-down"></i> ${change.toFixed(2)}%</span>`:`<span class="trend neutral"><i class="fa-solid fa-minus"></i> 0.00%</span>`;return `<tr><td><strong class="rank-badge">${esc(rankLabel(rankMap.get(x.student.user_id)))}</strong></td><td><div class="leader-student"><span class="leader-avatar">${x.student.photo_url?`<img src="${esc(x.student.photo_url)}" alt="">`:esc(initials(x.student.profiles?.full_name))}</span><span><strong>${esc(x.student.profiles?.full_name||"Student")}</strong><span class="table-sub">${esc(x.student.profiles?.login_id||"")}</span></span></div></td><td>${esc(x.student.roll_number||"—")}</td><td>${c?`${esc(c.total_score)} / ${esc(c.total_marks)}`:"0 / 0"}</td><td>${c?Number(c.percentage).toFixed(2):"0.00"}%</td><td>${l?`${esc(l.score)} / ${esc(l.total_marks)}<span class="table-sub">${Number(l.total_marks)?((Number(l.score)/Number(l.total_marks))*100).toFixed(2):"0.00"}%</span>`:"Not attempted"}</td><td>${changeHtml}</td><td>${esc(x.count)}</td></tr>`}).join("")||`<tr><td colspan="8">No student performance data yet.</td></tr>`}
+          ${
+            monitor
+              .map((x) => {
+                const c = x.cumulative,
+                  l = x.latestAttempt;
+                const change = x.change;
+                const changeHtml =
+                  change == null
+                    ? `<span class="trend neutral">—</span>`
+                    : change > 0
+                      ? `<span class="trend up"><i class="fa-solid fa-arrow-up"></i> +${change.toFixed(2)}%</span>`
+                      : change < 0
+                        ? `<span class="trend down"><i class="fa-solid fa-arrow-down"></i> ${change.toFixed(2)}%</span>`
+                        : `<span class="trend neutral"><i class="fa-solid fa-minus"></i> 0.00%</span>`;
+                return `<tr><td><strong class="rank-badge">${esc(rankLabel(rankMap.get(x.student.user_id)))}</strong></td><td><div class="leader-student"><span class="leader-avatar">${x.student.photo_url ? `<img src="${esc(x.student.photo_url)}" alt="">` : esc(initials(x.student.profiles?.full_name))}</span><span><strong>${esc(x.student.profiles?.full_name || "Student")}</strong><span class="table-sub">${esc(x.student.profiles?.login_id || "")}</span></span></div></td><td>${esc(x.student.roll_number || "—")}</td><td>${c ? `${esc(c.total_score)} / ${esc(c.total_marks)}` : "0 / 0"}</td><td>${c ? Number(c.percentage).toFixed(2) : "0.00"}%</td><td>${l ? `${esc(l.score)} / ${esc(l.total_marks)}<span class="table-sub">${Number(l.total_marks) ? ((Number(l.score) / Number(l.total_marks)) * 100).toFixed(2) : "0.00"}%</span>` : "Not attempted"}</td><td>${changeHtml}</td><td>${esc(x.count)}</td></tr>`;
+              })
+              .join("") ||
+            `<tr><td colspan="8">No student performance data yet.</td></tr>`
+          }
         </tbody></table></div>
       </section>`;
-    $("#back-leaderboard").onclick=()=>navigate("leaderboard");
+    $("#back-leaderboard").onclick = () => navigate("leaderboard");
   }
 
   async function renderNotebookLM(el) {
-    const { data, error } = await sb.from("notebooklm_resources")
+    const { data, error } = await sb
+      .from("notebooklm_resources")
       .select("*,subjects(name)")
       .eq("class_no", state.classNo)
       .eq("is_active", true)
@@ -693,15 +1082,24 @@
       ["notes", "fa-solid fa-note-sticky", "Notes & summaries"],
       ["lecture", "fa-solid fa-video", "Lectures"],
       ["doubt", "fa-solid fa-circle-question", "Doubt solving"],
-      ["ai", "fa-solid fa-wand-magic-sparkles", "AI study assistant"]
+      ["ai", "fa-solid fa-wand-magic-sparkles", "AI study assistant"],
     ];
     el.innerHTML = `
       <div class="page-head"><div><h1>AI Study Hub</h1><p>Open the NotebookLM / Gemini study resources published for your class.</p></div></div>
       <div class="notebook-banner"><div><span class="pill active">BCC AI LEARNING</span><h2>Study smarter with your class resources</h2><p>Notes, lectures, doubt-solving and AI study links are selected by BCC for your class.</p></div><i class="fa-solid fa-wand-magic-sparkles"></i></div>
       <div class="resource-grid">
-        ${groups.map(([type,icon,label]) => { const items=rows.filter(r=>r.resource_type===type); return `<section class="resource-group"><div class="resource-group-head"><h2><i class="${icon}"></i> ${label}</h2><span>${items.length}</span></div><div class="resource-list">${items.map(r=>`<article class="resource-card"><div class="resource-card-head"><div><span class="pill">${esc(r.subjects?.name || "Class resource")}</span><h3>${esc(r.title)}</h3></div><i class="${icon}"></i></div>${r.description?`<p>${esc(r.description)}</p>`:""}<button class="resource-link" type="button" data-open-resource="${esc(r.id)}" data-resource-title="${esc(r.title)}" data-resource-url="${esc(r.url)}"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open Gemini</button></article>`).join("") || emptyInline("No resources in this category yet.")}</div></section>`; }).join("")}
+        ${groups
+          .map(([type, icon, label]) => {
+            const items = rows.filter((r) => r.resource_type === type);
+            return `<section class="resource-group"><div class="resource-group-head"><h2><i class="${icon}"></i> ${label}</h2><span>${items.length}</span></div><div class="resource-list">${items.map((r) => `<article class="resource-card"><div class="resource-card-head"><div><span class="pill">${esc(r.subjects?.name || "Class resource")}</span><h3>${esc(r.title)}</h3></div><i class="${icon}"></i></div>${r.description ? `<p>${esc(r.description)}</p>` : ""}<button class="resource-link" type="button" data-open-resource="${esc(r.id)}" data-resource-title="${esc(r.title)}" data-resource-url="${esc(r.url)}"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open Gemini</button></article>`).join("") || emptyInline("No resources in this category yet.")}</div></section>`;
+          })
+          .join("")}
       </div>`;
-    $$("[data-open-resource]", el).forEach(b=>b.onclick=()=>openStudyResource(b.dataset.resourceTitle,b.dataset.resourceUrl));
+    $$("[data-open-resource]", el).forEach(
+      (b) =>
+        (b.onclick = () =>
+          openStudyResource(b.dataset.resourceTitle, b.dataset.resourceUrl)),
+    );
   }
   function openStudyResource(title, url) {
     if (!url) return toast("This AI resource has no URL.", "error");
@@ -712,332 +1110,805 @@
   }
 
   async function renderLectures(el) {
-    const { data, error } = await sb.from("lectures").select("*,subjects(name)").eq("class_no",state.classNo).order("is_live",{ascending:false}).order("created_at",{ascending:false});
-    if(error) throw error;
+    const { data, error } = await sb
+      .from("lectures")
+      .select("*,subjects(name)")
+      .eq("class_no", state.classNo)
+      .order("is_live", { ascending: false })
+      .order("created_at", { ascending: false });
+    if (error) throw error;
     const rows = data || [];
-    const subjects = [...new Map(rows.map(x=>[x.subject_id, x.subjects?.name || "Other"])).entries()];
+    const subjects = [
+      ...new Map(
+        rows.map((x) => [x.subject_id, x.subjects?.name || "Other"]),
+      ).entries(),
+    ];
     el.innerHTML = `<div class="page-head"><div><h1>Lectures</h1><p>Choose a subject to view live and recorded lectures.</p></div></div>
-      ${subjects.length ? `<div class="subject-grid">${subjects.map(([id,name])=>`<div class="subject-card" data-subject="${esc(id)}"><h3>${esc(name)}</h3><p>Open lectures for ${esc(name)}.</p><span class="subject-count">${rows.filter(x=>x.subject_id===id).length} lecture(s)</span></div>`).join("")}</div>
-      <h2 class="section-title">All Lectures</h2><div class="list-stack">${rows.map(lectureRow).join("")}</div>` : empty("fa-solid fa-video","No lectures yet","Your class lectures will appear here.")}`;
-    $$(".subject-card",el).forEach(c=>c.onclick=()=>renderLectureListForSubject(c.dataset.subject, true));
-    $$("[data-lecture]",el).forEach(b=>b.onclick=()=>openLecture(b.dataset.lecture));
+      ${
+        subjects.length
+          ? `<div class="subject-grid">${subjects.map(([id, name]) => `<div class="subject-card" data-subject="${esc(id)}"><h3>${esc(name)}</h3><p>Open lectures for ${esc(name)}.</p><span class="subject-count">${rows.filter((x) => x.subject_id === id).length} lecture(s)</span></div>`).join("")}</div>
+      <h2 class="section-title">All Lectures</h2><div class="list-stack">${rows.map(lectureRow).join("")}</div>`
+          : empty(
+              "fa-solid fa-video",
+              "No lectures yet",
+              "Your class lectures will appear here.",
+            )
+      }`;
+    $$(".subject-card", el).forEach(
+      (c) =>
+        (c.onclick = () =>
+          renderLectureListForSubject(c.dataset.subject, true)),
+    );
+    $$("[data-lecture]", el).forEach(
+      (b) => (b.onclick = () => openLecture(b.dataset.lecture)),
+    );
   }
 
   async function renderLectureListForSubject(subjectId, pushHistory = true) {
-    const { data, error } = await sb.from("lectures").select("*,subjects(name)").eq("class_no",state.classNo).eq("subject_id",subjectId).order("created_at",{ascending:false});
-    if(error) return toast(error.message,"error");
+    const { data, error } = await sb
+      .from("lectures")
+      .select("*,subjects(name)")
+      .eq("class_no", state.classNo)
+      .eq("subject_id", subjectId)
+      .order("created_at", { ascending: false });
+    if (error) return toast(error.message, "error");
     if (pushHistory) writeRoute("lectures-subject", { subjectId });
-    $("#view-container").innerHTML = `<div class="back-row"><button class="small-btn" id="back-lectures"><i class="fa-solid fa-arrow-left"></i> Back</button></div><div class="page-head"><div><h1>${esc(data?.[0]?.subjects?.name || "Subject")}</h1><p>Lectures stay inside the BCC portal.</p></div></div><div class="list-stack">${(data||[]).map(lectureRow).join("") || emptyInline("No lectures yet.")}</div>`;
-    $("#back-lectures").onclick=()=>navigate("lectures");
-    $$("[data-lecture]").forEach(b=>b.onclick=()=>openLecture(b.dataset.lecture));
+    $("#view-container").innerHTML =
+      `<div class="back-row"><button class="small-btn" id="back-lectures"><i class="fa-solid fa-arrow-left"></i> Back</button></div><div class="page-head"><div><h1>${esc(data?.[0]?.subjects?.name || "Subject")}</h1><p>Lectures stay inside the BCC portal.</p></div></div><div class="list-stack">${(data || []).map(lectureRow).join("") || emptyInline("No lectures yet.")}</div>`;
+    $("#back-lectures").onclick = () => navigate("lectures");
+    $$("[data-lecture]").forEach(
+      (b) => (b.onclick = () => openLecture(b.dataset.lecture)),
+    );
   }
-
 
   // Cross-platform lecture discussions. The mobile app uses these same Supabase tables.
   async function fetchDiscussionRows(lectureId) {
-    let flat=false;
-    let r=await sb.from('lecture_comments').select('id,lecture_id,user_id,parent_id,author_name,author_role,body,created_at').eq('lecture_id',lectureId).order('created_at',{ascending:true}).limit(400);
-    if(r.error && /parent_id/i.test(r.error.message||'')) { flat=true; r=await sb.from('lecture_comments').select('id,lecture_id,user_id,author_name,author_role,body,created_at').eq('lecture_id',lectureId).order('created_at',{ascending:true}).limit(400); }
-    if(r.error) throw r.error;
-    return {rows:r.data||[],flat};
+    let flat = false;
+    let r = await sb
+      .from("lecture_comments")
+      .select(
+        "id,lecture_id,user_id,parent_id,author_name,author_role,body,created_at",
+      )
+      .eq("lecture_id", lectureId)
+      .order("created_at", { ascending: true })
+      .limit(400);
+    if (r.error && /parent_id/i.test(r.error.message || "")) {
+      flat = true;
+      r = await sb
+        .from("lecture_comments")
+        .select("id,lecture_id,user_id,author_name,author_role,body,created_at")
+        .eq("lecture_id", lectureId)
+        .order("created_at", { ascending: true })
+        .limit(400);
+    }
+    if (r.error) throw r.error;
+    return { rows: r.data || [], flat };
   }
   async function discussionAvatars(rows, lectureId) {
-    const ids=[...new Set(rows.map(r=>r.user_id).filter(Boolean))];
-    const photos=new Map();
-    if(!ids.length)return photos;
-    const [profiles,students]=await Promise.all([
-      sb.from('profiles').select('id,photo_path').in('id',ids),
-      sb.from('student_profiles').select('user_id,photo_path').in('user_id',ids)
+    const ids = [...new Set(rows.map((r) => r.user_id).filter(Boolean))];
+    const photos = new Map();
+    if (!ids.length) return photos;
+    const [profiles, students] = await Promise.all([
+      sb.from("profiles").select("id,photo_path").in("id", ids),
+      sb
+        .from("student_profiles")
+        .select("user_id,photo_path")
+        .in("user_id", ids),
     ]);
-    if(profiles.error)console.warn('Staff discussion photos unavailable:',profiles.error.message);
-    if(students.error)console.warn('Student discussion photos unavailable:',students.error.message);
-    const paths=new Map();
+    if (profiles.error)
+      console.warn(
+        "Staff discussion photos unavailable:",
+        profiles.error.message,
+      );
+    if (students.error)
+      console.warn(
+        "Student discussion photos unavailable:",
+        students.error.message,
+      );
+    const paths = new Map();
     // Staff profiles can be hidden by RLS from students. This restricted RPC
     // exposes only avatar paths of participants in the current lecture.
-    if(lectureId){
-      const {data:shared,error:sharedError}=await sb.rpc('get_lecture_discussion_avatars',{p_lecture_id:lectureId});
-      if(sharedError)console.warn('Discussion avatar RPC unavailable:',sharedError.message);
-      (shared||[]).forEach(p=>{if(p.photo_path)paths.set(p.user_id,p.photo_path);});
+    if (lectureId) {
+      const { data: shared, error: sharedError } = await sb.rpc(
+        "get_lecture_discussion_avatars",
+        { p_lecture_id: lectureId },
+      );
+      if (sharedError)
+        console.warn("Discussion avatar RPC unavailable:", sharedError.message);
+      (shared || []).forEach((p) => {
+        if (p.photo_path) paths.set(p.user_id, p.photo_path);
+      });
     }
-    (profiles.data||[]).forEach(p=>{if(p.photo_path)paths.set(p.id,p.photo_path);});
-    (students.data||[]).forEach(p=>{if(p.photo_path)paths.set(p.user_id,p.photo_path);});
-    const unique=[...new Set(paths.values())];
-    if(!unique.length)return photos;
+    (profiles.data || []).forEach((p) => {
+      if (p.photo_path) paths.set(p.id, p.photo_path);
+    });
+    (students.data || []).forEach((p) => {
+      if (p.photo_path) paths.set(p.user_id, p.photo_path);
+    });
+    const unique = [...new Set(paths.values())];
+    if (!unique.length) return photos;
     try {
-      const {data,error}=await sb.storage.from('student-photos').createSignedUrls(unique,3600);
-      if(error)throw error;
-      const urls=new Map(unique.map((p,i)=>[p,data?.[i]?.signedUrl||'']));
-      paths.forEach((path,id)=>{if(urls.get(path))photos.set(id,urls.get(path));});
-    }catch(e){console.warn('Discussion avatar URLs unavailable:',e);}
+      const { data, error } = await sb.storage
+        .from("student-photos")
+        .createSignedUrls(unique, 3600);
+      if (error) throw error;
+      const urls = new Map(
+        unique.map((p, i) => [p, data?.[i]?.signedUrl || ""]),
+      );
+      paths.forEach((path, id) => {
+        if (urls.get(path)) photos.set(id, urls.get(path));
+      });
+    } catch (e) {
+      console.warn("Discussion avatar URLs unavailable:", e);
+    }
     return photos;
   }
-  async function mountDiscussion(container,lectureId) {
-    let host=container.querySelector('#bcc-discussion');
-    if(!host){host=document.createElement('section');host.id='bcc-discussion';host.className='bcc-discussion';container.appendChild(host);}
-    host.innerHTML='<div class="content-card">Loading discussion…</div>';
-    let result;
-    try{result=await fetchDiscussionRows(lectureId);}catch(e){host.innerHTML=`<div class="content-card"><h3>Discussion unavailable</h3><p>${esc(e.message)}</p></div>`;return;}
-    const {rows,flat}=result;
-    const avatarUrls=await discussionAvatars([...rows,{user_id:state.profile.id}],lectureId);
-    if(!host.isConnected)return;
-    const avatar=(id,name)=>{const url=avatarUrls.get(id);return `<span class="bcc-comment-avatar">${url?`<img src="${esc(url)}" alt="" loading="lazy" onerror="this.remove()">`:''}<span class="bcc-avatar-fallback">${esc(initials(name))}</span></span>`;};
-    const replies={};rows.filter(r=>r.parent_id).forEach(r=>(replies[r.parent_id]??=[]).push(r));
-    const moderator=state.profile.role!=='student';
-    const sendIcon='<i class="fa-solid fa-arrow-right" aria-hidden="true"></i>';
-    const item=(r,child=false)=>`<article class="bcc-comment ${child?'bcc-reply':''}" data-comment-id="${esc(r.id)}">${avatar(r.user_id,r.author_name)}<div class="bcc-comment-body"><div class="bcc-comment-meta"><strong>${esc(r.author_name||'BCCian')}</strong>${r.author_role!=='student'?`<span class="pill active">${esc(r.author_role)}</span>`:''}<small>${fmtDateTime(r.created_at)}</small></div><p>${esc(r.body)}</p><div class="inline">${!flat?`<button class="bcc-link" data-reply="${esc(r.id)}" data-name="${esc(r.author_name||'BCCian')}" aria-label="Reply to ${esc(r.author_name||'BCCian')}"><i class="fa-regular fa-comment-dots"></i> Reply</button>`:''}${(moderator||r.user_id===state.profile.id)?`<button class="bcc-link danger" data-remove="${esc(r.id)}">Delete</button>`:''}</div><div class="bcc-inline-slot"></div></div></article>`;
-    const visited=new Set();
-    const branch=(r,depth=0)=>{
-      if(visited.has(r.id)||depth>60)return '';
-      visited.add(r.id);
-      const children=(replies[r.id]||[]).map(c=>branch(c,depth+1)).join('');
-      return `<div class="bcc-tree-node ${depth?'bcc-tree-child':'bcc-tree-root'}">${item(r,depth>0)}${children?`<div class="bcc-tree-children">${children}</div>`:''}</div>`;
-    };
-    const thread=(r)=>`<div class="bcc-thread">${branch(r)}</div>`;
-    host.innerHTML=`<div class="bcc-discussion-heading"><div><h2><i class="fa-solid fa-comments"></i> Lecture discussion</h2><p>Ask questions, help classmates and discuss this lesson.</p></div><button class="small-btn" id="bcc-refresh-discussion"><i class="fa-solid fa-rotate"></i> Refresh</button></div><div class="bcc-comment-list">${rows.filter(r=>!r.parent_id).reverse().map(thread).join('')||'<div class="content-card">No comments yet. Start the discussion!</div>'}</div>${flat?'<p class="mini-label">Run APP_FEATURES_2_REPLIES.sql to enable threaded replies.</p>':''}<div class="bcc-bottom-compose"><label class="bcc-compose-label" for="bcc-comment-input">Join the discussion</label><div class="bcc-compose-row">${avatar(state.profile.id,state.profile.full_name)}<textarea id="bcc-comment-input" maxlength="500" rows="1" placeholder="Write a comment…" aria-label="Write a comment"></textarea><button class="bcc-send-btn" id="bcc-send-comment" disabled>${sendIcon}<span>Send Comment</span></button></div></div>`;
-    const input=host.querySelector('#bcc-comment-input');
-    const send=host.querySelector('#bcc-send-comment');
-    const fit=t=>{t.style.height='auto';t.style.height=Math.min(t.scrollHeight,132)+'px';};
-    input.addEventListener('input',()=>{fit(input);send.disabled=!input.value.trim();});
-    async function submit(body,parentId,button,onSuccess){
-      if(!body.trim())return;
-      button.disabled=true;
-      try{const payload={lecture_id:lectureId,user_id:state.profile.id,body:body.trim()};if(parentId&&!flat)payload.parent_id=parentId;const {error}=await sb.from('lecture_comments').insert(payload);if(error)throw error;toast(parentId?'Reply sent.':'Comment posted.','success');await mountDiscussion(container,lectureId);if(onSuccess)onSuccess();}
-      catch(e){toast(e.message,'error');button.disabled=false;}
+  async function mountDiscussion(container, lectureId) {
+    let host = container.querySelector("#bcc-discussion");
+    if (!host) {
+      host = document.createElement("section");
+      host.id = "bcc-discussion";
+      host.className = "bcc-discussion";
+      container.appendChild(host);
     }
-    send.onclick=()=>submit(input.value,null,send);
-    input.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();send.click();}});
-    let activeSlot=null;
-    const mainComposer=host.querySelector('.bcc-bottom-compose');
-    const closeReply=()=>{if(activeSlot)activeSlot.innerHTML='';activeSlot=null;mainComposer.hidden=false;mainComposer.classList.remove('bcc-compose-hidden');};
-    host.querySelectorAll('[data-reply]').forEach(button=>button.onclick=()=>{
-      const slot=button.closest('.bcc-comment').querySelector('.bcc-inline-slot');
-      if(activeSlot===slot){closeReply();return;}
-      if(activeSlot)activeSlot.innerHTML='';
-      activeSlot=slot;mainComposer.hidden=true;mainComposer.classList.add('bcc-compose-hidden');
-      const name=button.dataset.name;
-      const mention='@'+name+' ';
-      slot.innerHTML=`<div class="bcc-inline-compose"><div class="bcc-inline-title">Replying to <strong>${esc(name)}</strong></div>${avatar(state.profile.id,state.profile.full_name)}<textarea rows="2" maxlength="500" aria-label="Write a reply" placeholder="Write your reply…"></textarea><div class="bcc-inline-actions"><button class="bcc-link bcc-cancel-inline">Cancel</button><button class="bcc-send-btn bcc-submit-inline" disabled>${sendIcon}<span>Send Reply</span></button></div></div>`;
-      const t=slot.querySelector('textarea'),submitBtn=slot.querySelector('.bcc-submit-inline');
-      t.value=mention;t.setSelectionRange(t.value.length,t.value.length);
-      t.addEventListener('input',()=>{fit(t);submitBtn.disabled=!t.value.trim()||t.value.trim()===mention.trim();});
-      slot.querySelector('.bcc-cancel-inline').onclick=()=>{closeReply();};
-      submitBtn.onclick=()=>submit(t.value,button.dataset.reply,submitBtn);
-      t.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();submitBtn.click();}});
-      const revealReply=()=>{
-        if(!slot.isConnected||activeSlot!==slot)return;
-        const vv=window.visualViewport;
-        const visibleBottom=vv?vv.offsetTop+vv.height:window.innerHeight;
-        const bounds=slot.getBoundingClientRect();
-        const overflow=bounds.bottom-(visibleBottom-18);
-        if(overflow>0)window.scrollBy({top:overflow+12,behavior:'smooth'});
-      };
-      t.focus({preventScroll:true});
-      requestAnimationFrame(revealReply);
-      setTimeout(revealReply,280);
-      const onViewport=()=>{if(activeSlot===slot)revealReply();else window.visualViewport?.removeEventListener('resize',onViewport);};
-      window.visualViewport?.addEventListener('resize',onViewport);
-    });
-    host.querySelector('#bcc-refresh-discussion').onclick=()=>mountDiscussion(container,lectureId);
-    host.querySelectorAll('[data-remove]').forEach(b=>b.onclick=async()=>{if(!confirm('Delete this comment and its replies?'))return;const {error}=await sb.from('lecture_comments').delete().eq('id',b.dataset.remove);if(error)toast(error.message,'error');else await mountDiscussion(container,lectureId);});
-    // On mobile browsers, visualViewport reports the area left above the soft keyboard.
-    const composer=host.querySelector('.bcc-bottom-compose');
-    const syncKeyboard=()=>{
-      if(!composer.isConnected){window.visualViewport?.removeEventListener('resize',syncKeyboard);window.visualViewport?.removeEventListener('scroll',syncKeyboard);return;}
-      const vv=window.visualViewport;
-      const overlap=vv?Math.max(0,window.innerHeight-vv.height-vv.offsetTop):0;
-      composer.style.setProperty('--bcc-keyboard-offset',overlap+'px');
+    host.innerHTML = '<div class="content-card">Loading discussion…</div>';
+    let result;
+    try {
+      result = await fetchDiscussionRows(lectureId);
+    } catch (e) {
+      host.innerHTML = `<div class="content-card"><h3>Discussion unavailable</h3><p>${esc(e.message)}</p></div>`;
+      return;
+    }
+    const { rows, flat } = result;
+    const avatarUrls = await discussionAvatars(
+      [...rows, { user_id: state.profile.id }],
+      lectureId,
+    );
+    if (!host.isConnected) return;
+    const avatar = (id, name) => {
+      const url = avatarUrls.get(id);
+      return `<span class="bcc-comment-avatar">${url ? `<img src="${esc(url)}" alt="" loading="lazy" onerror="this.remove()">` : ""}<span class="bcc-avatar-fallback">${esc(initials(name))}</span></span>`;
     };
-    window.visualViewport?.addEventListener('resize',syncKeyboard);
-    window.visualViewport?.addEventListener('scroll',syncKeyboard);
+    const replies = {};
+    rows
+      .filter((r) => r.parent_id)
+      .forEach((r) => (replies[r.parent_id] ??= []).push(r));
+    const moderator = state.profile.role !== "student";
+    const sendIcon =
+      '<i class="fa-solid fa-arrow-right" aria-hidden="true"></i>';
+    const item = (r, child = false) =>
+      `<article class="bcc-comment ${child ? "bcc-reply" : ""}" data-comment-id="${esc(r.id)}">${avatar(r.user_id, r.author_name)}<div class="bcc-comment-body"><div class="bcc-comment-meta"><strong>${esc(r.author_name || "BCCian")}</strong>${r.author_role !== "student" ? `<span class="pill active">${esc(r.author_role)}</span>` : ""}<small>${fmtDateTime(r.created_at)}</small></div><p>${esc(r.body)}</p><div class="inline">${!flat ? `<button class="bcc-link" data-reply="${esc(r.id)}" data-name="${esc(r.author_name || "BCCian")}" aria-label="Reply to ${esc(r.author_name || "BCCian")}"><i class="fa-regular fa-comment-dots"></i> Reply</button>` : ""}${moderator || r.user_id === state.profile.id ? `<button class="bcc-link danger" data-remove="${esc(r.id)}">Delete</button>` : ""}</div><div class="bcc-inline-slot"></div></div></article>`;
+    const visited = new Set();
+    const branch = (r, depth = 0) => {
+      if (visited.has(r.id) || depth > 60) return "";
+      visited.add(r.id);
+      const children = (replies[r.id] || [])
+        .map((c) => branch(c, depth + 1))
+        .join("");
+      return `<div class="bcc-tree-node ${depth ? "bcc-tree-child" : "bcc-tree-root"}">${item(r, depth > 0)}${children ? `<div class="bcc-tree-children">${children}</div>` : ""}</div>`;
+    };
+    const thread = (r) => `<div class="bcc-thread">${branch(r)}</div>`;
+    host.innerHTML = `<div class="bcc-discussion-heading"><div><h2><i class="fa-solid fa-comments"></i> Lecture discussion</h2><p>Ask questions, help classmates and discuss this lesson.</p></div><button class="small-btn" id="bcc-refresh-discussion"><i class="fa-solid fa-rotate"></i> Refresh</button></div><div class="bcc-comment-list">${
+      rows
+        .filter((r) => !r.parent_id)
+        .reverse()
+        .map(thread)
+        .join("") ||
+      '<div class="content-card">No comments yet. Start the discussion!</div>'
+    }</div>${flat ? '<p class="mini-label">Run APP_FEATURES_2_REPLIES.sql to enable threaded replies.</p>' : ""}<div class="bcc-bottom-compose"><label class="bcc-compose-label" for="bcc-comment-input">Join the discussion</label><div class="bcc-compose-row">${avatar(state.profile.id, state.profile.full_name)}<textarea id="bcc-comment-input" maxlength="500" rows="1" placeholder="Write a comment…" aria-label="Write a comment"></textarea><button class="bcc-send-btn" id="bcc-send-comment" disabled>${sendIcon}<span>Send Comment</span></button></div></div>`;
+    const input = host.querySelector("#bcc-comment-input");
+    const send = host.querySelector("#bcc-send-comment");
+    const fit = (t) => {
+      t.style.height = "auto";
+      t.style.height = Math.min(t.scrollHeight, 132) + "px";
+    };
+    input.addEventListener("input", () => {
+      fit(input);
+      send.disabled = !input.value.trim();
+    });
+    async function submit(body, parentId, button, onSuccess) {
+      if (!body.trim()) return;
+      button.disabled = true;
+      try {
+        const payload = {
+          lecture_id: lectureId,
+          user_id: state.profile.id,
+          body: body.trim(),
+        };
+        if (parentId && !flat) payload.parent_id = parentId;
+        const { error } = await sb.from("lecture_comments").insert(payload);
+        if (error) throw error;
+        toast(parentId ? "Reply sent." : "Comment posted.", "success");
+        await mountDiscussion(container, lectureId);
+        if (onSuccess) onSuccess();
+      } catch (e) {
+        toast(e.message, "error");
+        button.disabled = false;
+      }
+    }
+    send.onclick = () => submit(input.value, null, send);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        send.click();
+      }
+    });
+    let activeSlot = null;
+    const mainComposer = host.querySelector(".bcc-bottom-compose");
+    const closeReply = () => {
+      if (activeSlot) activeSlot.innerHTML = "";
+      activeSlot = null;
+      mainComposer.hidden = false;
+      mainComposer.classList.remove("bcc-compose-hidden");
+    };
+    host.querySelectorAll("[data-reply]").forEach(
+      (button) =>
+        (button.onclick = () => {
+          const slot = button
+            .closest(".bcc-comment")
+            .querySelector(".bcc-inline-slot");
+          if (activeSlot === slot) {
+            closeReply();
+            return;
+          }
+          if (activeSlot) activeSlot.innerHTML = "";
+          activeSlot = slot;
+          mainComposer.hidden = true;
+          mainComposer.classList.add("bcc-compose-hidden");
+          const name = button.dataset.name;
+          const mention = "@" + name + " ";
+          slot.innerHTML = `<div class="bcc-inline-compose"><div class="bcc-inline-title">Replying to <strong>${esc(name)}</strong></div>${avatar(state.profile.id, state.profile.full_name)}<textarea rows="2" maxlength="500" aria-label="Write a reply" placeholder="Write your reply…"></textarea><div class="bcc-inline-actions"><button class="bcc-link bcc-cancel-inline">Cancel</button><button class="bcc-send-btn bcc-submit-inline" disabled>${sendIcon}<span>Send Reply</span></button></div></div>`;
+          const t = slot.querySelector("textarea"),
+            submitBtn = slot.querySelector(".bcc-submit-inline");
+          t.value = mention;
+          t.setSelectionRange(t.value.length, t.value.length);
+          t.addEventListener("input", () => {
+            fit(t);
+            submitBtn.disabled =
+              !t.value.trim() || t.value.trim() === mention.trim();
+          });
+          slot.querySelector(".bcc-cancel-inline").onclick = () => {
+            closeReply();
+          };
+          submitBtn.onclick = () =>
+            submit(t.value, button.dataset.reply, submitBtn);
+          t.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+              e.preventDefault();
+              submitBtn.click();
+            }
+          });
+          const revealReply = () => {
+            if (!slot.isConnected || activeSlot !== slot) return;
+            const vv = window.visualViewport;
+            const visibleBottom = vv
+              ? vv.offsetTop + vv.height
+              : window.innerHeight;
+            const bounds = slot.getBoundingClientRect();
+            const overflow = bounds.bottom - (visibleBottom - 18);
+            if (overflow > 0)
+              window.scrollBy({ top: overflow + 12, behavior: "smooth" });
+          };
+          t.focus({ preventScroll: true });
+          requestAnimationFrame(revealReply);
+          setTimeout(revealReply, 280);
+          const onViewport = () => {
+            if (activeSlot === slot) revealReply();
+            else
+              window.visualViewport?.removeEventListener("resize", onViewport);
+          };
+          window.visualViewport?.addEventListener("resize", onViewport);
+        }),
+    );
+    host.querySelector("#bcc-refresh-discussion").onclick = () =>
+      mountDiscussion(container, lectureId);
+    host.querySelectorAll("[data-remove]").forEach(
+      (b) =>
+        (b.onclick = async () => {
+          if (!confirm("Delete this comment and its replies?")) return;
+          const { error } = await sb
+            .from("lecture_comments")
+            .delete()
+            .eq("id", b.dataset.remove);
+          if (error) toast(error.message, "error");
+          else await mountDiscussion(container, lectureId);
+        }),
+    );
+    // On mobile browsers, visualViewport reports the area left above the soft keyboard.
+    const composer = host.querySelector(".bcc-bottom-compose");
+    const syncKeyboard = () => {
+      if (!composer.isConnected) {
+        window.visualViewport?.removeEventListener("resize", syncKeyboard);
+        window.visualViewport?.removeEventListener("scroll", syncKeyboard);
+        return;
+      }
+      const vv = window.visualViewport;
+      const overlap = vv
+        ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
+        : 0;
+      composer.style.setProperty("--bcc-keyboard-offset", overlap + "px");
+    };
+    window.visualViewport?.addEventListener("resize", syncKeyboard);
+    window.visualViewport?.addEventListener("scroll", syncKeyboard);
     syncKeyboard();
   }
   async function staffClasses() {
-    if(state.profile.role==='admin')return [10,12];
-    const {data,error}=await sb.from('teacher_class_assignments').select('class_no').eq('teacher_id',state.profile.id);
-    if(error)throw error;
-    return [...new Set((data||[]).map(x=>x.class_no))];
+    if (state.profile.role === "admin") return [10, 12];
+    const { data, error } = await sb
+      .from("teacher_class_assignments")
+      .select("class_no")
+      .eq("teacher_id", state.profile.id);
+    if (error) throw error;
+    return [...new Set((data || []).map((x) => x.class_no))];
   }
-  async function renderDiscussions(el){
-    el.innerHTML='<div class="content-card">Loading lecture discussions…</div>';
-    const classes=await staffClasses();
-    if(!classes.length){el.innerHTML=empty('fa-solid fa-comments','No assigned classes','Ask an administrator to assign your classes.');return;}
-    const {data,error}=await sb.from('lectures').select('id,title,class_no,created_at,subjects(name)').in('class_no',classes).order('created_at',{ascending:false}).limit(100);
-    if(error)throw error;
-    const lectures=data||[],ids=lectures.map(x=>x.id);
-    let comments=[];let flat=false;
-    if(ids.length){let r=await sb.from('lecture_comments').select('id,lecture_id,parent_id,author_role').in('lecture_id',ids).limit(5000);if(r.error&&/parent_id/i.test(r.error.message||'')){flat=true;r=await sb.from('lecture_comments').select('id,lecture_id,author_role').in('lecture_id',ids).limit(5000);}if(r.error)throw r.error;comments=r.data||[];}
-    const items=lectures.map(l=>{const cs=comments.filter(c=>c.lecture_id===l.id);const unanswered=flat?0:cs.filter(c=>!c.parent_id&&c.author_role==='student'&&!cs.some(r=>r.parent_id===c.id&&r.author_role!=='student')).length;return {...l,count:cs.length,unanswered};}).sort((a,b)=>b.unanswered-a.unanswered);
-    el.innerHTML=`<div class="page-head"><div><h1>Lecture discussions</h1><p>View student comments, reply to doubts and moderate conversations.</p></div></div><div class="stats-grid bcc-discussion-stats">${metric('Lectures',lectures.length,'Available classes')}${metric('Comments',comments.length,'Across lectures')}${metric('Awaiting staff reply',items.reduce((a,x)=>a+x.unanswered,0),'Student threads')}</div><div class="list-stack">${items.map(x=>`<div class="list-item"><div class="list-main"><strong>${esc(x.title)}</strong><span>Class ${esc(x.class_no)} • ${esc(x.subjects?.name||'Subject')} • ${x.count} comments</span></div><div class="inline">${x.unanswered?`<span class="pill">${x.unanswered} awaiting reply</span>`:''}<button class="small-btn primary" data-discussion-id="${esc(x.id)}">Open discussion</button></div></div>`).join('')||emptyInline('No lectures yet.')}</div>`;
-    el.querySelectorAll('[data-discussion-id]').forEach(b=>b.onclick=()=>navigate('discussion-thread',{lectureId:b.dataset.discussionId}));
+  async function renderDiscussions(el) {
+    el.innerHTML =
+      '<div class="content-card">Loading lecture discussions…</div>';
+    const classes = await staffClasses();
+    if (!classes.length) {
+      el.innerHTML = empty(
+        "fa-solid fa-comments",
+        "No assigned classes",
+        "Ask an administrator to assign your classes.",
+      );
+      return;
+    }
+    const { data, error } = await sb
+      .from("lectures")
+      .select("id,title,class_no,created_at,subjects(name)")
+      .in("class_no", classes)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    const lectures = data || [],
+      ids = lectures.map((x) => x.id);
+    let comments = [];
+    let flat = false;
+    if (ids.length) {
+      let r = await sb
+        .from("lecture_comments")
+        .select("id,lecture_id,parent_id,author_role")
+        .in("lecture_id", ids)
+        .limit(5000);
+      if (r.error && /parent_id/i.test(r.error.message || "")) {
+        flat = true;
+        r = await sb
+          .from("lecture_comments")
+          .select("id,lecture_id,author_role")
+          .in("lecture_id", ids)
+          .limit(5000);
+      }
+      if (r.error) throw r.error;
+      comments = r.data || [];
+    }
+    const items = lectures
+      .map((l) => {
+        const cs = comments.filter((c) => c.lecture_id === l.id);
+        const unanswered = flat
+          ? 0
+          : cs.filter(
+              (c) =>
+                !c.parent_id &&
+                c.author_role === "student" &&
+                !cs.some(
+                  (r) => r.parent_id === c.id && r.author_role !== "student",
+                ),
+            ).length;
+        return { ...l, count: cs.length, unanswered };
+      })
+      .sort((a, b) => b.unanswered - a.unanswered);
+    el.innerHTML = `<div class="page-head"><div><h1>Lecture discussions</h1><p>View student comments, reply to doubts and moderate conversations.</p></div></div><div class="stats-grid bcc-discussion-stats">${metric("Lectures", lectures.length, "Available classes")}${metric("Comments", comments.length, "Across lectures")}${metric(
+      "Awaiting staff reply",
+      items.reduce((a, x) => a + x.unanswered, 0),
+      "Student threads",
+    )}</div><div class="list-stack">${items.map((x) => `<div class="list-item"><div class="list-main"><strong>${esc(x.title)}</strong><span>Class ${esc(x.class_no)} • ${esc(x.subjects?.name || "Subject")} • ${x.count} comments</span></div><div class="inline">${x.unanswered ? `<span class="pill">${x.unanswered} awaiting reply</span>` : ""}<button class="small-btn primary" data-discussion-id="${esc(x.id)}">Open discussion</button></div></div>`).join("") || emptyInline("No lectures yet.")}</div>`;
+    el.querySelectorAll("[data-discussion-id]").forEach(
+      (b) =>
+        (b.onclick = () =>
+          navigate("discussion-thread", { lectureId: b.dataset.discussionId })),
+    );
   }
-  async function renderDiscussionThread(el,id){
-    const classes=await staffClasses();
-    const {data,error}=await sb.from('lectures').select('id,title,class_no,description,subjects(name)').eq('id',id).single();if(error)throw error;
-    if(!classes.includes(data.class_no))throw new Error('You are not assigned to this lecture class.');
-    el.innerHTML=`<div class="back-row"><button class="small-btn" id="back-discussions"><i class="fa-solid fa-arrow-left"></i> Discussions</button></div><div class="video-info"><h2>${esc(data.title)}</h2><p>Class ${esc(data.class_no)} • ${esc(data.subjects?.name||'Subject')}</p>${data.description?`<p>${esc(data.description)}</p>`:''}</div>`;
-    el.querySelector('#back-discussions').onclick=()=>navigate('discussions');await mountDiscussion(el,id);
+  async function renderDiscussionThread(el, id) {
+    const classes = await staffClasses();
+    const { data, error } = await sb
+      .from("lectures")
+      .select("id,title,class_no,description,subjects(name)")
+      .eq("id", id)
+      .single();
+    if (error) throw error;
+    if (!classes.includes(data.class_no))
+      throw new Error("You are not assigned to this lecture class.");
+    el.innerHTML = `<div class="back-row"><button class="small-btn" id="back-discussions"><i class="fa-solid fa-arrow-left"></i> Discussions</button></div><div class="video-info"><h2>${esc(data.title)}</h2><p>Class ${esc(data.class_no)} • ${esc(data.subjects?.name || "Subject")}</p>${data.description ? `<p>${esc(data.description)}</p>` : ""}</div>`;
+    el.querySelector("#back-discussions").onclick = () =>
+      navigate("discussions");
+    await mountDiscussion(el, id);
   }
-  async function renderNotifications(el){
-    const {data,error}=await sb.from('app_notifications').select('*').or(`class_no.is.null,class_no.eq.${Number(state.classNo)}`).order('created_at',{ascending:false}).limit(100);if(error)throw error;
-    const {data:reads,error:readError}=await sb.from('notification_reads').select('notification_id').eq('user_id',state.profile.id);if(readError)throw readError;
-    const seen=new Set((reads||[]).map(x=>x.notification_id));const items=data||[];
-    el.innerHTML=`<div class="page-head"><div><h1>Notifications</h1><p>${items.filter(n=>!seen.has(n.id)).length} unread • Updates for your class</p></div><button class="small-btn" id="bcc-mark-all">Mark all read</button></div><div class="list-stack">${items.map(n=>`<div class="list-item ${seen.has(n.id)?'':'bcc-unread'}"><div class="list-main"><strong>${esc(n.title)}</strong><span>${esc(n.body||'')} • ${fmtDateTime(n.created_at)}</span></div><button class="small-btn" data-notification="${esc(n.id)}">${seen.has(n.id)?'Open':'Mark read / Open'}</button></div>`).join('')||emptyInline('No notifications yet.')}</div>`;
-    const mark=async n=>{if(!seen.has(n.id)){const {error}=await sb.from('notification_reads').upsert({user_id:state.profile.id,notification_id:n.id},{onConflict:'user_id,notification_id'});if(error)throw error;seen.add(n.id);}};
-    el.querySelector('#bcc-mark-all').onclick=async()=>{try{for(const n of items)await mark(n);await renderNotifications(el);}catch(e){toast(e.message,'error');}};
-    el.querySelectorAll('[data-notification]').forEach(b=>b.onclick=async()=>{const n=items.find(x=>x.id===b.dataset.notification);if(!n)return;try{await mark(n);if(n.kind==='lecture'&&n.ref_id)return openLecture(n.ref_id);if(n.kind==='note'&&n.ref_subject_id)return navigate('notes-subject',{subjectId:n.ref_subject_id});if(n.kind==='homework'&&n.ref_subject_id)return navigate('homework-subject',{subjectId:n.ref_subject_id});if(n.kind==='quiz')return navigate('quizzes');if(n.kind==='ai')return navigate('notebooklm');if(n.kind==='result')return navigate('student-marks');await renderNotifications(el);}catch(e){toast(e.message,'error');}});
+  async function renderNotifications(el) {
+    const { data, error } = await sb
+      .from("app_notifications")
+      .select("*")
+      .or(`class_no.is.null,class_no.eq.${Number(state.classNo)}`)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    const { data: reads, error: readError } = await sb
+      .from("notification_reads")
+      .select("notification_id")
+      .eq("user_id", state.profile.id);
+    if (readError) throw readError;
+    const seen = new Set((reads || []).map((x) => x.notification_id));
+    const items = data || [];
+    el.innerHTML = `<div class="page-head"><div><h1>Notifications</h1><p>${items.filter((n) => !seen.has(n.id)).length} unread • Updates for your class</p></div><button class="small-btn" id="bcc-mark-all">Mark all read</button></div><div class="list-stack">${items.map((n) => `<div class="list-item ${seen.has(n.id) ? "" : "bcc-unread"}"><div class="list-main"><strong>${esc(n.title)}</strong><span>${esc(n.body || "")} • ${fmtDateTime(n.created_at)}</span></div><button class="small-btn" data-notification="${esc(n.id)}">${seen.has(n.id) ? "Open" : "Mark read / Open"}</button></div>`).join("") || emptyInline("No notifications yet.")}</div>`;
+    const mark = async (n) => {
+      if (!seen.has(n.id)) {
+        const { error } = await sb
+          .from("notification_reads")
+          .upsert(
+            { user_id: state.profile.id, notification_id: n.id },
+            { onConflict: "user_id,notification_id" },
+          );
+        if (error) throw error;
+        seen.add(n.id);
+      }
+    };
+    el.querySelector("#bcc-mark-all").onclick = async () => {
+      try {
+        for (const n of items) await mark(n);
+        await renderNotifications(el);
+      } catch (e) {
+        toast(e.message, "error");
+      }
+    };
+    el.querySelectorAll("[data-notification]").forEach(
+      (b) =>
+        (b.onclick = async () => {
+          const n = items.find((x) => x.id === b.dataset.notification);
+          if (!n) return;
+          try {
+            await mark(n);
+            if (n.kind === "lecture" && n.ref_id) return openLecture(n.ref_id);
+            if (n.kind === "note" && n.ref_subject_id)
+              return navigate("notes-subject", { subjectId: n.ref_subject_id });
+            if (n.kind === "homework" && n.ref_subject_id)
+              return navigate("homework-subject", {
+                subjectId: n.ref_subject_id,
+              });
+            if (n.kind === "quiz") return navigate("quizzes");
+            if (n.kind === "ai") return navigate("notebooklm");
+            if (n.kind === "result") return navigate("student-marks");
+            await renderNotifications(el);
+          } catch (e) {
+            toast(e.message, "error");
+          }
+        }),
+    );
   }
 
   function lectureRow(x) {
     const live = x.is_live ? `<span class="pill active">LIVE</span>` : "";
-    const kind = x.youtube_url ? "YouTube" : x.file_path ? "Uploaded video" : "Lecture";
-    return `<div class="list-item"><div class="list-main"><strong>${esc(x.title)} ${live}</strong><span>${esc(x.subjects?.name || "Subject")} • ${kind} • ${fmtDate(x.created_at)}</span></div><div class="inline"><button class="small-btn primary" data-lecture="${esc(x.id)}">${x.is_live ? "Join" : "Watch"}</button>${x.downloadable && x.file_path ? `<button class="small-btn" data-download="${esc(x.file_path)}">Download</button>`:""}</div></div>`;
+    const kind = x.youtube_url
+      ? "YouTube"
+      : x.file_path
+        ? "Uploaded video"
+        : "Lecture";
+    return `<div class="list-item"><div class="list-main"><strong>${esc(x.title)} ${live}</strong><span>${esc(x.subjects?.name || "Subject")} • ${kind} • ${fmtDate(x.created_at)}</span></div><div class="inline"><button class="small-btn primary" data-lecture="${esc(x.id)}">${x.is_live ? "Join" : "Watch"}</button>${x.downloadable && x.file_path ? `<button class="small-btn" data-download="${esc(x.file_path)}">Download</button>` : ""}</div></div>`;
   }
 
   async function openLecture(id, pushHistory = true) {
-    const { data,error }=await sb.from("lectures").select("*,subjects(name)").eq("id",id).single();
-    if(error) return toast(error.message,"error");
-    state.currentLecture=data;
+    const { data, error } = await sb
+      .from("lectures")
+      .select("*,subjects(name)")
+      .eq("id", id)
+      .single();
+    if (error) return toast(error.message, "error");
+    state.currentLecture = data;
     if (pushHistory) writeRoute("lecture-player", { lectureId: id });
     await renderView();
   }
 
   async function renderLecturePlayer(el) {
-    const x=state.currentLecture;
-    if(!x){state.view="lectures";return renderView()}
-    let media="";
-    if(x.youtube_url){
-      const embed=toYoutubeEmbed(x.youtube_url);
-      media=embed ? `<iframe src="${esc(embed)}" title="${esc(x.title)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>` : `<div class="player-placeholder"><div><i class="fa-solid fa-link-slash"></i><p>Invalid YouTube URL configured by teacher.</p></div></div>`;
-    } else if(x.file_path){
-      const url=await signedUrl(x.file_path,3600);
-      media=url ? `<video controls playsinline style="width:100%;max-height:75vh;display:block" src="${esc(url)}"></video>` : `<div class="player-placeholder"><div><i class="fa-solid fa-video-slash"></i><p>Video file is unavailable.</p></div></div>`;
-    } else media=`<div class="player-placeholder"><div><i class="fa-solid fa-video"></i><p>No lecture media has been attached yet.</p></div></div>`;
-    el.innerHTML=`<div class="back-row"><button class="small-btn" id="back-lecture"><i class="fa-solid fa-arrow-left"></i> Back to Lectures</button></div>
-      <div class="player-wrap">${media}</div><div class="video-info"><h2>${esc(x.title)}</h2><p>${esc(x.subjects?.name || "Subject")} • ${x.is_live ? "Live lecture" : "Recorded lecture"} • ${fmtDateTime(x.created_at)}</p>${x.description?`<p>${esc(x.description)}</p>`:""}${x.downloadable&&x.file_path?`<button class="small-btn yellow" id="download-current" style="margin-top:12px"><i class="fa-solid fa-download"></i> Download lecture</button>`:""}</div>`;
-    $("#back-lecture").onclick=()=>navigate("lectures");
+    const x = state.currentLecture;
+    if (!x) {
+      state.view = "lectures";
+      return renderView();
+    }
+    let media = "";
+    if (x.youtube_url) {
+      const embed = toYoutubeEmbed(x.youtube_url);
+      media = embed
+        ? `<iframe src="${esc(embed)}" title="${esc(x.title)}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>`
+        : `<div class="player-placeholder"><div><i class="fa-solid fa-link-slash"></i><p>Invalid YouTube URL configured by teacher.</p></div></div>`;
+    } else if (x.file_path) {
+      const url = await signedUrl(x.file_path, 3600);
+      media = url
+        ? `<video controls playsinline style="width:100%;max-height:75vh;display:block" src="${esc(url)}"></video>`
+        : `<div class="player-placeholder"><div><i class="fa-solid fa-video-slash"></i><p>Video file is unavailable.</p></div></div>`;
+    } else
+      media = `<div class="player-placeholder"><div><i class="fa-solid fa-video"></i><p>No lecture media has been attached yet.</p></div></div>`;
+    el.innerHTML = `<div class="back-row"><button class="small-btn" id="back-lecture"><i class="fa-solid fa-arrow-left"></i> Back to Lectures</button></div>
+      <div class="player-wrap">${media}</div><div class="video-info"><h2>${esc(x.title)}</h2><p>${esc(x.subjects?.name || "Subject")} • ${x.is_live ? "Live lecture" : "Recorded lecture"} • ${fmtDateTime(x.created_at)}</p>${x.description ? `<p>${esc(x.description)}</p>` : ""}${x.downloadable && x.file_path ? `<button class="small-btn yellow" id="download-current" style="margin-top:12px"><i class="fa-solid fa-download"></i> Download lecture</button>` : ""}</div>`;
+    $("#back-lecture").onclick = () => navigate("lectures");
     await mountDiscussion(el, x.id);
-    $("#download-current")?.addEventListener("click",async()=>downloadFile(x.file_path,x.title));
+    $("#download-current")?.addEventListener("click", async () =>
+      downloadFile(x.file_path, x.title),
+    );
   }
 
   function toYoutubeEmbed(url) {
     try {
-      const u=new URL(url);
-      let id="";
-      if(u.hostname.includes("youtu.be")) id=u.pathname.slice(1);
-      if(u.hostname.includes("youtube.com")) id=u.searchParams.get("v") || (u.pathname.includes("/live/") ? u.pathname.split("/live/")[1] : u.pathname.includes("/embed/") ? u.pathname.split("/embed/")[1] : "");
-      if(!id) return "";
+      const u = new URL(url);
+      let id = "";
+      if (u.hostname.includes("youtu.be")) id = u.pathname.slice(1);
+      if (u.hostname.includes("youtube.com"))
+        id =
+          u.searchParams.get("v") ||
+          (u.pathname.includes("/live/")
+            ? u.pathname.split("/live/")[1]
+            : u.pathname.includes("/embed/")
+              ? u.pathname.split("/embed/")[1]
+              : "");
+      if (!id) return "";
       return `https://www.youtube.com/embed/${encodeURIComponent(id)}?rel=0`;
-    } catch { return ""; }
+    } catch {
+      return "";
+    }
   }
 
   async function renderNotes(el) {
-    const {data,error}=await sb.from("notes").select("*,subjects(name)").eq("class_no",state.classNo).order("created_at",{ascending:false});
-    if(error)throw error;
-    const rows=data||[];
-    const subjects=[...new Map(rows.map(x=>[x.subject_id,x.subjects?.name||"Other"])).entries()];
-    el.innerHTML=`<div class="page-head"><div><h1>Notes</h1><p>Open PDFs and images without leaving the portal.</p></div></div>
-      ${subjects.length?`<div class="subject-grid">${subjects.map(([id,name])=>`<div class="subject-card" data-note-subject="${esc(id)}"><h3>${esc(name)}</h3><p>Lecture notes and study files.</p><span class="subject-count">${rows.filter(x=>x.subject_id===id).length} file(s)</span></div>`).join("")}</div>`:empty("fa-solid fa-note-sticky","No notes yet","Your class notes will appear here.")}`;
-    $$("[data-note-subject]",el).forEach(c=>c.onclick=()=>renderNotesList(c.dataset.noteSubject, true));
+    const { data, error } = await sb
+      .from("notes")
+      .select("*,subjects(name)")
+      .eq("class_no", state.classNo)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    const rows = data || [];
+    const subjects = [
+      ...new Map(
+        rows.map((x) => [x.subject_id, x.subjects?.name || "Other"]),
+      ).entries(),
+    ];
+    el.innerHTML = `<div class="page-head"><div><h1>Notes</h1><p>Open PDFs and images without leaving the portal.</p></div></div>
+      ${subjects.length ? `<div class="subject-grid">${subjects.map(([id, name]) => `<div class="subject-card" data-note-subject="${esc(id)}"><h3>${esc(name)}</h3><p>Lecture notes and study files.</p><span class="subject-count">${rows.filter((x) => x.subject_id === id).length} file(s)</span></div>`).join("")}</div>` : empty("fa-solid fa-note-sticky", "No notes yet", "Your class notes will appear here.")}`;
+    $$("[data-note-subject]", el).forEach(
+      (c) => (c.onclick = () => renderNotesList(c.dataset.noteSubject, true)),
+    );
   }
 
   async function renderNotesList(subjectId, pushHistory = true) {
-    const {data,error}=await sb.from("notes").select("*,subjects(name)").eq("class_no",state.classNo).eq("subject_id",subjectId).order("created_at",{ascending:false});
-    if(error)return toast(error.message,"error");
+    const { data, error } = await sb
+      .from("notes")
+      .select("*,subjects(name)")
+      .eq("class_no", state.classNo)
+      .eq("subject_id", subjectId)
+      .order("created_at", { ascending: false });
+    if (error) return toast(error.message, "error");
     if (pushHistory) writeRoute("notes-subject", { subjectId });
-    $("#view-container").innerHTML=`<div class="back-row"><button class="small-btn" id="back-notes"><i class="fa-solid fa-arrow-left"></i> Back</button></div><div class="page-head"><div><h1>${esc(data?.[0]?.subjects?.name||"Notes")}</h1><p>Open or download a note.</p></div></div><div class="list-stack">${(data||[]).map(noteRow).join("")||emptyInline("No notes yet.")}</div>`;
-    $("#back-notes").onclick=()=>navigate("notes");
-    $$("[data-note]",$("#view-container")).forEach(b=>b.onclick=()=>openNote(b.dataset.note));
-    $$("[data-download]",$("#view-container")).forEach(b=>b.onclick=()=>downloadFile(b.dataset.download,b.dataset.name||"download"));
+    $("#view-container").innerHTML =
+      `<div class="back-row"><button class="small-btn" id="back-notes"><i class="fa-solid fa-arrow-left"></i> Back</button></div><div class="page-head"><div><h1>${esc(data?.[0]?.subjects?.name || "Notes")}</h1><p>Open or download a note.</p></div></div><div class="list-stack">${(data || []).map(noteRow).join("") || emptyInline("No notes yet.")}</div>`;
+    $("#back-notes").onclick = () => navigate("notes");
+    $$("[data-note]", $("#view-container")).forEach(
+      (b) => (b.onclick = () => openNote(b.dataset.note)),
+    );
+    $$("[data-download]", $("#view-container")).forEach(
+      (b) =>
+        (b.onclick = () =>
+          downloadFile(b.dataset.download, b.dataset.name || "download")),
+    );
   }
-  function noteRow(x){return `<div class="list-item"><div class="list-main"><strong>${esc(x.title)}</strong><span>${esc(x.subjects?.name||"Subject")} • ${String(x.file_type||"file").toUpperCase()} • ${fmtDate(x.created_at)}</span></div><div class="inline"><button class="small-btn primary" data-note="${esc(x.id)}">Open</button>${x.file_path?`<button class="small-btn" data-download="${esc(x.file_path)}" data-name="${esc(x.title)}">Download</button>`:""}</div></div>`}
-  async function openNote(id){
-    const {data,error}=await sb.from("notes").select("*,subjects(name)").eq("id",id).single();if(error)return toast(error.message,"error");
-    const url=await signedUrl(data.file_path,3600); if(!url)return toast("Could not open file.","error");
-    const ext=(data.file_type||data.file_path.split(".").pop()||"").toLowerCase();
-    const viewer=ext.includes("pdf")?`<iframe class="pdf-frame" src="${esc(url)}"></iframe>`:`<img class="image-preview" src="${esc(url)}" alt="${esc(data.title)}">`;
-    modal(`<div class="modal-head"><h2>${esc(data.title)}</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>${viewer}<div class="modal-actions"><button class="small-btn" data-download="${esc(data.file_path)}" data-name="${esc(data.title)}">Download</button></div>`);
-    $("[data-close]").onclick=closeModal;$("[data-download]").onclick=()=>downloadFile(data.file_path,data.title);
+  function noteRow(x) {
+    return `<div class="list-item"><div class="list-main"><strong>${esc(x.title)}</strong><span>${esc(x.subjects?.name || "Subject")} • ${String(x.file_type || "file").toUpperCase()} • ${fmtDate(x.created_at)}</span></div><div class="inline"><button class="small-btn primary" data-note="${esc(x.id)}">Open</button>${x.file_path ? `<button class="small-btn" data-download="${esc(x.file_path)}" data-name="${esc(x.title)}">Download</button>` : ""}</div></div>`;
+  }
+  async function openNote(id) {
+    const { data, error } = await sb
+      .from("notes")
+      .select("*,subjects(name)")
+      .eq("id", id)
+      .single();
+    if (error) return toast(error.message, "error");
+    const url = await signedUrl(data.file_path, 3600);
+    if (!url) return toast("Could not open file.", "error");
+    const ext = (
+      data.file_type ||
+      data.file_path.split(".").pop() ||
+      ""
+    ).toLowerCase();
+    const viewer = ext.includes("pdf")
+      ? `<iframe class="pdf-frame" src="${esc(url)}"></iframe>`
+      : `<img class="image-preview" src="${esc(url)}" alt="${esc(data.title)}">`;
+    modal(
+      `<div class="modal-head"><h2>${esc(data.title)}</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>${viewer}<div class="modal-actions"><button class="small-btn" data-download="${esc(data.file_path)}" data-name="${esc(data.title)}">Download</button></div>`,
+    );
+    $("[data-close]").onclick = closeModal;
+    $("[data-download]").onclick = () =>
+      downloadFile(data.file_path, data.title);
   }
 
-  async function renderHomework(el){
-    const {data,error}=await sb.from("homework").select("*,subjects(name)").eq("class_no",state.classNo).order("created_at",{ascending:false});if(error)throw error;
-    const rows=data||[];const subjects=[...new Map(rows.map(x=>[x.subject_id,x.subjects?.name||"Other"])).entries()];
-    el.innerHTML=`<div class="page-head"><div><h1>Homework</h1><p>Subject-wise homework, PDFs, images and instructions.</p></div></div>${subjects.length?`<div class="subject-grid">${subjects.map(([id,name])=>`<div class="subject-card" data-hw-subject="${esc(id)}"><h3>${esc(name)}</h3><p>Open assigned homework.</p><span class="subject-count">${rows.filter(x=>x.subject_id===id).length} item(s)</span></div>`).join("")}</div>`:empty("fa-solid fa-book-open","No homework yet","Homework will appear here when assigned.")}`;
-    $$("[data-hw-subject]",el).forEach(c=>c.onclick=()=>renderHomeworkList(c.dataset.hwSubject, true));
+  async function renderHomework(el) {
+    const { data, error } = await sb
+      .from("homework")
+      .select("*,subjects(name)")
+      .eq("class_no", state.classNo)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    const rows = data || [];
+    const subjects = [
+      ...new Map(
+        rows.map((x) => [x.subject_id, x.subjects?.name || "Other"]),
+      ).entries(),
+    ];
+    el.innerHTML = `<div class="page-head"><div><h1>Homework</h1><p>Subject-wise homework, PDFs, images and instructions.</p></div></div>${subjects.length ? `<div class="subject-grid">${subjects.map(([id, name]) => `<div class="subject-card" data-hw-subject="${esc(id)}"><h3>${esc(name)}</h3><p>Open assigned homework.</p><span class="subject-count">${rows.filter((x) => x.subject_id === id).length} item(s)</span></div>`).join("")}</div>` : empty("fa-solid fa-book-open", "No homework yet", "Homework will appear here when assigned.")}`;
+    $$("[data-hw-subject]", el).forEach(
+      (c) => (c.onclick = () => renderHomeworkList(c.dataset.hwSubject, true)),
+    );
   }
-  async function renderHomeworkList(subjectId, pushHistory = true){
-    const {data,error}=await sb.from("homework").select("*,subjects(name)").eq("class_no",state.classNo).eq("subject_id",subjectId).order("created_at",{ascending:false});if(error)return toast(error.message,"error");
-    $("#view-container").innerHTML=`<div class="back-row"><button class="small-btn" id="back-hw"><i class="fa-solid fa-arrow-left"></i> Back</button></div><div class="page-head"><div><h1>${esc(data?.[0]?.subjects?.name||"Homework")}</h1><p>Instructions and attached files.</p></div></div><div class="list-stack">${(data||[]).map(x=>`<div class="content-card"><h3>${esc(x.title)}</h3><p>${esc(x.instructions||"No extra instructions.")}</p><p class="mini-label">Posted ${fmtDate(x.created_at)}${x.due_date?` • Due ${fmtDate(x.due_date)}`:""}</p>${x.file_path?`<div class="inline" style="margin-top:10px"><button class="small-btn primary" data-hw="${esc(x.id)}">Open file</button><button class="small-btn" data-download="${esc(x.file_path)}" data-name="${esc(x.title)}">Download</button></div>`:""}</div>`).join("")||emptyInline("No homework yet.")}</div>`;
-    $("#back-hw").onclick=()=>navigate("homework");$$("[data-hw]").forEach(b=>b.onclick=()=>openHomework(b.dataset.hw));$$("[data-download]").forEach(b=>b.onclick=()=>downloadFile(b.dataset.download,b.dataset.name));
+  async function renderHomeworkList(subjectId, pushHistory = true) {
+    const { data, error } = await sb
+      .from("homework")
+      .select("*,subjects(name)")
+      .eq("class_no", state.classNo)
+      .eq("subject_id", subjectId)
+      .order("created_at", { ascending: false });
+    if (error) return toast(error.message, "error");
+    $("#view-container").innerHTML =
+      `<div class="back-row"><button class="small-btn" id="back-hw"><i class="fa-solid fa-arrow-left"></i> Back</button></div><div class="page-head"><div><h1>${esc(data?.[0]?.subjects?.name || "Homework")}</h1><p>Instructions and attached files.</p></div></div><div class="list-stack">${(data || []).map((x) => `<div class="content-card"><h3>${esc(x.title)}</h3><p>${esc(x.instructions || "No extra instructions.")}</p><p class="mini-label">Posted ${fmtDate(x.created_at)}${x.due_date ? ` • Due ${fmtDate(x.due_date)}` : ""}</p>${x.file_path ? `<div class="inline" style="margin-top:10px"><button class="small-btn primary" data-hw="${esc(x.id)}">Open file</button><button class="small-btn" data-download="${esc(x.file_path)}" data-name="${esc(x.title)}">Download</button></div>` : ""}</div>`).join("") || emptyInline("No homework yet.")}</div>`;
+    $("#back-hw").onclick = () => navigate("homework");
+    $$("[data-hw]").forEach(
+      (b) => (b.onclick = () => openHomework(b.dataset.hw)),
+    );
+    $$("[data-download]").forEach(
+      (b) =>
+        (b.onclick = () => downloadFile(b.dataset.download, b.dataset.name)),
+    );
   }
-  async function openHomework(id){const {data,error}=await sb.from("homework").select("*").eq("id",id).single();if(error)return toast(error.message,"error");const url=await signedUrl(data.file_path,3600);if(!url)return toast("Could not open file.","error");const ext=(data.file_path||"").split(".").pop().toLowerCase();const viewer=ext==="pdf"?`<iframe class="pdf-frame" src="${esc(url)}"></iframe>`:`<img class="image-preview" src="${esc(url)}" alt="">`;modal(`<div class="modal-head"><h2>${esc(data.title)}</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>${viewer}<div class="modal-actions"><button class="small-btn" data-download="${esc(data.file_path)}" data-name="${esc(data.title)}">Download</button></div>`);$("[data-close]").onclick=closeModal;$("[data-download]").onclick=()=>downloadFile(data.file_path,data.title)}
+  async function openHomework(id) {
+    const { data, error } = await sb
+      .from("homework")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (error) return toast(error.message, "error");
+    const url = await signedUrl(data.file_path, 3600);
+    if (!url) return toast("Could not open file.", "error");
+    const ext = (data.file_path || "").split(".").pop().toLowerCase();
+    const viewer =
+      ext === "pdf"
+        ? `<iframe class="pdf-frame" src="${esc(url)}"></iframe>`
+        : `<img class="image-preview" src="${esc(url)}" alt="">`;
+    modal(
+      `<div class="modal-head"><h2>${esc(data.title)}</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>${viewer}<div class="modal-actions"><button class="small-btn" data-download="${esc(data.file_path)}" data-name="${esc(data.title)}">Download</button></div>`,
+    );
+    $("[data-close]").onclick = closeModal;
+    $("[data-download]").onclick = () =>
+      downloadFile(data.file_path, data.title);
+  }
 
-  async function renderQuizzes(el){
-    const {data,error}=await sb.from("quizzes").select("*,subjects(name)").eq("class_no",state.classNo).eq("is_active",true).order("start_at",{ascending:false});if(error)throw error;
-    const rows=data||[];
-    const attempts=await sb.from("quiz_attempts").select("quiz_id,score,total_marks,submitted_at").eq("student_id",state.profile.id);
-    const done=new Map((attempts.data||[]).map(a=>[a.quiz_id,a]));
-    el.innerHTML=`<div class="page-head"><div><h1>Quizzes</h1><p>Weekly, monthly and chapter-wise quizzes currently active.</p></div></div>${rows.length?`<div class="list-stack">${rows.map(x=>{const a=done.get(x.id);return `<div class="quiz-card"><h3>${esc(x.title)}</h3><div class="quiz-meta"><span class="pill">${esc(x.quiz_type)}</span><span class="pill">${esc(x.subjects?.name||"All subjects")}</span><span class="pill">${x.duration_minutes} min</span><span class="pill">${x.total_marks} marks</span>${a?`<span class="pill active">Attempted: ${a.score}/${a.total_marks}</span>`:""}</div><p class="mini-label">${x.start_at?`Starts ${fmtDateTime(x.start_at)} • `:""}${x.end_at?`Ends ${fmtDateTime(x.end_at)}`:""}</p><div style="margin-top:12px">${a?`<button class="small-btn" data-result="${x.id}">View result</button>`:`<button class="small-btn primary" data-start-quiz="${x.id}">Start quiz</button>`}</div></div>`}).join("")}</div>`:empty("fa-solid fa-circle-question","No active quiz","There is no active quiz for your class right now.")}`;
-    $$("[data-start-quiz]",el).forEach(b=>b.onclick=()=>startQuiz(b.dataset.startQuiz, true));$$(`[data-result]`,el).forEach(b=>b.onclick=()=>showAttemptResult(b.dataset.result, true));
+  async function renderQuizzes(el) {
+    const { data, error } = await sb
+      .from("quizzes")
+      .select("*,subjects(name)")
+      .eq("class_no", state.classNo)
+      .eq("is_active", true)
+      .order("start_at", { ascending: false });
+    if (error) throw error;
+    const rows = data || [];
+    const attempts = await sb
+      .from("quiz_attempts")
+      .select("quiz_id,score,total_marks,submitted_at")
+      .eq("student_id", state.profile.id);
+    const done = new Map((attempts.data || []).map((a) => [a.quiz_id, a]));
+    el.innerHTML = `<div class="page-head"><div><h1>Quizzes</h1><p>Weekly, monthly and chapter-wise quizzes currently active.</p></div></div>${
+      rows.length
+        ? `<div class="list-stack">${rows
+            .map((x) => {
+              const a = done.get(x.id);
+              return `<div class="quiz-card"><h3>${esc(x.title)}</h3><div class="quiz-meta"><span class="pill">${esc(x.quiz_type)}</span><span class="pill">${esc(x.subjects?.name || "All subjects")}</span><span class="pill">${x.duration_minutes} min</span><span class="pill">${x.total_marks} marks</span>${a ? `<span class="pill active">Attempted: ${a.score}/${a.total_marks}</span>` : ""}</div><p class="mini-label">${x.start_at ? `Starts ${fmtDateTime(x.start_at)} • ` : ""}${x.end_at ? `Ends ${fmtDateTime(x.end_at)}` : ""}</p><div style="margin-top:12px">${a ? `<button class="small-btn" data-result="${x.id}">View result</button>` : `<button class="small-btn primary" data-start-quiz="${x.id}">Start quiz</button>`}</div></div>`;
+            })
+            .join("")}</div>`
+        : empty(
+            "fa-solid fa-circle-question",
+            "No active quiz",
+            "There is no active quiz for your class right now.",
+          )
+    }`;
+    $$("[data-start-quiz]", el).forEach(
+      (b) => (b.onclick = () => startQuiz(b.dataset.startQuiz, true)),
+    );
+    $$(`[data-result]`, el).forEach(
+      (b) => (b.onclick = () => showAttemptResult(b.dataset.result, true)),
+    );
   }
-  async function startQuiz(id, pushHistory = true){
-    const {data,error}=await sb.from("quizzes").select("*,subjects(name)").eq("id",id).single();
-    if(error)return toast(error.message,"error");
-    if(data.class_no !== state.classNo)return toast("This quiz is not for your class.","error");
-    if(data.start_at && new Date(data.start_at)>new Date())return toast("This quiz has not started yet.","error");
-    if(data.end_at && new Date(data.end_at)<new Date())return toast("This quiz has ended.","error");
+  async function startQuiz(id, pushHistory = true) {
+    const { data, error } = await sb
+      .from("quizzes")
+      .select("*,subjects(name)")
+      .eq("id", id)
+      .single();
+    if (error) return toast(error.message, "error");
+    if (data.class_no !== state.classNo)
+      return toast("This quiz is not for your class.", "error");
+    if (data.start_at && new Date(data.start_at) > new Date())
+      return toast("This quiz has not started yet.", "error");
+    if (data.end_at && new Date(data.end_at) < new Date())
+      return toast("This quiz has ended.", "error");
 
-    loading(true,"Starting secure quiz...");
+    loading(true, "Starting secure quiz...");
     try {
-      const {data:sessionData,error:sessionError}=await sb.functions.invoke("start-quiz",{body:{quiz_id:id}});
-      if(sessionError)throw sessionError;
-      if(sessionData?.error)throw new Error(sessionData.error);
+      const { data: sessionData, error: sessionError } =
+        await sb.functions.invoke("start-quiz", { body: { quiz_id: id } });
+      if (sessionError) throw sessionError;
+      if (sessionData?.error) throw new Error(sessionData.error);
 
-      const publicQuestions=(sessionData?.questions||[]).map(q=>({
-        id:q.id ?? q.question_id,
-        quiz_id:q.quiz_id,
-        position:q.position ?? q.question_position,
-        question_text:q.question_text,
-        option_a:q.option_a,
-        option_b:q.option_b,
-        option_c:q.option_c,
-        option_d:q.option_d
-      })).sort((a,b)=>Number(a.position)-Number(b.position));
+      const publicQuestions = (sessionData?.questions || [])
+        .map((q) => ({
+          id: q.id ?? q.question_id,
+          quiz_id: q.quiz_id,
+          position: q.position ?? q.question_position,
+          question_text: q.question_text,
+          option_a: q.option_a,
+          option_b: q.option_b,
+          option_c: q.option_c,
+          option_d: q.option_d,
+        }))
+        .sort((a, b) => Number(a.position) - Number(b.position));
 
-      if(!publicQuestions.length)return toast("This quiz has no questions yet.","error");
-      if(publicQuestions.some(q=>!q.id))return toast("Quiz question data is incomplete. Please contact BCC staff.","error");
+      if (!publicQuestions.length)
+        return toast("This quiz has no questions yet.", "error");
+      if (publicQuestions.some((q) => !q.id))
+        return toast(
+          "Quiz question data is incomplete. Please contact BCC staff.",
+          "error",
+        );
 
-      state.quiz=data;
-      state.quizQuestions=publicQuestions;
-      state.quizAnswers={};
-      state.quizIndex=0;
-      state.quizStartedAt=sessionData.started_at ? new Date(sessionData.started_at).getTime() : Date.now();
-      state.quizSessionId=sessionData.session_id;
-      state.quizExpiresAt=sessionData.expires_at ? new Date(sessionData.expires_at).getTime() : null;
-      state.quizSecurity={active:true,submitting:false,allowExit:false,reason:null};
+      state.quiz = data;
+      state.quizQuestions = publicQuestions;
+      state.quizAnswers = {};
+      state.quizIndex = 0;
+      state.quizStartedAt = sessionData.started_at
+        ? new Date(sessionData.started_at).getTime()
+        : Date.now();
+      state.quizSessionId = sessionData.session_id;
+      state.quizExpiresAt = sessionData.expires_at
+        ? new Date(sessionData.expires_at).getTime()
+        : null;
+      state.quizSecurity = {
+        active: true,
+        submitting: false,
+        allowExit: false,
+        reason: null,
+      };
       if (pushHistory) writeRoute("quiz-run", { quizId: id });
       await renderView();
-    } catch(e) {
-      toast(e.message||"Could not start the quiz.","error");
+    } catch (e) {
+      toast(e.message || "Could not start the quiz.", "error");
     } finally {
       loading(false);
     }
   }
-  async function renderQuizRun(el){
-    const qz=state.quiz;
-    if(!qz){writeRoute("quizzes", {}, false);return renderView()}
-    const questions=Array.isArray(state.quizQuestions)?state.quizQuestions:[];
-    if(!questions.length){return toast("This quiz has no questions yet.","error")}
+  async function renderQuizRun(el) {
+    const qz = state.quiz;
+    if (!qz) {
+      writeRoute("quizzes", {}, false);
+      return renderView();
+    }
+    const questions = Array.isArray(state.quizQuestions)
+      ? state.quizQuestions
+      : [];
+    if (!questions.length) {
+      return toast("This quiz has no questions yet.", "error");
+    }
 
     document.body.classList.add("quiz-active");
-    state.quizIndex=Math.min(Math.max(Number(state.quizIndex)||0,0),questions.length-1);
+    state.quizIndex = Math.min(
+      Math.max(Number(state.quizIndex) || 0, 0),
+      questions.length - 1,
+    );
 
-    el.innerHTML=`<div class="quiz-run-shell">
+    el.innerHTML = `<div class="quiz-run-shell">
       <section class="quiz-title-card">
         <div>
-          <span class="quiz-kicker">${esc(qz.quiz_type||"QUIZ")}</span>
+          <span class="quiz-kicker">${esc(qz.quiz_type || "QUIZ")}</span>
           <h1>${esc(qz.title)}</h1>
-          <p>${questions.length} question${questions.length===1?"":"s"}${qz.total_marks!=null?` • ${qz.total_marks} marks`:""}</p>
+          <p>${questions.length} question${questions.length === 1 ? "" : "s"}${qz.total_marks != null ? ` • ${qz.total_marks} marks` : ""}</p>
         </div>
         <div class="quiz-title-actions">
           <div class="timer" id="quiz-timer"></div>
@@ -1046,7 +1917,7 @@
       </section>
 
       <div class="quiz-progress-wrap">
-        <div class="quiz-progress"><span id="quiz-progress-text">Question ${state.quizIndex+1} of ${questions.length}</span><span id="quiz-progress-percent">${Math.round(((state.quizIndex+1)/questions.length)*100)}%</span></div>
+        <div class="quiz-progress"><span id="quiz-progress-text">Question ${state.quizIndex + 1} of ${questions.length}</span><span id="quiz-progress-percent">${Math.round(((state.quizIndex + 1) / questions.length) * 100)}%</span></div>
         <div class="quiz-progress-track" aria-hidden="true"><span id="quiz-progress-fill"></span></div>
       </div>
 
@@ -1054,399 +1925,682 @@
         <div id="quiz-question-stage"></div>
         <div class="quiz-navigation">
           <button type="button" class="quiz-nav-btn previous" id="quiz-prev"><i class="fa-solid fa-arrow-left"></i><span>Previous</span></button>
-          <button type="button" class="quiz-nav-btn next" id="quiz-next"><span>${state.quizIndex===questions.length-1?"Submit Quiz":"Next"}</span><i class="fa-solid ${state.quizIndex===questions.length-1?"fa-check":"fa-arrow-right"}"></i></button>
+          <button type="button" class="quiz-nav-btn next" id="quiz-next"><span>${state.quizIndex === questions.length - 1 ? "Submit Quiz" : "Next"}</span><i class="fa-solid ${state.quizIndex === questions.length - 1 ? "fa-check" : "fa-arrow-right"}"></i></button>
         </div>
       </form>
     </div>`;
 
-    const renderCurrentQuestion=()=>{
-      const i=Math.min(Math.max(Number(state.quizIndex)||0,0),questions.length-1);
-      const q=questions[i];
-      const selected=state.quizAnswers[q.id]||"";
-      const options=["A","B","C","D"].map(letter=>{
-        const key=`option_${letter.toLowerCase()}`;
-        if(!q[key]) return "";
-        return `<label class="quiz-option ${selected===letter?"selected":""}">
-          <input type="radio" name="quiz-current-option" value="${letter}" ${selected===letter?"checked":""}>
+    const renderCurrentQuestion = () => {
+      const i = Math.min(
+        Math.max(Number(state.quizIndex) || 0, 0),
+        questions.length - 1,
+      );
+      const q = questions[i];
+      const selected = state.quizAnswers[q.id] || "";
+      const options = ["A", "B", "C", "D"]
+        .map((letter) => {
+          const key = `option_${letter.toLowerCase()}`;
+          if (!q[key]) return "";
+          return `<label class="quiz-option ${selected === letter ? "selected" : ""}">
+          <input type="radio" name="quiz-current-option" value="${letter}" ${selected === letter ? "checked" : ""}>
           <span class="quiz-option-letter">${letter}</span>
           <span class="quiz-option-text">${esc(q[key])}</span>
           <span class="quiz-option-check"><i class="fa-solid fa-check"></i></span>
         </label>`;
-      }).join("");
+        })
+        .join("");
 
-      $("#quiz-question-stage").innerHTML=`<article class="quiz-question-card">
-        <div class="quiz-question-number">Question ${i+1}</div>
+      $("#quiz-question-stage").innerHTML =
+        `<article class="quiz-question-card">
+        <div class="quiz-question-number">Question ${i + 1}</div>
         <h2>${esc(q.question_text)}</h2>
         <div class="quiz-options">${options}</div>
       </article>`;
-      const progressPercent=Math.round(((i+1)/questions.length)*100);
-      $("#quiz-progress-text").textContent=`Question ${i+1} of ${questions.length}`;
-      $("#quiz-progress-percent").textContent=`${progressPercent}%`;
-      const progressFill=$("#quiz-progress-fill");
-      if(progressFill) progressFill.style.width=`${progressPercent}%`;
-      const next=$("#quiz-next");
-      next.querySelector("span").textContent=i===questions.length-1?"Submit Quiz":"Next";
-      next.querySelector("i").className=`fa-solid ${i===questions.length-1?"fa-check":"fa-arrow-right"}`;
-      $("#quiz-prev").disabled=i===0;
-      $("#quiz-prev").setAttribute("aria-disabled",String(i===0));
-      $$("input[name='quiz-current-option']").forEach(input=>input.onchange=()=>{
-        state.quizAnswers[q.id]=input.value;
-        $$(".quiz-option",$("#quiz-question-stage")).forEach(x=>x.classList.remove("selected"));
-        input.closest(".quiz-option")?.classList.add("selected");
-      });
-      window.scrollTo({top:0,behavior:"smooth"});
+      const progressPercent = Math.round(((i + 1) / questions.length) * 100);
+      $("#quiz-progress-text").textContent =
+        `Question ${i + 1} of ${questions.length}`;
+      $("#quiz-progress-percent").textContent = `${progressPercent}%`;
+      const progressFill = $("#quiz-progress-fill");
+      if (progressFill) progressFill.style.width = `${progressPercent}%`;
+      const next = $("#quiz-next");
+      next.querySelector("span").textContent =
+        i === questions.length - 1 ? "Submit Quiz" : "Next";
+      next.querySelector("i").className =
+        `fa-solid ${i === questions.length - 1 ? "fa-check" : "fa-arrow-right"}`;
+      $("#quiz-prev").disabled = i === 0;
+      $("#quiz-prev").setAttribute("aria-disabled", String(i === 0));
+      $$("input[name='quiz-current-option']").forEach(
+        (input) =>
+          (input.onchange = () => {
+            state.quizAnswers[q.id] = input.value;
+            $$(".quiz-option", $("#quiz-question-stage")).forEach((x) =>
+              x.classList.remove("selected"),
+            );
+            input.closest(".quiz-option")?.classList.add("selected");
+          }),
+      );
+      window.scrollTo({ top: 0, behavior: "smooth" });
     };
 
-    const moveQuestion=(delta)=>{
-      const nextIndex=state.quizIndex+delta;
-      if(nextIndex<0 || nextIndex>=questions.length)return;
-      state.quizIndex=nextIndex;
+    const moveQuestion = (delta) => {
+      const nextIndex = state.quizIndex + delta;
+      if (nextIndex < 0 || nextIndex >= questions.length) return;
+      state.quizIndex = nextIndex;
       renderCurrentQuestion();
     };
 
-    $("#quiz-prev").onclick=()=>moveQuestion(-1);
-    $("#quiz-next").onclick=async()=>{
-      if(state.quizIndex===questions.length-1){
+    $("#quiz-prev").onclick = () => moveQuestion(-1);
+    $("#quiz-next").onclick = async () => {
+      if (state.quizIndex === questions.length - 1) {
         await openQuizSubmitConfirm();
-      }else{
+      } else {
         moveQuestion(1);
       }
     };
-    $("#quiz-submit-mini").onclick=()=>openQuizSubmitConfirm();
+    $("#quiz-submit-mini").onclick = () => openQuizSubmitConfirm();
 
-    const secondsRemaining=state.quizExpiresAt
-      ? Math.max(1,Math.ceil((state.quizExpiresAt-Date.now())/1000))
-      : Number(qz.duration_minutes)*60;
+    const secondsRemaining = state.quizExpiresAt
+      ? Math.max(1, Math.ceil((state.quizExpiresAt - Date.now()) / 1000))
+      : Number(qz.duration_minutes) * 60;
     startTimer(secondsRemaining);
     renderCurrentQuestion();
     installQuizGuards();
   }
 
-  function openQuizSubmitConfirm(){
-    return new Promise(resolve=>{
-      const modalRoot=$("#modal-root");
-      modalRoot.innerHTML=`<div class="modal-backdrop quiz-confirm-backdrop" data-quiz-confirm-backdrop>
+  function openQuizSubmitConfirm() {
+    return new Promise((resolve) => {
+      const modalRoot = $("#modal-root");
+      modalRoot.innerHTML = `<div class="modal-backdrop quiz-confirm-backdrop" data-quiz-confirm-backdrop>
         <div class="quiz-confirm-card" role="dialog" aria-modal="true" aria-labelledby="quiz-confirm-title">
           <div class="quiz-confirm-icon"><i class="fa-solid fa-paper-plane"></i></div>
           <div class="quiz-confirm-copy"><h2 id="quiz-confirm-title">Submit this quiz?</h2><p>You can still go back and review your answers. Once submitted, your attempt will be final.</p></div>
           <div class="quiz-confirm-actions"><button type="button" class="quiz-confirm-cancel" id="quiz-confirm-cancel">Cancel</button><button type="button" class="quiz-confirm-submit" id="quiz-confirm-submit">Submit Quiz</button></div>
         </div>
       </div>`;
-      const finish=ok=>{modalRoot.innerHTML="";resolve(ok);};
-      $("#quiz-confirm-cancel").onclick=()=>finish(false);
-      $("#quiz-confirm-submit").onclick=async()=>{modalRoot.querySelector(".quiz-confirm-submit").disabled=true;finish(true);await submitQuiz(false,"manual");};
-      modalRoot.querySelector("[data-quiz-confirm-backdrop]").addEventListener("click",e=>{if(e.target.matches("[data-quiz-confirm-backdrop]"))finish(false)});
+      const finish = (ok) => {
+        modalRoot.innerHTML = "";
+        resolve(ok);
+      };
+      $("#quiz-confirm-cancel").onclick = () => finish(false);
+      $("#quiz-confirm-submit").onclick = async () => {
+        modalRoot.querySelector(".quiz-confirm-submit").disabled = true;
+        finish(true);
+        await submitQuiz(false, "manual");
+      };
+      modalRoot
+        .querySelector("[data-quiz-confirm-backdrop]")
+        .addEventListener("click", (e) => {
+          if (e.target.matches("[data-quiz-confirm-backdrop]")) finish(false);
+        });
     });
   }
   window.renderQuizzes = renderQuizzes;
 
-  function startTimer(seconds){
-    if(state.quizTimer)clearInterval(state.quizTimer);
-    let left=Math.max(1,Number(seconds)||1);
-    const tick=()=>{
-      const timer=$("#quiz-timer");
-      if(timer){const m=Math.floor(left/60),s=left%60;timer.textContent=`${m}:${String(s).padStart(2,"0")}`;}
-      if(left<=0){clearInterval(state.quizTimer);submitQuiz(true,"time_expired");return}
+  function startTimer(seconds) {
+    if (state.quizTimer) clearInterval(state.quizTimer);
+    let left = Math.max(1, Number(seconds) || 1);
+    const tick = () => {
+      const timer = $("#quiz-timer");
+      if (timer) {
+        const m = Math.floor(left / 60),
+          s = left % 60;
+        timer.textContent = `${m}:${String(s).padStart(2, "0")}`;
+      }
+      if (left <= 0) {
+        clearInterval(state.quizTimer);
+        submitQuiz(true, "time_expired");
+        return;
+      }
       left--;
     };
     tick();
-    state.quizTimer=setInterval(tick,1000);
+    state.quizTimer = setInterval(tick, 1000);
   }
 
-  function installQuizGuards(){
-    if(state.quizGuardInstalled)return;
-    state.quizGuardInstalled=true;
+  function installQuizGuards() {
+    if (state.quizGuardInstalled) return;
+    state.quizGuardInstalled = true;
 
-    document.addEventListener("visibilitychange",handleQuizVisibility,{capture:true});
-    window.addEventListener("pagehide",handleQuizPageHide,{capture:true});
-    window.addEventListener("blur",handleQuizBlur,{capture:true});
-    window.addEventListener("keydown",handleQuizKeydown,{capture:true});
-    document.addEventListener("contextmenu",handleQuizContextMenu,{capture:true});
-    document.addEventListener("copy",handleQuizClipboard,{capture:true});
-    document.addEventListener("cut",handleQuizClipboard,{capture:true});
-    document.addEventListener("paste",handleQuizClipboard,{capture:true});
-    document.addEventListener("selectstart",handleQuizSelectStart,{capture:true});
+    document.addEventListener("visibilitychange", handleQuizVisibility, {
+      capture: true,
+    });
+    window.addEventListener("pagehide", handleQuizPageHide, { capture: true });
+    window.addEventListener("blur", handleQuizBlur, { capture: true });
+    window.addEventListener("keydown", handleQuizKeydown, { capture: true });
+    document.addEventListener("contextmenu", handleQuizContextMenu, {
+      capture: true,
+    });
+    document.addEventListener("copy", handleQuizClipboard, { capture: true });
+    document.addEventListener("cut", handleQuizClipboard, { capture: true });
+    document.addEventListener("paste", handleQuizClipboard, { capture: true });
+    document.addEventListener("selectstart", handleQuizSelectStart, {
+      capture: true,
+    });
   }
 
-  function handleQuizVisibility(){
-    if(document.visibilityState==="hidden" && state.quizSecurity?.active && !state.quizSecurity.submitting){
-      submitQuiz(true,"tab_switch");
+  function handleQuizVisibility() {
+    if (
+      document.visibilityState === "hidden" &&
+      state.quizSecurity?.active &&
+      !state.quizSecurity.submitting
+    ) {
+      submitQuiz(true, "tab_switch");
     }
   }
 
-  function handleQuizPageHide(){
+  function handleQuizPageHide() {
     // visibilitychange normally handles tab/app switches. pagehide is a final
     // best-effort fallback for navigation/closing; it never blocks the browser.
-    if(state.quizSecurity?.active && !state.quizSecurity.submitting && navigator.sendBeacon){
+    if (
+      state.quizSecurity?.active &&
+      !state.quizSecurity.submitting &&
+      navigator.sendBeacon
+    ) {
       sendQuizBeacon("page_exit");
     }
   }
 
-  function handleQuizBlur(){
-    if(!state.quizSecurity?.active || state.quizSecurity.submitting)return;
-    setTimeout(()=>{
-      if(state.quizSecurity?.active && !state.quizSecurity.submitting && !document.hasFocus()){
-        submitQuiz(true,"window_blur");
+  function handleQuizBlur() {
+    if (!state.quizSecurity?.active || state.quizSecurity.submitting) return;
+    setTimeout(() => {
+      if (
+        state.quizSecurity?.active &&
+        !state.quizSecurity.submitting &&
+        !document.hasFocus()
+      ) {
+        submitQuiz(true, "window_blur");
       }
-    },300);
+    }, 300);
   }
 
-  function handleQuizKeydown(e){
-    if(!state.quizSecurity?.active)return;
-    const k=String(e.key||"").toLowerCase();
-    const blocked=e.key==="F12" ||
-      (e.ctrlKey||e.metaKey) && ["c","u","s","p"].includes(k) ||
-      (e.ctrlKey||e.metaKey) && e.shiftKey && ["i","j","c"].includes(k);
-    if(blocked){e.preventDefault();e.stopPropagation();}
+  function handleQuizKeydown(e) {
+    if (!state.quizSecurity?.active) return;
+    const k = String(e.key || "").toLowerCase();
+    const blocked =
+      e.key === "F12" ||
+      ((e.ctrlKey || e.metaKey) && ["c", "u", "s", "p"].includes(k)) ||
+      ((e.ctrlKey || e.metaKey) && e.shiftKey && ["i", "j", "c"].includes(k));
+    if (blocked) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
   }
-  function handleQuizContextMenu(e){if(state.quizSecurity?.active){e.preventDefault();}}
-  function handleQuizClipboard(e){if(state.quizSecurity?.active){e.preventDefault();}}
-  function handleQuizSelectStart(e){if(state.quizSecurity?.active && !e.target.closest("input"))e.preventDefault();}
+  function handleQuizContextMenu(e) {
+    if (state.quizSecurity?.active) {
+      e.preventDefault();
+    }
+  }
+  function handleQuizClipboard(e) {
+    if (state.quizSecurity?.active) {
+      e.preventDefault();
+    }
+  }
+  function handleQuizSelectStart(e) {
+    if (state.quizSecurity?.active && !e.target.closest("input"))
+      e.preventDefault();
+  }
 
-  function collectQuizAnswers(){
-    const current=state.quizQuestions?.[state.quizIndex];
-    const r=document.querySelector(`input[name="quiz-current-option"]:checked`);
-    if(current) state.quizAnswers[current.id]=r?.value||state.quizAnswers[current.id]||null;
-    state.quizQuestions.forEach(q=>{if(!(q.id in state.quizAnswers))state.quizAnswers[q.id]=null;});
+  function collectQuizAnswers() {
+    const current = state.quizQuestions?.[state.quizIndex];
+    const r = document.querySelector(
+      `input[name="quiz-current-option"]:checked`,
+    );
+    if (current)
+      state.quizAnswers[current.id] =
+        r?.value || state.quizAnswers[current.id] || null;
+    state.quizQuestions.forEach((q) => {
+      if (!(q.id in state.quizAnswers)) state.quizAnswers[q.id] = null;
+    });
     return state.quizAnswers;
   }
 
-  async function submitQuiz(auto=false, reason=auto?"auto":"manual"){
-    if(!state.quiz || !state.quizSessionId || state.quizSecurity?.submitting) return false;
-    state.quizSecurity.submitting=true;
+  async function submitQuiz(auto = false, reason = auto ? "auto" : "manual") {
+    if (!state.quiz || !state.quizSessionId || state.quizSecurity?.submitting)
+      return false;
+    state.quizSecurity.submitting = true;
     clearInterval(state.quizTimer);
     collectQuizAnswers();
     // Manual submission uses the inline button state instead of the full-screen
     // loader so the click feels immediate. Network time is still required for
     // the secure Edge Function to calculate and save the final result.
-    const manualSubmitButton=document.querySelector("#quiz-confirm-submit, #quiz-next");
-    if(manualSubmitButton && reason==="manual"){
-      manualSubmitButton.disabled=true;
-      const label=manualSubmitButton.querySelector("span");
-      if(label) label.textContent="Submitting...";
+    const manualSubmitButton = document.querySelector(
+      "#quiz-confirm-submit, #quiz-next",
+    );
+    if (manualSubmitButton && reason === "manual") {
+      manualSubmitButton.disabled = true;
+      const label = manualSubmitButton.querySelector("span");
+      if (label) label.textContent = "Submitting...";
     } else {
-      loading(true,"Submitting quiz...");
+      loading(true, "Submitting quiz...");
     }
 
-    try{
-      const {data,error}=await sb.functions.invoke("submit-quiz",{
-        body:{
-          quiz_id:state.quiz.id,
-          session_id:state.quizSessionId,
-          answers:state.quizAnswers,
-          submission_reason:reason
-        }
+    try {
+      const { data, error } = await sb.functions.invoke("submit-quiz", {
+        body: {
+          quiz_id: state.quiz.id,
+          session_id: state.quizSessionId,
+          answers: state.quizAnswers,
+          submission_reason: reason,
+        },
       });
-      if(error)throw error;
-      if(data?.error)throw new Error(data.error);
-      state.lastAttempt={attempt:data.attempt,answers:data.answers||[]};
-      state.quizQuestions=data.questions||state.quizQuestions;
-      state.quizSecurity.allowExit=true;
-      state.quizSecurity.active=false;
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      state.lastAttempt = {
+        attempt: data.attempt,
+        answers: data.answers || [],
+      };
+      state.quizQuestions = data.questions || state.quizQuestions;
+      state.quizSecurity.allowExit = true;
+      state.quizSecurity.active = false;
       document.body.classList.remove("quiz-active");
       writeRoute("quiz-result", { quizId: state.quiz.id }, true);
       await renderQuizResult();
       toast(
-        reason==="time_expired" ? "Time ended. Your quiz was submitted." :
-        reason==="tab_switch" ? "You left the quiz tab. Your quiz was submitted." :
-        reason==="browser_back" ? "Browser Back was detected. Your quiz was submitted." :
-        reason==="page_exit" ? "You left the quiz. Your quiz was submitted." :
-        reason==="window_blur" ? "The quiz window lost focus. Your quiz was submitted." :
-        "Quiz submitted successfully.",
-        "success"
+        reason === "time_expired"
+          ? "Time ended. Your quiz was submitted."
+          : reason === "tab_switch"
+            ? "You left the quiz tab. Your quiz was submitted."
+            : reason === "browser_back"
+              ? "Browser Back was detected. Your quiz was submitted."
+              : reason === "page_exit"
+                ? "You left the quiz. Your quiz was submitted."
+                : reason === "window_blur"
+                  ? "The quiz window lost focus. Your quiz was submitted."
+                  : "Quiz submitted successfully.",
+        "success",
       );
       return true;
-    }catch(e){
+    } catch (e) {
       // If the network fails during a visibility/page-exit event, do not
       // silently unlock the quiz. The pagehide beacon is the last fallback.
-      state.quizSecurity.submitting=false;
-      toast(e.message||"Could not submit quiz.","error");
+      state.quizSecurity.submitting = false;
+      toast(e.message || "Could not submit quiz.", "error");
       return false;
-    }finally{
-      if(reason!=="manual") loading(false);
+    } finally {
+      if (reason !== "manual") loading(false);
     }
   }
 
-  function sendQuizBeacon(reason){
-    try{
-      const session=state.session;
-      if(!session?.access_token || !state.quizSessionId || !state.quizSecurity?.active)return;
+  function sendQuizBeacon(reason) {
+    try {
+      const session = state.session;
+      if (
+        !session?.access_token ||
+        !state.quizSessionId ||
+        !state.quizSecurity?.active
+      )
+        return;
       collectQuizAnswers();
-      const url=`${C.SUPABASE_URL}/functions/v1/submit-quiz`;
-      const payload=JSON.stringify({
-        quiz_id:state.quiz.id,
-        session_id:state.quizSessionId,
-        answers:state.quizAnswers,
-        submission_reason:reason,
-        access_token:session.access_token
+      const url = `${C.SUPABASE_URL}/functions/v1/submit-quiz`;
+      const payload = JSON.stringify({
+        quiz_id: state.quiz.id,
+        session_id: state.quizSessionId,
+        answers: state.quizAnswers,
+        submission_reason: reason,
+        access_token: session.access_token,
       });
-      navigator.sendBeacon(url,new Blob([payload],{type:"text/plain;charset=UTF-8"}));
-    }catch(e){console.warn("Quiz exit beacon failed",e);}
+      navigator.sendBeacon(
+        url,
+        new Blob([payload], { type: "text/plain;charset=UTF-8" }),
+      );
+    } catch (e) {
+      console.warn("Quiz exit beacon failed", e);
+    }
   }
-  async function renderQuizResult(){
+  async function renderQuizResult() {
     document.body.classList.remove("quiz-active");
-    const el=$("#view-container"),a=state.lastAttempt.attempt,qz=state.quiz;
-    el.innerHTML=`<div class="back-row"><button class="small-btn" id="back-quizzes"><i class="fa-solid fa-arrow-left"></i> Back to Quizzes</button></div><div class="result-card"><p class="mini-label">Quiz submitted</p><div class="score-big">${a.score}/${a.total_marks}</div><p>${a.correct_count} correct • ${a.wrong_count} wrong • ${a.unattempted_count} unattempted</p><div class="analysis-grid">${state.quizQuestions.map(q=>{const x=state.lastAttempt.answers.find(y=>y.question_id===q.id);return `<div class="analysis-item ${x?.status==="correct"?"correct":x?.status==="wrong"?"wrong":""}"><h4>${esc(q.question_text)}</h4><p>Your answer: ${esc(x?.selected_option||"Not attempted")} • Correct: ${esc(q.correct_option)} • Marks: ${x?.marks_awarded??0}</p>${q.explanation?`<p><strong>Explanation:</strong> ${esc(q.explanation)}</p>`:""}</div>`}).join("")}</div></div>`;
+    const el = $("#view-container"),
+      a = state.lastAttempt.attempt,
+      qz = state.quiz;
+    el.innerHTML = `<div class="back-row"><button class="small-btn" id="back-quizzes"><i class="fa-solid fa-arrow-left"></i> Back to Quizzes</button></div><div class="result-card"><p class="mini-label">Quiz submitted</p><div class="score-big">${a.score}/${a.total_marks}</div><p>${a.correct_count} correct • ${a.wrong_count} wrong • ${a.unattempted_count} unattempted</p><div class="analysis-grid">${state.quizQuestions
+      .map((q) => {
+        const x = state.lastAttempt.answers.find((y) => y.question_id === q.id);
+        return `<div class="analysis-item ${x?.status === "correct" ? "correct" : x?.status === "wrong" ? "wrong" : ""}"><h4>${esc(q.question_text)}</h4><p>Your answer: ${esc(x?.selected_option || "Not attempted")} • Correct: ${esc(q.correct_option)} • Marks: ${x?.marks_awarded ?? 0}</p>${q.explanation ? `<p><strong>Explanation:</strong> ${esc(q.explanation)}</p>` : ""}</div>`;
+      })
+      .join("")}</div></div>`;
     // The quiz result route replaces the quiz-run history entry, so browser
     // back is not a reliable way to return to the quiz list. Navigate directly.
-    $("#back-quizzes").onclick=()=>navigate("quizzes");
+    $("#back-quizzes").onclick = () => navigate("quizzes");
   }
-  async function showAttemptResult(quizId, pushHistory = true){
-    const {data,error}=await sb.from("quiz_attempts").select("*,quizzes(*,subjects(name))").eq("quiz_id",quizId).eq("student_id",state.profile.id).order("submitted_at",{ascending:false}).limit(1).maybeSingle();
-    if(error)return toast(error.message,"error");
-    if(!data)return toast("No attempt found.","error");
-    const {data:result,error:rerr}=await sb.functions.invoke("attempt-result",{body:{attempt_id:data.id}});
-    if(rerr||result?.error)return toast(rerr?.message||result?.error||"Could not load result.","error");
-    state.quiz=data.quizzes;state.lastAttempt={attempt:data,answers:result.answers||[]};state.quizQuestions=result.questions||[];
+  async function showAttemptResult(quizId, pushHistory = true) {
+    const { data, error } = await sb
+      .from("quiz_attempts")
+      .select("*,quizzes(*,subjects(name))")
+      .eq("quiz_id", quizId)
+      .eq("student_id", state.profile.id)
+      .order("submitted_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) return toast(error.message, "error");
+    if (!data) return toast("No attempt found.", "error");
+    const { data: result, error: rerr } = await sb.functions.invoke(
+      "attempt-result",
+      { body: { attempt_id: data.id } },
+    );
+    if (rerr || result?.error)
+      return toast(
+        rerr?.message || result?.error || "Could not load result.",
+        "error",
+      );
+    state.quiz = data.quizzes;
+    state.lastAttempt = { attempt: data, answers: result.answers || [] };
+    state.quizQuestions = result.questions || [];
     if (pushHistory) writeRoute("quiz-result", { quizId }, false);
     await renderQuizResult();
   }
 
-  async function renderAdminDashboard(el){
-    const [students,lectures,notes,hw,quizzes,attempts]=await Promise.all([
-      sb.from("student_profiles").select("id",{count:"exact",head:true}),
-      sb.from("lectures").select("id",{count:"exact",head:true}),
-      sb.from("notes").select("id",{count:"exact",head:true}),
-      sb.from("homework").select("id",{count:"exact",head:true}),
-      sb.from("quizzes").select("id",{count:"exact",head:true}).eq("is_active",true),
-      sb.from("quiz_attempts").select("id",{count:"exact",head:true})
-    ]);
-    el.innerHTML=`<div class="banner"><div><h2>Administration dashboard</h2><p>Manage BCC students, teachers, class content, quizzes and marks.</p></div><div class="banner-icon"><i class="fa-solid fa-chalkboard-user"></i></div></div>
-      <div class="stats-grid">${metric("Students",students.count??0,"All classes")}${metric("Lectures",lectures.count??0,"Uploaded/linked")}${metric("Notes",notes.count??0,"Study files")}${metric("Homework",hw.count??0,"Assignments")}${metric("Active quizzes",quizzes.count??0,"Currently active")}${metric("Quiz attempts",attempts.count??0,"Submitted")}</div>
+  async function renderAdminDashboard(el) {
+    const [students, lectures, notes, hw, quizzes, attempts] =
+      await Promise.all([
+        sb
+          .from("student_profiles")
+          .select("id", { count: "exact", head: true }),
+        sb.from("lectures").select("id", { count: "exact", head: true }),
+        sb.from("notes").select("id", { count: "exact", head: true }),
+        sb.from("homework").select("id", { count: "exact", head: true }),
+        sb
+          .from("quizzes")
+          .select("id", { count: "exact", head: true })
+          .eq("is_active", true),
+        sb.from("quiz_attempts").select("id", { count: "exact", head: true }),
+      ]);
+    el.innerHTML = `<div class="banner"><div><h2>Administration dashboard</h2><p>Manage BCC students, teachers, class content, quizzes and marks.</p></div><div class="banner-icon"><i class="fa-solid fa-chalkboard-user"></i></div></div>
+      <div class="stats-grid">${metric("Students", students.count ?? 0, "All classes")}${metric("Lectures", lectures.count ?? 0, "Uploaded/linked")}${metric("Notes", notes.count ?? 0, "Study files")}${metric("Homework", hw.count ?? 0, "Assignments")}${metric("Active quizzes", quizzes.count ?? 0, "Currently active")}${metric("Quiz attempts", attempts.count ?? 0, "Submitted")}</div>
       <h2 class="section-title">Administration</h2><div class="feature-grid">
-      ${dashboardCard("fa-solid fa-user-plus","Create Student","Generate BCC Student ID and password","students")}
-      ${dashboardCard("fa-solid fa-chalkboard-user","Manage Teachers","Create teacher accounts and manage credentials","teachers")}
-      ${dashboardCard("fa-solid fa-cloud-arrow-up","Manage Content","Upload notes, homework and lectures","content")}
-      ${dashboardCard("fa-solid fa-list-check","Quiz Manager","Create and configure quizzes","quiz-manager")}
-      ${dashboardCard("fa-solid fa-chart-column","Marks","View quiz scores by class","marks")}</div>`;
-    $$("[data-go]",el).forEach(x=>x.onclick=()=>navigate(x.dataset.go));
+      ${dashboardCard("fa-solid fa-user-plus", "Create Student", "Generate BCC Student ID and password", "students")}
+      ${dashboardCard("fa-solid fa-chalkboard-user", "Manage Teachers", "Create teacher accounts and manage credentials", "teachers")}
+      ${dashboardCard("fa-solid fa-cloud-arrow-up", "Manage Content", "Upload notes, homework and lectures", "content")}
+      ${dashboardCard("fa-solid fa-list-check", "Quiz Manager", "Create and configure quizzes", "quiz-manager")}
+      ${dashboardCard("fa-solid fa-chart-column", "Marks", "View quiz scores by class", "marks")}</div>`;
+    $$("[data-go]", el).forEach(
+      (x) => (x.onclick = () => navigate(x.dataset.go)),
+    );
   }
 
-  async function renderTeacherDashboard(el){
-    let assigned=[];
-    try { const {data,error}=await sb.from("teacher_class_assignments").select("class_no").eq("teacher_id",state.profile.id); if(!error && data?.length) assigned=[...new Set(data.map(x=>Number(x.class_no)))]; } catch(_){}
-    const [students,lectures,notes,hw,quizzes,attempts]=await Promise.all([
-      sb.from("student_profiles").select("id",{count:"exact",head:true}).in("class_no",assigned),
-      sb.from("lectures").select("id",{count:"exact",head:true}).in("class_no",assigned),
-      sb.from("notes").select("id",{count:"exact",head:true}).in("class_no",assigned),
-      sb.from("homework").select("id",{count:"exact",head:true}).in("class_no",assigned),
-      sb.from("quizzes").select("id",{count:"exact",head:true}).in("class_no",assigned).eq("is_active",true),
-      sb.from("quiz_attempts").select("id",{count:"exact",head:true})
-    ]);
-    el.innerHTML=`<div class="banner"><div><h2>Welcome, ${esc(state.profile.full_name||"Teacher")}</h2><p>${assigned.length?`Your teaching workspace for classes ${assigned.map(classText).join(", ")}.`:"No classes are assigned to your account yet. Contact the BCC administrator."}</p></div><div class="banner-icon"><i class="fa-solid fa-chalkboard-user"></i></div></div>
-      <div class="stats-grid">${metric("Students",students.count??0,"Your accessible classes")}${metric("Lectures",lectures.count??0,"Class resources")}${metric("Notes",notes.count??0,"Study files")}${metric("Homework",hw.count??0,"Assignments")}${metric("Active quizzes",quizzes.count??0,"Currently active")}${metric("Quiz attempts",attempts.count??0,"Submitted")}</div>
+  async function renderTeacherDashboard(el) {
+    let assigned = [];
+    try {
+      const { data, error } = await sb
+        .from("teacher_class_assignments")
+        .select("class_no")
+        .eq("teacher_id", state.profile.id);
+      if (!error && data?.length)
+        assigned = [...new Set(data.map((x) => Number(x.class_no)))];
+    } catch (_) {}
+    const [students, lectures, notes, hw, quizzes, attempts] =
+      await Promise.all([
+        sb
+          .from("student_profiles")
+          .select("id", { count: "exact", head: true })
+          .in("class_no", assigned),
+        sb
+          .from("lectures")
+          .select("id", { count: "exact", head: true })
+          .in("class_no", assigned),
+        sb
+          .from("notes")
+          .select("id", { count: "exact", head: true })
+          .in("class_no", assigned),
+        sb
+          .from("homework")
+          .select("id", { count: "exact", head: true })
+          .in("class_no", assigned),
+        sb
+          .from("quizzes")
+          .select("id", { count: "exact", head: true })
+          .in("class_no", assigned)
+          .eq("is_active", true),
+        sb.from("quiz_attempts").select("id", { count: "exact", head: true }),
+      ]);
+    el.innerHTML = `<div class="banner"><div><h2>Welcome, ${esc(state.profile.full_name || "Teacher")}</h2><p>${assigned.length ? `Your teaching workspace for classes ${assigned.map(classText).join(", ")}.` : "No classes are assigned to your account yet. Contact the BCC administrator."}</p></div><div class="banner-icon"><i class="fa-solid fa-chalkboard-user"></i></div></div>
+      <div class="stats-grid">${metric("Students", students.count ?? 0, "Your accessible classes")}${metric("Lectures", lectures.count ?? 0, "Class resources")}${metric("Notes", notes.count ?? 0, "Study files")}${metric("Homework", hw.count ?? 0, "Assignments")}${metric("Active quizzes", quizzes.count ?? 0, "Currently active")}${metric("Quiz attempts", attempts.count ?? 0, "Submitted")}</div>
       <h2 class="section-title">Teaching tools</h2><div class="feature-grid">
-      ${dashboardCard("fa-solid fa-users","Monitor Students","Review class lists and student information","students")}
-      ${dashboardCard("fa-solid fa-cloud-arrow-up","Manage Content","Add notes, homework and lectures","content")}
-      ${dashboardCard("fa-solid fa-list-check","Create Quiz","Build and manage assessments","quiz-manager")}
-      ${dashboardCard("fa-solid fa-chart-column","Marks & Performance","Review marks and class performance","marks")}</div>`;
-    $$('[data-go]',el).forEach(x=>x.onclick=()=>navigate(x.dataset.go));
+      ${dashboardCard("fa-solid fa-users", "Monitor Students", "Review class lists and student information", "students")}
+      ${dashboardCard("fa-solid fa-cloud-arrow-up", "Manage Content", "Add notes, homework and lectures", "content")}
+      ${dashboardCard("fa-solid fa-list-check", "Create Quiz", "Build and manage assessments", "quiz-manager")}
+      ${dashboardCard("fa-solid fa-chart-column", "Marks & Performance", "Review marks and class performance", "marks")}</div>`;
+    $$("[data-go]", el).forEach(
+      (x) => (x.onclick = () => navigate(x.dataset.go)),
+    );
   }
 
-  async function renderTeachers(el){
-    const {data,error}=await sb.from("profiles").select("id,full_name,login_id,is_active,created_at,teacher_class_assignments(class_no)").eq("role","teacher").order("created_at",{ascending:false});
-    if(error)throw error;
-    const rows=data||[];
-    el.innerHTML=`<div class="page-head"><div><h1>Teachers</h1><p>Create teacher accounts, share credentials and manage access.</p></div><button class="small-btn primary" id="create-teacher"><i class="fa-solid fa-user-plus"></i> Create teacher</button></div>
-      <div class="table-card"><table class="data-table"><thead><tr><th>Teacher</th><th>Teacher ID</th><th>Class access</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows.map(t=>`<tr><td><strong>${esc(t.full_name)}</strong></td><td>${esc(t.login_id)}</td><td>${(t.teacher_class_assignments||[]).map(a=>classText(a.class_no)).join(", ")||"Not assigned"}</td><td><span class="pill ${t.is_active===false?"":"active"}">${t.is_active===false?"Inactive":"Active"}</span></td><td><button class="small-btn" data-teacher-status="${esc(t.id)}" data-active="${t.is_active===false?"false":"true"}">${t.is_active===false?"Activate":"Deactivate"}</button><button class="small-btn" data-teacher-reset="${esc(t.id)}" data-login="${esc(t.login_id)}" data-name="${esc(t.full_name)}">Reset password</button></td></tr>`).join("")||`<tr><td colspan="5">No teacher accounts created yet.</td></tr>`}</tbody></table></div>`;
-    $("#create-teacher").onclick=showCreateTeacher;
-    $$('[data-teacher-status]',el).forEach(b=>b.onclick=()=>setTeacherStatus(b.dataset.teacherStatus,b.dataset.active!=="true"));
-    $$('[data-teacher-reset]',el).forEach(b=>b.onclick=()=>showResetTeacherPassword(b.dataset.teacherReset,b.dataset.login,b.dataset.name));
+  async function renderTeachers(el) {
+    const { data, error } = await sb
+      .from("profiles")
+      .select(
+        "id,full_name,login_id,is_active,created_at,teacher_class_assignments(class_no)",
+      )
+      .eq("role", "teacher")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    const rows = data || [];
+    el.innerHTML = `<div class="page-head"><div><h1>Teachers</h1><p>Create teacher accounts, share credentials and manage access.</p></div><button class="small-btn primary" id="create-teacher"><i class="fa-solid fa-user-plus"></i> Create teacher</button></div>
+      <div class="table-card"><table class="data-table"><thead><tr><th>Teacher</th><th>Teacher ID</th><th>Class access</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows.map((t) => `<tr><td><strong>${esc(t.full_name)}</strong></td><td>${esc(t.login_id)}</td><td>${(t.teacher_class_assignments || []).map((a) => classText(a.class_no)).join(", ") || "Not assigned"}</td><td><span class="pill ${t.is_active === false ? "" : "active"}">${t.is_active === false ? "Inactive" : "Active"}</span></td><td><button class="small-btn" data-teacher-status="${esc(t.id)}" data-active="${t.is_active === false ? "false" : "true"}">${t.is_active === false ? "Activate" : "Deactivate"}</button><button class="small-btn" data-teacher-reset="${esc(t.id)}" data-login="${esc(t.login_id)}" data-name="${esc(t.full_name)}">Reset password</button></td></tr>`).join("") || `<tr><td colspan="5">No teacher accounts created yet.</td></tr>`}</tbody></table></div>`;
+    $("#create-teacher").onclick = showCreateTeacher;
+    $$("[data-teacher-status]", el).forEach(
+      (b) =>
+        (b.onclick = () =>
+          setTeacherStatus(
+            b.dataset.teacherStatus,
+            b.dataset.active !== "true",
+          )),
+    );
+    $$("[data-teacher-reset]", el).forEach(
+      (b) =>
+        (b.onclick = () =>
+          showResetTeacherPassword(
+            b.dataset.teacherReset,
+            b.dataset.login,
+            b.dataset.name,
+          )),
+    );
   }
 
-  function showCreateTeacher(){
+  function showCreateTeacher() {
     modal(`<div class="modal-head"><h2>Create teacher</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>
       <div class="form-grid"><div class="form-group"><label>Full name</label><input id="teacher-name" placeholder="e.g. Jackie Kumar" required></div><div class="form-group"><label>Class access</label><div class="checkbox-row"><label><input type="checkbox" id="teacher-class-10" checked> Class 10</label><label><input type="checkbox" id="teacher-class-12" checked> Class 12</label></div></div><div class="form-group"><label>Initial password</label><input id="teacher-password" type="text" autocomplete="off" placeholder="Leave blank to generate automatically"></div></div>
       <p class="notice" style="margin-top:14px">Teacher IDs use BCC + serial number + the first initials of the first and second name, e.g. BCC01ZQ. A full name with at least two name parts is required. Password changes are restricted to the administrator; give each teacher their credentials privately.</p>
       <div class="modal-actions"><button class="small-btn" data-close>Cancel</button><button class="small-btn primary" id="save-teacher">Create teacher</button></div>`);
-    $$('[data-close]').forEach(x=>x.onclick=closeModal); $("#save-teacher").onclick=createTeacher;
+    $$("[data-close]").forEach((x) => (x.onclick = closeModal));
+    $("#save-teacher").onclick = createTeacher;
   }
-  async function createTeacher(){
-    const full_name=$("#teacher-name").value.trim();
-    const classes=[10,12].filter(n=>$("#teacher-class-"+n).checked);
-    let password=$("#teacher-password").value;
-    if(!full_name)return toast("Enter the teacher's full name.","error");
-    if(!classes.length)return toast("Select at least one class.","error");
-    if(!password) password=Array.from(crypto.getRandomValues(new Uint8Array(12)),b=>"ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%"[b%64]).join("");
-    if(password.length<8)return toast("Password must contain at least 8 characters.","error");
-    loading(true,"Creating teacher account...");
-    try{const {data,error}=await sb.functions.invoke("admin-create-user",{body:{type:"teacher",full_name,password,class_nos:classes}});if(error)throw error;if(data?.error)throw new Error(data.error);showTeacherCreatedCredentials(data.login_id,password,full_name);}
-    catch(e){toast(e.message||"Could not create teacher.","error")}finally{loading(false)}
+  async function createTeacher() {
+    const full_name = $("#teacher-name").value.trim();
+    const classes = [10, 12].filter((n) => $("#teacher-class-" + n).checked);
+    let password = $("#teacher-password").value;
+    if (!full_name) return toast("Enter the teacher's full name.", "error");
+    if (!classes.length) return toast("Select at least one class.", "error");
+    if (!password)
+      password = Array.from(
+        crypto.getRandomValues(new Uint8Array(12)),
+        (b) =>
+          "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%"[
+            b % 64
+          ],
+      ).join("");
+    if (password.length < 8)
+      return toast("Password must contain at least 8 characters.", "error");
+    loading(true, "Creating teacher account...");
+    try {
+      const { data, error } = await sb.functions.invoke("admin-create-user", {
+        body: { type: "teacher", full_name, password, class_nos: classes },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      showTeacherCreatedCredentials(data.login_id, password, full_name);
+    } catch (e) {
+      toast(e.message || "Could not create teacher.", "error");
+    } finally {
+      loading(false);
+    }
   }
-  function showTeacherCreatedCredentials(loginId,password,fullName){
-    const websiteLink="https://rezanadaf9-star.github.io/bcc-kne/";
-    const message=`Assalamu Alaikum ${fullName},\n\nYour BCC Teacher Portal account has been created.\nWebsite: ${websiteLink}\nTeacher ID: ${loginId}\nPassword: ${password}\n\nPlease keep these credentials private.`;
-    modal(`<div class="modal-head"><h2>Teacher created successfully</h2><button class="close-btn" data-created-close><i class="fa-solid fa-xmark"></i></button></div><div class="student-created-card"><div class="student-created-success"><i class="fa-solid fa-circle-check"></i><div><strong>${esc(fullName)}</strong><span>Credentials are ready to send privately.</span></div></div><div class="student-credential-list"><div class="student-credential-row"><span>Teacher ID</span><strong>${esc(loginId)}</strong></div><div class="student-credential-row"><span>Password</span><strong>${esc(password)}</strong></div><div class="student-credential-row"><span>Status</span><strong>Active</strong></div></div><div class="student-created-actions"><button class="small-btn" id="copy-teacher-credentials"><i class="fa-regular fa-copy"></i> Copy WhatsApp message</button><button class="small-btn primary" id="created-teacher-done">Done</button></div></div>`);
-    const finish=async()=>{closeModal();await renderTeachers($("#view-container"));};$('[data-created-close]')?.addEventListener("click",finish);$("#created-teacher-done").onclick=finish;
-    $("#copy-teacher-credentials").onclick=async()=>{try{await navigator.clipboard.writeText(message);toast("Teacher credentials copied. Paste the message into WhatsApp.","success")}catch(_){toast("Clipboard unavailable. Copy the credentials manually.","error")}};
+  function showTeacherCreatedCredentials(loginId, password, fullName) {
+    const websiteLink = "https://rezanadaf9-star.github.io/bcc-kne/";
+    const message = `Assalamu Alaikum ${fullName},\n\nYour BCC Teacher Portal account has been created.\nWebsite: ${websiteLink}\nTeacher ID: ${loginId}\nPassword: ${password}\n\nPlease keep these credentials private.`;
+    modal(
+      `<div class="modal-head"><h2>Teacher created successfully</h2><button class="close-btn" data-created-close><i class="fa-solid fa-xmark"></i></button></div><div class="student-created-card"><div class="student-created-success"><i class="fa-solid fa-circle-check"></i><div><strong>${esc(fullName)}</strong><span>Credentials are ready to send privately.</span></div></div><div class="student-credential-list"><div class="student-credential-row"><span>Teacher ID</span><strong>${esc(loginId)}</strong></div><div class="student-credential-row"><span>Password</span><strong>${esc(password)}</strong></div><div class="student-credential-row"><span>Status</span><strong>Active</strong></div></div><div class="student-created-actions"><button class="small-btn" id="copy-teacher-credentials"><i class="fa-regular fa-copy"></i> Copy WhatsApp message</button><button class="small-btn primary" id="created-teacher-done">Done</button></div></div>`,
+    );
+    const finish = async () => {
+      closeModal();
+      await renderTeachers($("#view-container"));
+    };
+    $("[data-created-close]")?.addEventListener("click", finish);
+    $("#created-teacher-done").onclick = finish;
+    $("#copy-teacher-credentials").onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(message);
+        toast(
+          "Teacher credentials copied. Paste the message into WhatsApp.",
+          "success",
+        );
+      } catch (_) {
+        toast("Clipboard unavailable. Copy the credentials manually.", "error");
+      }
+    };
   }
-  async function setTeacherStatus(id,active){
-    try{const {data,error}=await sb.functions.invoke("admin-create-user",{body:{action:"set-status",user_id:id,is_active:active}});if(error)throw error;if(data?.error)throw new Error(data.error);toast(`Teacher ${active?"activated":"deactivated"}.`,"success");await renderTeachers($("#view-container"));}catch(e){toast(e.message||"Could not update teacher status.","error")}
+  async function setTeacherStatus(id, active) {
+    try {
+      const { data, error } = await sb.functions.invoke("admin-create-user", {
+        body: { action: "set-status", user_id: id, is_active: active },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast(`Teacher ${active ? "activated" : "deactivated"}.`, "success");
+      await renderTeachers($("#view-container"));
+    } catch (e) {
+      toast(e.message || "Could not update teacher status.", "error");
+    }
   }
-  function showResetTeacherPassword(id,loginId,fullName){
-    modal(`<div class="modal-head"><h2>Reset teacher password</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div><p>Set a new password for <strong>${esc(fullName)}</strong> (${esc(loginId)}). Teachers cannot change their own password.</p><div class="form-group"><label>New password</label><input id="reset-teacher-password" type="text" minlength="8" placeholder="Enter new password"></div><div class="modal-actions"><button class="small-btn" data-close>Cancel</button><button class="small-btn primary" id="confirm-teacher-reset">Reset password</button></div>`);
-    $$('[data-close]').forEach(x=>x.onclick=closeModal);$("#confirm-teacher-reset").onclick=async()=>{const password=$("#reset-teacher-password").value;if(password.length<8)return toast("Use at least 8 characters.","error");loading(true,"Resetting password...");try{const {data,error}=await sb.functions.invoke("admin-create-user",{body:{action:"reset-password",user_id:id,password}});if(error)throw error;if(data?.error)throw new Error(data.error);showTeacherCreatedCredentials(loginId,password,fullName)}catch(e){toast(e.message||"Password reset failed.","error")}finally{loading(false)}};
+  function showResetTeacherPassword(id, loginId, fullName) {
+    modal(
+      `<div class="modal-head"><h2>Reset teacher password</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div><p>Set a new password for <strong>${esc(fullName)}</strong> (${esc(loginId)}). Teachers cannot change their own password.</p><div class="form-group"><label>New password</label><input id="reset-teacher-password" type="text" minlength="8" placeholder="Enter new password"></div><div class="modal-actions"><button class="small-btn" data-close>Cancel</button><button class="small-btn primary" id="confirm-teacher-reset">Reset password</button></div>`,
+    );
+    $$("[data-close]").forEach((x) => (x.onclick = closeModal));
+    $("#confirm-teacher-reset").onclick = async () => {
+      const password = $("#reset-teacher-password").value;
+      if (password.length < 8)
+        return toast("Use at least 8 characters.", "error");
+      loading(true, "Resetting password...");
+      try {
+        const { data, error } = await sb.functions.invoke("admin-create-user", {
+          body: { action: "reset-password", user_id: id, password },
+        });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        showTeacherCreatedCredentials(loginId, password, fullName);
+      } catch (e) {
+        toast(e.message || "Password reset failed.", "error");
+      } finally {
+        loading(false);
+      }
+    };
   }
 
-  async function renderStudents(el){
-    const {data,error}=await sb.from("student_profiles").select("*,profiles(full_name,login_id)").order("class_no").order("roll_number");if(error)throw error;
-    const rows=data||[];
-    el.innerHTML=`<div class="page-head"><div><h1>Students</h1><p>${state.profile.role==="admin"?"Create accounts and manage student information.":"Review students in your assigned classes."}</p></div>${state.profile.role==="admin"?`<button class="small-btn primary" id="create-student"><i class="fa-solid fa-user-plus"></i> Create student</button>`:""}</div>
-      <div class="table-card"><table class="data-table"><thead><tr><th>Name</th><th>ID</th><th>Class</th><th>Roll</th><th>Batch</th><th>Actions</th></tr></thead><tbody>${rows.map(x=>`<tr><td><strong>${esc(x.profiles?.full_name)}</strong></td><td>${esc(x.profiles?.login_id)}</td><td>${x.class_no}</td><td>${esc(x.roll_number)}</td><td>${esc(x.batch)}</td><td><button class="small-btn" data-student="${esc(x.id)}">View</button></td></tr>`).join("")||`<tr><td colspan="6">No students yet.</td></tr>`}</tbody></table></div>`;
-    $("#create-student").onclick=showCreateStudent;
-    $$("[data-student]",el).forEach(b=>b.onclick=()=>viewStudent(b.dataset.student));
+  async function renderStudents(el) {
+    const { data, error } = await sb
+      .from("student_profiles")
+      .select("*,profiles(full_name,login_id)")
+      .order("class_no")
+      .order("roll_number");
+    if (error) throw error;
+    const rows = data || [];
+    el.innerHTML = `<div class="page-head"><div><h1>Students</h1><p>${state.profile.role === "admin" ? "Create accounts and manage student information." : "Review students in your assigned classes."}</p></div>${state.profile.role === "admin" ? `<button class="small-btn primary" id="create-student"><i class="fa-solid fa-user-plus"></i> Create student</button>` : ""}</div>
+      <div class="table-card"><table class="data-table"><thead><tr><th>Name</th><th>ID</th><th>Class</th><th>Roll</th><th>Batch</th><th>Actions</th></tr></thead><tbody>${rows.map((x) => `<tr><td><strong>${esc(x.profiles?.full_name)}</strong></td><td>${esc(x.profiles?.login_id)}</td><td>${x.class_no}</td><td>${esc(x.roll_number)}</td><td>${esc(x.batch)}</td><td><button class="small-btn" data-student="${esc(x.id)}">View</button></td></tr>`).join("") || `<tr><td colspan="6">No students yet.</td></tr>`}</tbody></table></div>`;
+    $("#create-student").onclick = showCreateStudent;
+    $$("[data-student]", el).forEach(
+      (b) => (b.onclick = () => viewStudent(b.dataset.student)),
+    );
   }
 
-  function showCreateStudent(){
+  function showCreateStudent() {
     modal(`<div class="modal-head"><h2>Create student</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>
       <div class="form-grid"><div class="form-group"><label>Full name</label><input id="new-name" required></div><div class="form-group"><label>Class</label><select id="new-class"><option value="10">10</option><option value="12">12</option></select></div><div class="form-group"><label>Roll number</label><input id="new-roll"></div><div class="form-group"><label>Batch</label><select id="new-batch"><option value="26">26</option><option value="27">27</option></select></div><div class="form-group"><label>Phone number <span class="mini-label">(optional)</span></label><input id="new-phone" type="tel" inputmode="numeric" placeholder="Optional"></div><div class="form-group"><label>Student photo <span class="mini-label">(optional)</span></label><input id="new-photo" type="file" accept="image/*" capture="environment"></div><div class="form-group"><label>Initial password</label><div class="password-field"><input id="new-password" type="password" minlength="8" autocomplete="new-password" placeholder="Enter initial password"><button type="button" class="password-action" id="toggle-new-password" aria-label="Show password" title="Show password"><i class="fa-regular fa-eye"></i></button><button type="button" class="password-action" id="copy-new-password" aria-label="Copy password" title="Copy password"><i class="fa-regular fa-copy"></i></button></div></div></div>
       <p class="notice" style="margin-top:14px">The system generates the ID as batch + BCC + class + first two letters of the name + random 3 digits. Passwords are handled by Supabase Auth and are not stored in plaintext by this portal.</p>
       <div class="modal-actions"><button class="small-btn" data-close>Cancel</button><button class="small-btn primary" id="save-student">Create</button></div>`);
-    $$(`[data-close]`).forEach(x=>x.onclick=closeModal);
-    $("#save-student").onclick=createStudent;
-    $("#toggle-new-password").onclick=()=>{
-      const input=$("#new-password");
-      const button=$("#toggle-new-password");
-      input.type=input.type==="password"?"text":"password";
-      button.innerHTML=`<i class="fa-regular fa-eye${input.type==="password"?"":"-slash"}"></i>`;
-      button.setAttribute("aria-label",input.type==="password"?"Show password":"Hide password");
-      button.title=input.type==="password"?"Show password":"Hide password";
+    $$(`[data-close]`).forEach((x) => (x.onclick = closeModal));
+    $("#save-student").onclick = createStudent;
+    $("#toggle-new-password").onclick = () => {
+      const input = $("#new-password");
+      const button = $("#toggle-new-password");
+      input.type = input.type === "password" ? "text" : "password";
+      button.innerHTML = `<i class="fa-regular fa-eye${input.type === "password" ? "" : "-slash"}"></i>`;
+      button.setAttribute(
+        "aria-label",
+        input.type === "password" ? "Show password" : "Hide password",
+      );
+      button.title =
+        input.type === "password" ? "Show password" : "Hide password";
     };
-    $("#copy-new-password").onclick=async()=>{
-      const input=$("#new-password");
-      const value=input.value;
-      if(!value)return toast("Enter a password first.","error");
-      try{
+    $("#copy-new-password").onclick = async () => {
+      const input = $("#new-password");
+      const value = input.value;
+      if (!value) return toast("Enter a password first.", "error");
+      try {
         await navigator.clipboard.writeText(value);
-        toast("Password copied. You can paste it into WhatsApp or another message.","success");
-      }catch(e){
-        input.focus();input.select();
-        toast("Password selected. Press Cmd/Ctrl+C to copy it.","success");
+        toast(
+          "Password copied. You can paste it into WhatsApp or another message.",
+          "success",
+        );
+      } catch (e) {
+        input.focus();
+        input.select();
+        toast("Password selected. Press Cmd/Ctrl+C to copy it.", "success");
       }
     };
   }
-  async function createStudent(){
-    const payload={full_name:$("#new-name").value.trim(),class_no:Number($("#new-class").value),roll_number:$("#new-roll").value.trim(),batch:$("#new-batch").value,password:$("#new-password").value,phone:$("#new-phone").value.trim()||null};
-    const photo=$("#new-photo")?.files?.[0]||null;
-    if(!payload.full_name||!payload.password||payload.password.length<8)return toast("Name and an 8+ character password are required.","error");
-    if(photo && photo.size>5*1024*1024)return toast("Photo must be 5 MB or smaller.","error");
-    loading(true,"Creating student...");
-    try{
-      const {data,error}=await sb.functions.invoke("admin-create-user",{body:{type:"student",...payload}});
-      if(error)throw error;if(data?.error)throw new Error(data.error);
-      if(photo && data?.user_id){
-        const ext=(photo.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
-        const path=`${data.user_id}/profile.${ext}`;
-        const upload=await sb.storage.from("student-photos").upload(path,photo,{upsert:true,contentType:photo.type||"image/jpeg"});
-        if(upload.error)throw upload.error;
-        const update=await sb.from("student_profiles").update({photo_path:path}).eq("user_id",data.user_id);
-        if(update.error)throw update.error;
+  async function createStudent() {
+    const payload = {
+      full_name: $("#new-name").value.trim(),
+      class_no: Number($("#new-class").value),
+      roll_number: $("#new-roll").value.trim(),
+      batch: $("#new-batch").value,
+      password: $("#new-password").value,
+      phone: $("#new-phone").value.trim() || null,
+    };
+    const photo = $("#new-photo")?.files?.[0] || null;
+    if (!payload.full_name || !payload.password || payload.password.length < 8)
+      return toast("Name and an 8+ character password are required.", "error");
+    if (photo && photo.size > 5 * 1024 * 1024)
+      return toast("Photo must be 5 MB or smaller.", "error");
+    loading(true, "Creating student...");
+    try {
+      const { data, error } = await sb.functions.invoke("admin-create-user", {
+        body: { type: "student", ...payload },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (photo && data?.user_id) {
+        const ext =
+          (photo.name.split(".").pop() || "jpg")
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, "") || "jpg";
+        const path = `${data.user_id}/profile.${ext}`;
+        const upload = await sb.storage
+          .from("student-photos")
+          .upload(path, photo, {
+            upsert: true,
+            contentType: photo.type || "image/jpeg",
+          });
+        if (upload.error) throw upload.error;
+        const update = await sb
+          .from("student_profiles")
+          .update({ photo_path: path })
+          .eq("user_id", data.user_id);
+        if (update.error) throw update.error;
       }
-      showStudentCreatedCredentials(data.login_id, payload.password, payload.full_name);
-    }catch(e){toast(e.message||"Could not create student.","error")}finally{loading(false)}
+      showStudentCreatedCredentials(
+        data.login_id,
+        payload.password,
+        payload.full_name,
+      );
+    } catch (e) {
+      toast(e.message || "Could not create student.", "error");
+    } finally {
+      loading(false);
+    }
   }
 
-  function showStudentCreatedCredentials(loginId, password, fullName){
+  function showStudentCreatedCredentials(loginId, password, fullName) {
     const websiteLink = "https://rezanadaf9-star.github.io/bcc-kne/";
     const message = `Website: ${websiteLink}\nUser ID: ${loginId}\nPassword: ${password}`;
     modal(`<div class="modal-head"><h2>Student created successfully</h2><button class="close-btn" data-created-close><i class="fa-solid fa-xmark"></i></button></div>
@@ -1462,151 +2616,354 @@
           <button class="small-btn primary" id="created-done">Done</button>
         </div>
       </div>`);
-    const finish=async()=>{closeModal();toast(`Student created. ID: ${loginId}`,"success");await renderStudents($("#view-container"));};
-    $$("[data-created-close]").forEach(x=>x.onclick=finish);
-    $("#created-done").onclick=finish;
-    $("#copy-student-credentials").onclick=async()=>{
-      try{
+    const finish = async () => {
+      closeModal();
+      toast(`Student created. ID: ${loginId}`, "success");
+      await renderStudents($("#view-container"));
+    };
+    $$("[data-created-close]").forEach((x) => (x.onclick = finish));
+    $("#created-done").onclick = finish;
+    $("#copy-student-credentials").onclick = async () => {
+      try {
         await navigator.clipboard.writeText(message);
-        toast("Website, User ID and password copied. You can paste them into WhatsApp.","success");
-      }catch(e){
-        const ta=document.createElement("textarea");
-        ta.value=message;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();
-        try{document.execCommand("copy");toast("Login details copied. You can paste them into WhatsApp.","success")}catch(err){toast("Could not copy automatically. Select the details and copy them.","error")}
+        toast(
+          "Website, User ID and password copied. You can paste them into WhatsApp.",
+          "success",
+        );
+      } catch (e) {
+        const ta = document.createElement("textarea");
+        ta.value = message;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand("copy");
+          toast(
+            "Login details copied. You can paste them into WhatsApp.",
+            "success",
+          );
+        } catch (err) {
+          toast(
+            "Could not copy automatically. Select the details and copy them.",
+            "error",
+          );
+        }
         ta.remove();
       }
     };
   }
-  async function viewStudent(id){
-    const {data,error}=await sb.from("student_profiles").select("*,profiles(full_name,login_id)").eq("id",id).single();if(error)return toast(error.message,"error");
-    const attempts=await sb.from("quiz_attempts").select("*,quizzes(title)").eq("student_id",data.user_id).order("submitted_at",{ascending:false}).limit(20);
+  async function viewStudent(id) {
+    const { data, error } = await sb
+      .from("student_profiles")
+      .select("*,profiles(full_name,login_id)")
+      .eq("id", id)
+      .single();
+    if (error) return toast(error.message, "error");
+    const attempts = await sb
+      .from("quiz_attempts")
+      .select("*,quizzes(title)")
+      .eq("student_id", data.user_id)
+      .order("submitted_at", { ascending: false })
+      .limit(20);
     modal(`<div class="modal-head"><h2>${esc(data.profiles?.full_name)}</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>
-      <div class="student-admin-profile">${data.photo_path?`<span class="student-admin-avatar" id="student-photo-preview"></span>`:`<span class="student-admin-avatar" id="student-photo-preview">${esc(initials(data.profiles?.full_name))}</span>`}<div><strong>${esc(data.profiles?.full_name)}</strong><span>${esc(data.phone||"No phone number")}</span></div></div><div class="student-photo-upload"><label for="student-photo-file">Profile photo <span class="mini-label">(optional)</span></label><input id="student-photo-file" type="file" accept="image/*" capture="environment"><div class="student-photo-actions"><button class="small-btn primary" id="upload-student-photo"><i class="fa-solid fa-camera"></i> ${data.photo_path?"Replace photo":"Add photo"}</button>${data.photo_path?`<button class="small-btn danger-outline" id="delete-student-photo"><i class="fa-solid fa-trash"></i> Delete photo</button>`:""}</div><span class="mini-label">Photo is saved using this student's Supabase User ID.</span><div id="student-photo-status" class="student-photo-status ${data.photo_path?"saved":""}">${data.photo_path?`Profile photo saved for ${esc(data.profiles?.full_name)}.`:"No profile photo saved yet."}</div></div><div class="stats-grid"><div class="content-card bcc-student-id-card"><div class="bcc-student-id-heading"><span class="mini-label">Student ID</span><button type="button" class="bcc-student-password-eye" id="bcc-student-password-eye" title="Reset student password" aria-label="Manage student password"><i class="fa-regular fa-eye"></i></button></div><div class="bcc-student-id-bottom"><h3>${esc(data.profiles?.login_id)}</h3><i class="fa-solid fa-shield-halved bcc-student-id-shield" title="Protected credentials" aria-hidden="true"></i></div></div><div class="content-card"><span class="mini-label">Class</span><h3>${data.class_no}</h3></div><div class="content-card"><span class="mini-label">Roll / Batch</span><h3>${esc(data.roll_number)} / ${esc(data.batch)}</h3></div></div>
-      <h3 class="section-title">Quiz history</h3><div class="table-card"><table class="data-table"><thead><tr><th>Quiz</th><th>Score</th><th>Correct</th><th>Wrong</th><th>Date</th></tr></thead><tbody>${(attempts.data||[]).map(a=>`<tr><td>${esc(a.quizzes?.title)}</td><td>${a.score}/${a.total_marks}</td><td>${a.correct_count}</td><td>${a.wrong_count}</td><td>${fmtDate(a.submitted_at)}</td></tr>`).join("")||`<tr><td colspan="5">No attempts yet.</td></tr>`}</tbody></table></div>`);
-    $("[data-close]").onclick=closeModal;
-    if(data.photo_path){
-      const u=await studentPhotoUrl(data.photo_path);
-      const p=$("#student-photo-preview");
-      if(p&&u){
-        const img=new Image();
-        img.alt="Student profile photo";
-        img.onload=()=>{p.innerHTML="";p.appendChild(img)};
-        img.onerror=()=>{p.innerHTML=esc(initials(data.profiles?.full_name)); const st=$("#student-photo-status"); if(st){st.className="student-photo-status error";st.textContent="Profile photo is saved, but could not be displayed. Check the student-photos Storage policy."}};
-        img.src=u;
+      <div class="student-admin-profile">${data.photo_path ? `<span class="student-admin-avatar" id="student-photo-preview"></span>` : `<span class="student-admin-avatar" id="student-photo-preview">${esc(initials(data.profiles?.full_name))}</span>`}<div><strong>${esc(data.profiles?.full_name)}</strong><span>${esc(data.phone || "No phone number")}</span></div></div><div class="student-photo-upload"><label for="student-photo-file">Profile photo <span class="mini-label">(optional)</span></label><input id="student-photo-file" type="file" accept="image/*" capture="environment"><div class="student-photo-actions"><button class="small-btn primary" id="upload-student-photo"><i class="fa-solid fa-camera"></i> ${data.photo_path ? "Replace photo" : "Add photo"}</button>${data.photo_path ? `<button class="small-btn danger-outline" id="delete-student-photo"><i class="fa-solid fa-trash"></i> Delete photo</button>` : ""}</div><span class="mini-label">Photo is saved using this student's Supabase User ID.</span><div id="student-photo-status" class="student-photo-status ${data.photo_path ? "saved" : ""}">${data.photo_path ? `Profile photo saved for ${esc(data.profiles?.full_name)}.` : "No profile photo saved yet."}</div></div><div class="stats-grid"><div class="content-card bcc-student-id-card"><div class="bcc-student-id-heading"><span class="mini-label">Student ID</span><button type="button" class="bcc-student-password-eye" id="bcc-student-password-eye" title="Reset student password" aria-label="Manage student password"><i class="fa-regular fa-eye"></i></button></div><div class="bcc-student-id-bottom"><h3>${esc(data.profiles?.login_id)}</h3><i class="fa-solid fa-shield-halved bcc-student-id-shield" title="Protected credentials" aria-hidden="true"></i></div></div><div class="content-card"><span class="mini-label">Class</span><h3>${data.class_no}</h3></div><div class="content-card"><span class="mini-label">Roll / Batch</span><h3>${esc(data.roll_number)} / ${esc(data.batch)}</h3></div></div>
+      <h3 class="section-title">Quiz history</h3><div class="table-card"><table class="data-table"><thead><tr><th>Quiz</th><th>Score</th><th>Correct</th><th>Wrong</th><th>Date</th></tr></thead><tbody>${(attempts.data || []).map((a) => `<tr><td>${esc(a.quizzes?.title)}</td><td>${a.score}/${a.total_marks}</td><td>${a.correct_count}</td><td>${a.wrong_count}</td><td>${fmtDate(a.submitted_at)}</td></tr>`).join("") || `<tr><td colspan="5">No attempts yet.</td></tr>`}</tbody></table></div>`);
+    $("[data-close]").onclick = closeModal;
+    if (data.photo_path) {
+      const u = await studentPhotoUrl(data.photo_path);
+      const p = $("#student-photo-preview");
+      if (p && u) {
+        const img = new Image();
+        img.alt = "Student profile photo";
+        img.onload = () => {
+          p.innerHTML = "";
+          p.appendChild(img);
+        };
+        img.onerror = () => {
+          p.innerHTML = esc(initials(data.profiles?.full_name));
+          const st = $("#student-photo-status");
+          if (st) {
+            st.className = "student-photo-status error";
+            st.textContent =
+              "Profile photo is saved, but could not be displayed. Check the student-photos Storage policy.";
+          }
+        };
+        img.src = u;
       }
     }
-    $("#bcc-student-password-eye")?.addEventListener("click",()=>openStudentPasswordReset(data.user_id,data.profiles?.full_name||"Student",data.profiles?.login_id||""));
-    $("#upload-student-photo").onclick=()=>uploadStudentPhoto(data.user_id, data.id);
-    $("#delete-student-photo")?.addEventListener("click",()=>deleteStudentPhoto(data.user_id, data.id, data.photo_path, data.profiles?.full_name || "Student"));
+    $("#bcc-student-password-eye")?.addEventListener("click", () =>
+      openStudentPasswordReset(
+        data.user_id,
+        data.profiles?.full_name || "Student",
+        data.profiles?.login_id || "",
+      ),
+    );
+    $("#upload-student-photo").onclick = () =>
+      uploadStudentPhoto(data.user_id, data.id);
+    $("#delete-student-photo")?.addEventListener("click", () =>
+      deleteStudentPhoto(
+        data.user_id,
+        data.id,
+        data.photo_path,
+        data.profiles?.full_name || "Student",
+      ),
+    );
   }
-  function openStudentPasswordReset(userId,studentName,studentLoginId){
+  function openStudentPasswordReset(userId, studentName, studentLoginId) {
     modal(`<div class="modal-head"><h2><i class="fa-solid fa-shield-halved"></i> Reset Student Password</h2><button class="close-btn" data-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div>
       <div class="bcc-password-student"><strong>${esc(studentName)}</strong><span>${esc(studentLoginId)}</span></div>
       <p class="bcc-password-note">The existing password cannot be viewed. Verify your administrator password to set a new one. The Student ID and academic records stay unchanged.</p>
       <div class="form-group"><label for="bcc-admin-verify-password">Your admin portal password</label><input id="bcc-admin-verify-password" type="password" autocomplete="current-password" placeholder="Admin password"></div>
       <div class="form-group"><label for="bcc-new-student-password">New student password (8+ characters)</label><div class="bcc-password-input-row"><input id="bcc-new-student-password" type="password" autocomplete="new-password" placeholder="New password"><button type="button" class="small-btn" id="bcc-toggle-new-password" aria-label="Show or hide new password"><i class="fa-regular fa-eye"></i></button></div></div>
       <div class="modal-actions"><button class="small-btn" data-close>Cancel</button><button class="small-btn primary" id="bcc-confirm-student-reset"><i class="fa-solid fa-key"></i> Reset Password</button></div>`);
-    $$('[data-close]').forEach(b=>b.onclick=closeModal);
-    $('#bcc-toggle-new-password').onclick=()=>{const field=$('#bcc-new-student-password');field.type=field.type==='password'?'text':'password'};
-    $('#bcc-confirm-student-reset').onclick=async()=>{
-      const admin_password=$('#bcc-admin-verify-password').value;
-      const password=$('#bcc-new-student-password').value;
-      if(!admin_password)return toast('Enter your admin password.','error');
-      if(password.length<8)return toast('New password must have at least 8 characters.','error');
-      if(!confirm(`Reset the login password for ${studentName}? The previous password will stop working.`))return;
-      const btn=$('#bcc-confirm-student-reset');btn.disabled=true;
-      try{
-        const {data,error}=await sb.functions.invoke('admin-create-user',{body:{action:'reset-student-password',user_id:userId,admin_password,password}});
-        if(error)throw error;if(data?.error)throw new Error(data.error);
-        modal(`<div class="modal-head"><h2>Password Updated</h2><button class="close-btn" data-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><p class="bcc-password-note">Password successfully reset for <strong>${esc(studentName)}</strong>. Copy it now and share it privately with the student. It will not be shown again.</p><div class="bcc-password-student"><strong>${esc(studentLoginId)}</strong><span id="bcc-new-password-display"></span></div><div class="modal-actions"><button class="small-btn" id="bcc-copy-new-password"><i class="fa-regular fa-copy"></i> Copy Password</button><button class="small-btn primary" data-close>Done</button></div>`);
-        $('#bcc-new-password-display').textContent=password;
-        $('#bcc-copy-new-password').onclick=async()=>{try{await navigator.clipboard.writeText(password);toast('New password copied.','success')}catch(e){toast('Copy failed. Select the password to copy it.','error')}};
-        $$('[data-close]').forEach(b=>b.onclick=closeModal);
-      }catch(e){toast(e.message||'Password reset failed.','error');btn.disabled=false}
+    $$("[data-close]").forEach((b) => (b.onclick = closeModal));
+    $("#bcc-toggle-new-password").onclick = () => {
+      const field = $("#bcc-new-student-password");
+      field.type = field.type === "password" ? "text" : "password";
+    };
+    $("#bcc-confirm-student-reset").onclick = async () => {
+      const admin_password = $("#bcc-admin-verify-password").value;
+      const password = $("#bcc-new-student-password").value;
+      if (!admin_password) return toast("Enter your admin password.", "error");
+      if (password.length < 8)
+        return toast("New password must have at least 8 characters.", "error");
+      if (
+        !confirm(
+          `Reset the login password for ${studentName}? The previous password will stop working.`,
+        )
+      )
+        return;
+      const btn = $("#bcc-confirm-student-reset");
+      btn.disabled = true;
+      try {
+        const { data, error } = await sb.functions.invoke("admin-create-user", {
+          body: {
+            action: "reset-student-password",
+            user_id: userId,
+            admin_password,
+            password,
+          },
+        });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        modal(
+          `<div class="modal-head"><h2>Password Updated</h2><button class="close-btn" data-close aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><p class="bcc-password-note">Password successfully reset for <strong>${esc(studentName)}</strong>. Copy it now and share it privately with the student. It will not be shown again.</p><div class="bcc-password-student"><strong>${esc(studentLoginId)}</strong><span id="bcc-new-password-display"></span></div><div class="modal-actions"><button class="small-btn" id="bcc-copy-new-password"><i class="fa-regular fa-copy"></i> Copy Password</button><button class="small-btn primary" data-close>Done</button></div>`,
+        );
+        $("#bcc-new-password-display").textContent = password;
+        $("#bcc-copy-new-password").onclick = async () => {
+          try {
+            await navigator.clipboard.writeText(password);
+            toast("New password copied.", "success");
+          } catch (e) {
+            toast("Copy failed. Select the password to copy it.", "error");
+          }
+        };
+        $$("[data-close]").forEach((b) => (b.onclick = closeModal));
+      } catch (e) {
+        toast(e.message || "Password reset failed.", "error");
+        btn.disabled = false;
+      }
     };
   }
-  async function uploadStudentPhoto(userId, studentProfileId){
-    const input=$("#student-photo-file"); const photo=input?.files?.[0];
-    if(!photo)return toast("Select a photo first.","error");
-    if(photo.size>5*1024*1024)return toast("Photo must be 5 MB or smaller.","error");
-    loading(true,"Updating profile photo...");
-    try{
+  async function uploadStudentPhoto(userId, studentProfileId) {
+    const input = $("#student-photo-file");
+    const photo = input?.files?.[0];
+    if (!photo) return toast("Select a photo first.", "error");
+    if (photo.size > 5 * 1024 * 1024)
+      return toast("Photo must be 5 MB or smaller.", "error");
+    loading(true, "Updating profile photo...");
+    try {
       // Always use one stable filename. This prevents old JPG/PNG paths from
       // becoming stale when an admin replaces a student's photo.
-      const path=`${userId}/profile.jpg`;
-      let file=photo;
-      if(photo.type !== "image/jpeg") {
-        file=await new Promise((resolve,reject)=>{
-          const img=new Image();
-          const url=URL.createObjectURL(photo);
-          img.onload=()=>{
-            try{
-              const max=1600, scale=Math.min(1,max/Math.max(img.width,img.height));
-              const c=document.createElement("canvas");
-              c.width=Math.max(1,Math.round(img.width*scale)); c.height=Math.max(1,Math.round(img.height*scale));
-              c.getContext("2d").drawImage(img,0,0,c.width,c.height);
-              c.toBlob(b=>{URL.revokeObjectURL(url); b?resolve(new File([b],"profile.jpg",{type:"image/jpeg"})):reject(new Error("Could not process image."));},"image/jpeg",0.9);
-            }catch(e){URL.revokeObjectURL(url);reject(e)}
+      const path = `${userId}/profile.jpg`;
+      let file = photo;
+      if (photo.type !== "image/jpeg") {
+        file = await new Promise((resolve, reject) => {
+          const img = new Image();
+          const url = URL.createObjectURL(photo);
+          img.onload = () => {
+            try {
+              const max = 1600,
+                scale = Math.min(1, max / Math.max(img.width, img.height));
+              const c = document.createElement("canvas");
+              c.width = Math.max(1, Math.round(img.width * scale));
+              c.height = Math.max(1, Math.round(img.height * scale));
+              c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+              c.toBlob(
+                (b) => {
+                  URL.revokeObjectURL(url);
+                  b
+                    ? resolve(
+                        new File([b], "profile.jpg", { type: "image/jpeg" }),
+                      )
+                    : reject(new Error("Could not process image."));
+                },
+                "image/jpeg",
+                0.9,
+              );
+            } catch (e) {
+              URL.revokeObjectURL(url);
+              reject(e);
+            }
           };
-          img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("Could not read the selected image."))};
-          img.src=url;
+          img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error("Could not read the selected image."));
+          };
+          img.src = url;
         });
       }
-      const upload=await sb.storage.from("student-photos").upload(path,file,{upsert:true,contentType:"image/jpeg",cacheControl:"0"});
-      if(upload.error)throw upload.error;
+      const upload = await sb.storage
+        .from("student-photos")
+        .upload(path, file, {
+          upsert: true,
+          contentType: "image/jpeg",
+          cacheControl: "0",
+        });
+      if (upload.error) throw upload.error;
       // RLS must allow staff to update student_profiles. Request the updated row
       // directly so a blocked/no-row update cannot look like a successful save.
-      const update=await sb.from("student_profiles").update({photo_path:path}).eq("user_id",userId).select("photo_path,profiles(full_name)").single();
-      if(update.error)throw new Error(update.error.message || "Could not update the student profile record. Run the latest PHOTO_PROFILE_MIGRATION.sql in Supabase.");
-      const student=update.data;
-      if(student?.photo_path !== path)throw new Error("Photo was uploaded but the profile record was not updated.");
-      const name=student.profiles?.full_name || "Student";
-      toast(`Profile photo updated for ${name}.`,"success");
+      const update = await sb
+        .from("student_profiles")
+        .update({ photo_path: path })
+        .eq("user_id", userId)
+        .select("photo_path,profiles(full_name)")
+        .single();
+      if (update.error)
+        throw new Error(
+          update.error.message ||
+            "Could not update the student profile record. Run the latest PHOTO_PROFILE_MIGRATION.sql in Supabase.",
+        );
+      const student = update.data;
+      if (student?.photo_path !== path)
+        throw new Error(
+          "Photo was uploaded but the profile record was not updated.",
+        );
+      const name = student.profiles?.full_name || "Student";
+      toast(`Profile photo updated for ${name}.`, "success");
       await viewStudent(studentProfileId);
-    }catch(e){toast(e.message||"Could not update profile photo.","error")}finally{loading(false)}
+    } catch (e) {
+      toast(e.message || "Could not update profile photo.", "error");
+    } finally {
+      loading(false);
+    }
   }
 
-  async function subjectsForClass(classNo){
-    const {data,error}=await sb.from("subjects").select("*").eq("class_no",classNo).order("name");if(error)throw error;
-    const rows=data||[];
-    if(Number(classNo)===12){
-      const arts=["History","Geography","Political Science","Economics","Hindi","Urdu","English"];
-      return arts.map(name=>rows.find(x=>x.name===name)).filter(Boolean);
+  async function subjectsForClass(classNo) {
+    const { data, error } = await sb
+      .from("subjects")
+      .select("*")
+      .eq("class_no", classNo)
+      .order("name");
+    if (error) throw error;
+    const rows = data || [];
+    if (Number(classNo) === 12) {
+      const arts = [
+        "History",
+        "Geography",
+        "Political Science",
+        "Economics",
+        "Hindi",
+        "Urdu",
+        "English",
+      ];
+      return arts
+        .map((name) => rows.find((x) => x.name === name))
+        .filter(Boolean);
     }
     return rows;
   }
 
-  function includedAcademicSubjects(exam, record){
-    const subjects=exam?.academic_exam_subjects||[];
-    const ids=record?.included_subject_ids;
-    if(!Array.isArray(ids)||ids.length===0)return subjects;
-    const set=new Set(ids.map(String));
-    return subjects.filter(s=>set.has(String(s.subject_id)));
+  function includedAcademicSubjects(exam, record) {
+    const subjects = exam?.academic_exam_subjects || [];
+    const ids = record?.included_subject_ids;
+    if (!Array.isArray(ids) || ids.length === 0) return subjects;
+    const set = new Set(ids.map(String));
+    return subjects.filter((s) => set.has(String(s.subject_id)));
   }
 
-  function academicTotals(exam, record){
-    const subjects=includedAcademicSubjects(exam,record);
-    const marks=record?.marks||{};
-    const total=subjects.reduce((n,s)=>n+Number(marks[s.subject_id]??0),0);
-    const full=subjects.reduce((n,s)=>n+Number(s.full_marks||0),0);
-    return {subjects,total,full,percentage:full?(total/full)*100:null};
+  function academicTotals(exam, record) {
+    const subjects = includedAcademicSubjects(exam, record);
+    const marks = record?.marks || {};
+    const total = subjects.reduce(
+      (n, s) => n + Number(marks[s.subject_id] ?? 0),
+      0,
+    );
+    const full = subjects.reduce((n, s) => n + Number(s.full_marks || 0), 0);
+    return {
+      subjects,
+      total,
+      full,
+      percentage: full ? (total / full) * 100 : null,
+    };
   }
 
-  function normalizeStudentRouteForRole(){
-    if(!state.profile)return;
-    const studentViews=new Set(["dashboard","lectures","lectures-subject","notes","notes-subject","homework","homework-subject","quizzes","leaderboard","student-marks","student-academic-leaderboard","notebooklm","lecture-player","quiz-run","quiz-result"]);
-    const adminViews=new Set(["admin-dashboard","students","teachers","content","quiz-manager","marks","marks-class","academic-leaderboard","academic-leaderboard-exam","leaderboard","leaderboard-class"]);
-    const teacherViews=new Set(["teacher-dashboard","students","content","quiz-manager","marks","marks-class","academic-leaderboard","academic-leaderboard-exam","leaderboard","leaderboard-class"]);
-    const allowed=state.profile.role==="student"?studentViews:(state.profile.role==="admin"?adminViews:teacherViews);
-    if(!allowed.has(state.view)){
-      state.view=state.profile.role==="student"?"dashboard":(state.profile.role==="admin"?"admin-dashboard":"teacher-dashboard");
-      state.route={};
+  function normalizeStudentRouteForRole() {
+    if (!state.profile) return;
+    const studentViews = new Set([
+      "dashboard",
+      "lectures",
+      "lectures-subject",
+      "notes",
+      "notes-subject",
+      "homework",
+      "homework-subject",
+      "quizzes",
+      "leaderboard",
+      "student-marks",
+      "student-academic-leaderboard",
+      "notebooklm",
+      "lecture-player",
+      "quiz-run",
+      "quiz-result",
+    ]);
+    const adminViews = new Set([
+      "admin-dashboard",
+      "students",
+      "teachers",
+      "content",
+      "quiz-manager",
+      "marks",
+      "marks-class",
+      "academic-leaderboard",
+      "academic-leaderboard-exam",
+      "leaderboard",
+      "leaderboard-class",
+    ]);
+    const teacherViews = new Set([
+      "teacher-dashboard",
+      "students",
+      "content",
+      "quiz-manager",
+      "marks",
+      "marks-class",
+      "academic-leaderboard",
+      "academic-leaderboard-exam",
+      "leaderboard",
+      "leaderboard-class",
+    ]);
+    const allowed =
+      state.profile.role === "student"
+        ? studentViews
+        : state.profile.role === "admin"
+          ? adminViews
+          : teacherViews;
+    if (!allowed.has(state.view)) {
+      state.view =
+        state.profile.role === "student"
+          ? "dashboard"
+          : state.profile.role === "admin"
+            ? "admin-dashboard"
+            : "teacher-dashboard";
+      state.route = {};
     }
   }
 
-  async function renderContent(el){
-    const subjects10=await subjectsForClass(10), subjects12=await subjectsForClass(12);
-    el.innerHTML=`<div class="page-head"><div><h1>Content</h1><p>Choose a class first. Content is only visible to that class.</p></div></div>
+  async function renderContent(el) {
+    const subjects10 = await subjectsForClass(10),
+      subjects12 = await subjectsForClass(12);
+    el.innerHTML = `<div class="page-head"><div><h1>Content</h1><p>Choose a class first. Content is only visible to that class.</p></div></div>
       <div class="two-col"><div class="admin-card"><h3>Upload / add content</h3><p class="mini-label" style="margin:4px 0 15px">PDF/JPG notes and homework use Supabase Storage. Lectures can use an official YouTube URL or an uploaded video.</p>
         <div class="form-grid"><div class="form-group"><label>Class</label><select id="content-class"><option value="10">Class 10</option><option value="12">Class 12</option></select></div><div class="form-group"><label>Content type</label><select id="content-type"><option value="note">Note</option><option value="homework">Homework</option><option value="lecture">Lecture</option></select></div><div class="form-group"><label>Subject</label><select id="content-subject"></select></div><div class="form-group"><label>Title</label><input id="content-title"></div></div>
         <div id="content-extra" style="margin-top:13px"></div><div class="modal-actions"><button class="small-btn primary" id="save-content">Save content</button></div>
@@ -1617,155 +2974,445 @@
         <div class="modal-actions"><button class="small-btn primary" id="save-notebooklm"><i class="fa-solid fa-paper-plane"></i> Publish AI resource</button></div>
         <div id="notebooklm-admin-list" class="list-stack" style="margin-top:14px"></div>
       </div>`;
-    const subMap={10:subjects10,12:subjects12};const refresh=()=>{$("#content-subject").innerHTML=(subMap[$("#content-class").value]||[]).map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("");renderContentExtra()};const refreshNL=()=>{$("#nl-subject").innerHTML=(subMap[$("#nl-class").value]||[]).map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("")};$("#content-class").onchange=refresh;$("#content-type").onchange=renderContentExtra;$("#nl-class").onchange=refreshNL;refresh();refreshNL();$("#save-content").onclick=saveContent;$("#save-notebooklm").onclick=saveNotebookLM;await renderRecentContent();await renderNotebookLMAdmin();
+    const subMap = { 10: subjects10, 12: subjects12 };
+    const refresh = () => {
+      $("#content-subject").innerHTML = (
+        subMap[$("#content-class").value] || []
+      )
+        .map((s) => `<option value="${s.id}">${esc(s.name)}</option>`)
+        .join("");
+      renderContentExtra();
+    };
+    const refreshNL = () => {
+      $("#nl-subject").innerHTML = (subMap[$("#nl-class").value] || [])
+        .map((s) => `<option value="${s.id}">${esc(s.name)}</option>`)
+        .join("");
+    };
+    $("#content-class").onchange = refresh;
+    $("#content-type").onchange = renderContentExtra;
+    $("#nl-class").onchange = refreshNL;
+    refresh();
+    refreshNL();
+    $("#save-content").onclick = saveContent;
+    $("#save-notebooklm").onclick = saveNotebookLM;
+    await renderRecentContent();
+    await renderNotebookLMAdmin();
   }
-  function renderContentExtra(){
-    const type=$("#content-type").value;
-    $("#content-extra").innerHTML=type==="lecture"?`<div class="form-grid"><div class="form-group"><label>Source</label><select id="lecture-source"><option value="youtube">YouTube URL</option><option value="upload">Upload video</option></select></div><div class="form-group"><label>Live lecture?</label><select id="lecture-live"><option value="false">No</option><option value="true">Yes</option></select></div><div class="form-group" style="grid-column:1/-1"><label>YouTube URL (if source is YouTube)</label><input id="lecture-youtube" placeholder="https://www.youtube.com/watch?v=..."></div><div class="form-group" style="grid-column:1/-1"><label>Video file (if source is upload)</label><input id="lecture-file" type="file" accept="video/*"></div><div class="form-group" style="grid-column:1/-1"><label>Description</label><textarea id="lecture-description"></textarea></div></div>`:`<div class="form-grid"><div class="form-group"><label>File (PDF/JPG/PNG)</label><input id="content-file" type="file" accept=".pdf,image/jpeg,image/png"></div><div class="form-group"><label>${type==="homework"?"Due date":"File type"}</label>${type==="homework"?`<input id="hw-due" type="date">`:`<select id="note-file-type"><option value="pdf">PDF</option><option value="jpg">JPG</option><option value="png">PNG</option></select>`}</div>${type==="homework"?`<div class="form-group" style="grid-column:1/-1"><label>Instructions</label><textarea id="hw-instructions"></textarea></div>`:""}</div>`;
+  function renderContentExtra() {
+    const type = $("#content-type").value;
+    $("#content-extra").innerHTML =
+      type === "lecture"
+        ? `<div class="form-grid"><div class="form-group"><label>Source</label><select id="lecture-source"><option value="youtube">YouTube URL</option><option value="upload">Upload video</option></select></div><div class="form-group"><label>Live lecture?</label><select id="lecture-live"><option value="false">No</option><option value="true">Yes</option></select></div><div class="form-group" style="grid-column:1/-1"><label>YouTube URL (if source is YouTube)</label><input id="lecture-youtube" placeholder="https://www.youtube.com/watch?v=..."></div><div class="form-group" style="grid-column:1/-1"><label>Video file (if source is upload)</label><input id="lecture-file" type="file" accept="video/*"></div><div class="form-group" style="grid-column:1/-1"><label>Description</label><textarea id="lecture-description"></textarea></div></div>`
+        : `<div class="form-grid"><div class="form-group"><label>File (PDF/JPG/PNG)</label><input id="content-file" type="file" accept=".pdf,image/jpeg,image/png"></div><div class="form-group"><label>${type === "homework" ? "Due date" : "File type"}</label>${type === "homework" ? `<input id="hw-due" type="date">` : `<select id="note-file-type"><option value="pdf">PDF</option><option value="jpg">JPG</option><option value="png">PNG</option></select>`}</div>${type === "homework" ? `<div class="form-group" style="grid-column:1/-1"><label>Instructions</label><textarea id="hw-instructions"></textarea></div>` : ""}</div>`;
   }
-  async function saveContent(){
-    const type=$("#content-type").value,classNo=Number($("#content-class").value),subjectId=$("#content-subject").value,title=$("#content-title").value.trim();if(!subjectId||!title)return toast("Class, subject and title are required.","error");
-    loading(true,"Saving content...");
-    try{
-      if(type==="lecture"){
-        const source=$("#lecture-source").value;let filePath=null;
-        if(source==="upload"){const f=$("#lecture-file").files[0];if(!f)throw new Error("Choose a video file.");filePath=await uploadFile(f,`lectures/${classNo}/${Date.now()}-${slug(f.name)}`)}
-        const {error}=await sb.from("lectures").insert({class_no:classNo,subject_id:subjectId,title,youtube_url:source==="youtube"?$("#lecture-youtube").value.trim()||null:null,file_path:filePath,is_live:$("#lecture-live").value==="true",downloadable:!!filePath,description:$("#lecture-description").value.trim()||null,created_by:state.profile.id});if(error)throw error;
-      } else {
-        const f=$("#content-file").files[0];if(!f)throw new Error("Choose a file.");const path=`${type}s/${classNo}/${Date.now()}-${slug(f.name)}`;const fp=await uploadFile(f,path);
-        if(type==="note"){const {error}=await sb.from("notes").insert({class_no:classNo,subject_id:subjectId,title,file_path:fp,file_type:$("#note-file-type").value,created_by:state.profile.id});if(error)throw error}
-        else {const {error}=await sb.from("homework").insert({class_no:classNo,subject_id:subjectId,title,file_path:fp,instructions:$("#hw-instructions").value.trim()||null,due_date:$("#hw-due").value||null,created_by:state.profile.id});if(error)throw error}
-      }
-      toast("Content saved.","success");$("#content-title").value="";await renderRecentContent();
-    }catch(e){toast(e.message||"Could not save content.","error")}finally{loading(false)}
-  }
-  async function saveNotebookLM(){
-    const payload={class_no:Number($("#nl-class").value),subject_id:$("#nl-subject").value||null,resource_type:$("#nl-type").value,title:$("#nl-title").value.trim(),url:$("#nl-url").value.trim(),description:$("#nl-description").value.trim()||null,is_active:true,created_by:state.profile.id};
-    if(!payload.title||!payload.url)return toast("Title and resource URL are required.","error");
-    if(!/^https?:\/\//i.test(payload.url))return toast("Enter a valid http/https resource URL.","error");
-    try { new URL(payload.url); } catch { return toast("Enter a valid NotebookLM/Gemini URL.","error"); }
-    loading(true,"Publishing AI resource...");
-    try{const {error}=await sb.from("notebooklm_resources").insert(payload);if(error)throw error;$("#nl-title").value="";$("#nl-url").value="";$("#nl-description").value="";toast("AI resource published.","success");await renderNotebookLMAdmin()}catch(e){toast(e.message||"Could not publish AI resource.","error")}finally{loading(false)}
-  }
-  async function renderNotebookLMAdmin(){
-    const {data,error}=await sb.from("notebooklm_resources").select("id,title,class_no,resource_type,url,is_active,created_at,subjects(name)").order("created_at",{ascending:false}).limit(20);if(error)return;
-    $("#notebooklm-admin-list").innerHTML=(data||[]).map(r=>`<div class="list-item"><div class="list-main"><strong>${esc(r.title)}</strong><span>Class ${r.class_no} • ${esc(r.subjects?.name||"General")} • ${esc(r.resource_type)} • ${fmtDate(r.created_at)}</span></div><button class="small-btn danger" data-delete-nl="${r.id}">Remove</button></div>`).join("")||emptyInline("No AI resources published yet.");
-    $$('[data-delete-nl]').forEach(b=>b.onclick=async()=>{if(!confirm("Remove this AI resource?"))return;const {error:e}=await sb.from("notebooklm_resources").delete().eq("id",b.dataset.deleteNl);if(e)return toast(e.message,"error");toast("AI resource removed.","success");await renderNotebookLMAdmin()});
-  }
-
-  async function renderRecentContent(){
-    const [l,n,h]=await Promise.all([sb.from("lectures").select("id,title,created_at,class_no,file_path,subjects(name)").order("created_at",{ascending:false}).limit(5),sb.from("notes").select("id,title,created_at,class_no,file_path,subjects(name)").order("created_at",{ascending:false}).limit(5),sb.from("homework").select("id,title,created_at,class_no,file_path,subjects(name)").order("created_at",{ascending:false}).limit(5)]);
-    const rows=[...(l.data||[]).map(x=>({...x,type:"Lecture"})),...(n.data||[]).map(x=>({...x,type:"Note"})),...(h.data||[]).map(x=>({...x,type:"Homework"}))].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,8);
-    $("#recent-content").innerHTML=rows.map(x=>`<div class="list-item"><div class="list-main"><strong>${esc(x.title)}</strong><span>${x.type} • Class ${x.class_no} • ${esc(x.subjects?.name||"")}</span></div><button class="small-btn danger" data-delete-content="${esc(x.id)}" data-content-type="${x.type.toLowerCase()}" data-content-path="${esc(x.file_path||"")}"><i class="fa-solid fa-trash"></i> Delete</button></div>`).join("")||emptyInline("No content yet.");
-    $$('[data-delete-content]').forEach(b=>b.onclick=()=>deleteContentItem(b.dataset.deleteContent,b.dataset.contentType,b.dataset.contentPath));
-  }
-
-  async function deleteContentItem(id,type,path){
-    if(!confirm("Delete this content permanently?")) return;
-    const table=type==="lecture"?"lectures":type==="note"?"notes":"homework";
-    loading(true,"Deleting content...");
+  async function saveContent() {
+    const type = $("#content-type").value,
+      classNo = Number($("#content-class").value),
+      subjectId = $("#content-subject").value,
+      title = $("#content-title").value.trim();
+    if (!subjectId || !title)
+      return toast("Class, subject and title are required.", "error");
+    loading(true, "Saving content...");
     try {
-      const {error}=await sb.from(table).delete().eq("id",id);
-      if(error) throw error;
-      if(path){ const {error:e}=await sb.storage.from("bcc-content").remove([path]); if(e) console.warn("Storage cleanup failed:",e.message); }
-      toast("Content deleted.","success");
+      if (type === "lecture") {
+        const source = $("#lecture-source").value;
+        let filePath = null;
+        if (source === "upload") {
+          const f = $("#lecture-file").files[0];
+          if (!f) throw new Error("Choose a video file.");
+          filePath = await uploadFile(
+            f,
+            `lectures/${classNo}/${Date.now()}-${slug(f.name)}`,
+          );
+        }
+        const { error } = await sb
+          .from("lectures")
+          .insert({
+            class_no: classNo,
+            subject_id: subjectId,
+            title,
+            youtube_url:
+              source === "youtube"
+                ? $("#lecture-youtube").value.trim() || null
+                : null,
+            file_path: filePath,
+            is_live: $("#lecture-live").value === "true",
+            downloadable: !!filePath,
+            description: $("#lecture-description").value.trim() || null,
+            created_by: state.profile.id,
+          });
+        if (error) throw error;
+      } else {
+        const f = $("#content-file").files[0];
+        if (!f) throw new Error("Choose a file.");
+        const path = `${type}s/${classNo}/${Date.now()}-${slug(f.name)}`;
+        const fp = await uploadFile(f, path);
+        if (type === "note") {
+          const { error } = await sb
+            .from("notes")
+            .insert({
+              class_no: classNo,
+              subject_id: subjectId,
+              title,
+              file_path: fp,
+              file_type: $("#note-file-type").value,
+              created_by: state.profile.id,
+            });
+          if (error) throw error;
+        } else {
+          const { error } = await sb
+            .from("homework")
+            .insert({
+              class_no: classNo,
+              subject_id: subjectId,
+              title,
+              file_path: fp,
+              instructions: $("#hw-instructions").value.trim() || null,
+              due_date: $("#hw-due").value || null,
+              created_by: state.profile.id,
+            });
+          if (error) throw error;
+        }
+      }
+      toast("Content saved.", "success");
+      $("#content-title").value = "";
       await renderRecentContent();
-    } catch(e){ toast(e.message||"Could not delete content.","error"); }
-    finally{ loading(false); }
+    } catch (e) {
+      toast(e.message || "Could not save content.", "error");
+    } finally {
+      loading(false);
+    }
+  }
+  async function saveNotebookLM() {
+    const payload = {
+      class_no: Number($("#nl-class").value),
+      subject_id: $("#nl-subject").value || null,
+      resource_type: $("#nl-type").value,
+      title: $("#nl-title").value.trim(),
+      url: $("#nl-url").value.trim(),
+      description: $("#nl-description").value.trim() || null,
+      is_active: true,
+      created_by: state.profile.id,
+    };
+    if (!payload.title || !payload.url)
+      return toast("Title and resource URL are required.", "error");
+    if (!/^https?:\/\//i.test(payload.url))
+      return toast("Enter a valid http/https resource URL.", "error");
+    try {
+      new URL(payload.url);
+    } catch {
+      return toast("Enter a valid NotebookLM/Gemini URL.", "error");
+    }
+    loading(true, "Publishing AI resource...");
+    try {
+      const { error } = await sb.from("notebooklm_resources").insert(payload);
+      if (error) throw error;
+      $("#nl-title").value = "";
+      $("#nl-url").value = "";
+      $("#nl-description").value = "";
+      toast("AI resource published.", "success");
+      await renderNotebookLMAdmin();
+    } catch (e) {
+      toast(e.message || "Could not publish AI resource.", "error");
+    } finally {
+      loading(false);
+    }
+  }
+  async function renderNotebookLMAdmin() {
+    const { data, error } = await sb
+      .from("notebooklm_resources")
+      .select(
+        "id,title,class_no,resource_type,url,is_active,created_at,subjects(name)",
+      )
+      .order("created_at", { ascending: false })
+      .limit(20);
+    if (error) return;
+    $("#notebooklm-admin-list").innerHTML =
+      (data || [])
+        .map(
+          (r) =>
+            `<div class="list-item"><div class="list-main"><strong>${esc(r.title)}</strong><span>Class ${r.class_no} • ${esc(r.subjects?.name || "General")} • ${esc(r.resource_type)} • ${fmtDate(r.created_at)}</span></div><button class="small-btn danger" data-delete-nl="${r.id}">Remove</button></div>`,
+        )
+        .join("") || emptyInline("No AI resources published yet.");
+    $$("[data-delete-nl]").forEach(
+      (b) =>
+        (b.onclick = async () => {
+          if (!confirm("Remove this AI resource?")) return;
+          const { error: e } = await sb
+            .from("notebooklm_resources")
+            .delete()
+            .eq("id", b.dataset.deleteNl);
+          if (e) return toast(e.message, "error");
+          toast("AI resource removed.", "success");
+          await renderNotebookLMAdmin();
+        }),
+    );
   }
 
-  async function uploadFile(file,path){const {error}=await sb.storage.from("bcc-content").upload(path,file,{upsert:false,contentType:file.type});if(error)throw error;return path}
-  async function signedUrl(path,seconds=3600){if(!path)return null;const {data,error}=await sb.storage.from("bcc-content").createSignedUrl(path,seconds);if(error){console.error(error);return null}return data?.signedUrl||null}
-  async function downloadFile(path,name){
-    const url=await signedUrl(path,300);
-    if(!url)return toast("Could not create download link. Check BCC storage access.","error");
-    try{
-      const res=await fetch(url);
-      if(!res.ok)throw new Error(`Download failed (${res.status})`);
-      const blob=await res.blob();
-      const objectUrl=URL.createObjectURL(blob);
-      const a=document.createElement("a");
-      a.href=objectUrl;
-      a.download=name||path.split("/").pop()||"bcc-file";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(()=>URL.revokeObjectURL(objectUrl),1000);
-    }catch(e){
-      console.error(e);
-      toast(e.message||"Could not download file.","error");
+  async function renderRecentContent() {
+    const [l, n, h] = await Promise.all([
+      sb
+        .from("lectures")
+        .select("id,title,created_at,class_no,file_path,subjects(name)")
+        .order("created_at", { ascending: false })
+        .limit(5),
+      sb
+        .from("notes")
+        .select("id,title,created_at,class_no,file_path,subjects(name)")
+        .order("created_at", { ascending: false })
+        .limit(5),
+      sb
+        .from("homework")
+        .select("id,title,created_at,class_no,file_path,subjects(name)")
+        .order("created_at", { ascending: false })
+        .limit(5),
+    ]);
+    const rows = [
+      ...(l.data || []).map((x) => ({ ...x, type: "Lecture" })),
+      ...(n.data || []).map((x) => ({ ...x, type: "Note" })),
+      ...(h.data || []).map((x) => ({ ...x, type: "Homework" })),
+    ]
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, 8);
+    $("#recent-content").innerHTML =
+      rows
+        .map(
+          (x) =>
+            `<div class="list-item"><div class="list-main"><strong>${esc(x.title)}</strong><span>${x.type} • Class ${x.class_no} • ${esc(x.subjects?.name || "")}</span></div><button class="small-btn danger" data-delete-content="${esc(x.id)}" data-content-type="${x.type.toLowerCase()}" data-content-path="${esc(x.file_path || "")}"><i class="fa-solid fa-trash"></i> Delete</button></div>`,
+        )
+        .join("") || emptyInline("No content yet.");
+    $$("[data-delete-content]").forEach(
+      (b) =>
+        (b.onclick = () =>
+          deleteContentItem(
+            b.dataset.deleteContent,
+            b.dataset.contentType,
+            b.dataset.contentPath,
+          )),
+    );
+  }
+
+  async function deleteContentItem(id, type, path) {
+    if (!confirm("Delete this content permanently?")) return;
+    const table =
+      type === "lecture" ? "lectures" : type === "note" ? "notes" : "homework";
+    loading(true, "Deleting content...");
+    try {
+      const { error } = await sb.from(table).delete().eq("id", id);
+      if (error) throw error;
+      if (path) {
+        const { error: e } = await sb.storage
+          .from("bcc-content")
+          .remove([path]);
+        if (e) console.warn("Storage cleanup failed:", e.message);
+      }
+      toast("Content deleted.", "success");
+      await renderRecentContent();
+    } catch (e) {
+      toast(e.message || "Could not delete content.", "error");
+    } finally {
+      loading(false);
     }
   }
 
-  async function renderQuizManager(el){
-    const [qzs,subs10,subs12]=await Promise.all([sb.from("quizzes").select("*,subjects(name)").order("created_at",{ascending:false}),subjectsForClass(10),subjectsForClass(12)]);
-    if(qzs.error)throw qzs.error;
-    el.innerHTML=`<div class="page-head"><div><h1>Quiz Manager</h1><p>Create weekly, monthly and chapter-wise quizzes with configurable scoring.</p></div><button class="small-btn primary" id="new-quiz"><i class="fa-solid fa-plus"></i> New quiz</button></div>
-      <div class="list-stack">${(qzs.data||[]).map(x=>`<div class="quiz-card"><div class="inline" style="justify-content:space-between"><div><h3>${esc(x.title)}</h3><div class="quiz-meta"><span class="pill">${esc(x.quiz_type)}</span><span class="pill">${esc(x.subjects?.name||"All")}</span><span class="pill">${x.total_marks} marks</span><span class="pill">${x.duration_minutes} min</span>${x.is_active?`<span class="pill active">Active</span>`:`<span class="pill">Inactive</span>`}</div></div><div class="inline"><button class="small-btn" data-edit-quiz="${x.id}">Edit</button><button class="small-btn danger" data-delete-quiz="${x.id}"><i class="fa-solid fa-trash"></i> Delete</button></div></div></div>`).join("")||emptyInline("No quizzes yet.")}</div>`;
-    $("#new-quiz").onclick=()=>showQuizEditor(null,[...subs10,...subs12]);$$("[data-edit-quiz]").forEach(b=>b.onclick=()=>showQuizEditor(b.dataset.editQuiz,[...subs10,...subs12]));$$('[data-delete-quiz]').forEach(b=>b.onclick=()=>deleteQuiz(b.dataset.deleteQuiz));
+  async function uploadFile(file, path) {
+    const { error } = await sb.storage
+      .from("bcc-content")
+      .upload(path, file, { upsert: false, contentType: file.type });
+    if (error) throw error;
+    return path;
   }
-  async function deleteStudentPhoto(userId, studentProfileId, photoPath, name){
-    if(!confirm(`Delete profile photo for ${name}?`)) return;
-    loading(true,"Deleting profile photo...");
+  async function signedUrl(path, seconds = 3600) {
+    if (!path) return null;
+    const { data, error } = await sb.storage
+      .from("bcc-content")
+      .createSignedUrl(path, seconds);
+    if (error) {
+      console.error(error);
+      return null;
+    }
+    return data?.signedUrl || null;
+  }
+  async function downloadFile(path, name) {
+    const url = await signedUrl(path, 300);
+    if (!url)
+      return toast(
+        "Could not create download link. Check BCC storage access.",
+        "error",
+      );
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Download failed (${res.status})`);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = name || path.split("/").pop() || "bcc-file";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch (e) {
+      console.error(e);
+      toast(e.message || "Could not download file.", "error");
+    }
+  }
+
+  async function renderQuizManager(el) {
+    const [qzs, subs10, subs12] = await Promise.all([
+      sb
+        .from("quizzes")
+        .select("*,subjects(name)")
+        .order("created_at", { ascending: false }),
+      subjectsForClass(10),
+      subjectsForClass(12),
+    ]);
+    if (qzs.error) throw qzs.error;
+    el.innerHTML = `<div class="page-head"><div><h1>Quiz Manager</h1><p>Create weekly, monthly and chapter-wise quizzes with configurable scoring.</p></div><button class="small-btn primary" id="new-quiz"><i class="fa-solid fa-plus"></i> New quiz</button></div>
+      <div class="list-stack">${(qzs.data || []).map((x) => `<div class="quiz-card"><div class="inline" style="justify-content:space-between"><div><h3>${esc(x.title)}</h3><div class="quiz-meta"><span class="pill">${esc(x.quiz_type)}</span><span class="pill">${esc(x.subjects?.name || "All")}</span><span class="pill">${x.total_marks} marks</span><span class="pill">${x.duration_minutes} min</span>${x.is_active ? `<span class="pill active">Active</span>` : `<span class="pill">Inactive</span>`}</div></div><div class="inline"><button class="small-btn" data-edit-quiz="${x.id}">Edit</button><button class="small-btn danger" data-delete-quiz="${x.id}"><i class="fa-solid fa-trash"></i> Delete</button></div></div></div>`).join("") || emptyInline("No quizzes yet.")}</div>`;
+    $("#new-quiz").onclick = () => showQuizEditor(null, [...subs10, ...subs12]);
+    $$("[data-edit-quiz]").forEach(
+      (b) =>
+        (b.onclick = () =>
+          showQuizEditor(b.dataset.editQuiz, [...subs10, ...subs12])),
+    );
+    $$("[data-delete-quiz]").forEach(
+      (b) => (b.onclick = () => deleteQuiz(b.dataset.deleteQuiz)),
+    );
+  }
+  async function deleteStudentPhoto(userId, studentProfileId, photoPath, name) {
+    if (!confirm(`Delete profile photo for ${name}?`)) return;
+    loading(true, "Deleting profile photo...");
     try {
       const path = photoPath || `${userId}/profile.jpg`;
       const del = await sb.storage.from("student-photos").remove([path]);
       if (del.error) throw del.error;
-      const update = await sb.from("student_profiles").update({photo_path:null}).eq("user_id",userId).select("photo_path").single();
+      const update = await sb
+        .from("student_profiles")
+        .update({ photo_path: null })
+        .eq("user_id", userId)
+        .select("photo_path")
+        .single();
       if (update.error) throw update.error;
-      toast(`Profile photo deleted for ${name}.`,"success");
+      toast(`Profile photo deleted for ${name}.`, "success");
       await viewStudent(studentProfileId);
-    } catch(e) {
-      toast(e.message || "Could not delete profile photo.","error");
-    } finally { loading(false); }
+    } catch (e) {
+      toast(e.message || "Could not delete profile photo.", "error");
+    } finally {
+      loading(false);
+    }
   }
 
-  async function uploadStaffPhoto(){
-    const input=$("#staff-photo-file");
-    const photo=input?.files?.[0];
-    if(!photo) return;
-    if(photo.size>5*1024*1024) return toast("Photo must be 5 MB or smaller.","error");
-    loading(true,"Updating profile photo...");
+  async function uploadStaffPhoto() {
+    const input = $("#staff-photo-file");
+    const photo = input?.files?.[0];
+    if (!photo) return;
+    if (photo.size > 5 * 1024 * 1024)
+      return toast("Photo must be 5 MB or smaller.", "error");
+    loading(true, "Updating profile photo...");
     try {
-      const path=`staff/${state.session.user.id}/profile.jpg`;
-      let file=photo;
-      if(photo.type !== "image/jpeg") {
-        file=await new Promise((resolve,reject)=>{
-          const img=new Image(), url=URL.createObjectURL(photo);
-          img.onload=()=>{
+      const path = `staff/${state.session.user.id}/profile.jpg`;
+      let file = photo;
+      if (photo.type !== "image/jpeg") {
+        file = await new Promise((resolve, reject) => {
+          const img = new Image(),
+            url = URL.createObjectURL(photo);
+          img.onload = () => {
             try {
-              const max=1600, scale=Math.min(1,max/Math.max(img.width,img.height));
-              const c=document.createElement("canvas"); c.width=Math.max(1,Math.round(img.width*scale)); c.height=Math.max(1,Math.round(img.height*scale));
-              c.getContext("2d").drawImage(img,0,0,c.width,c.height);
-              c.toBlob(b=>{URL.revokeObjectURL(url); b?resolve(new File([b],"profile.jpg",{type:"image/jpeg"})):reject(new Error("Could not process image."));},"image/jpeg",0.9);
-            } catch(e){URL.revokeObjectURL(url);reject(e)}
+              const max = 1600,
+                scale = Math.min(1, max / Math.max(img.width, img.height));
+              const c = document.createElement("canvas");
+              c.width = Math.max(1, Math.round(img.width * scale));
+              c.height = Math.max(1, Math.round(img.height * scale));
+              c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+              c.toBlob(
+                (b) => {
+                  URL.revokeObjectURL(url);
+                  b
+                    ? resolve(
+                        new File([b], "profile.jpg", { type: "image/jpeg" }),
+                      )
+                    : reject(new Error("Could not process image."));
+                },
+                "image/jpeg",
+                0.9,
+              );
+            } catch (e) {
+              URL.revokeObjectURL(url);
+              reject(e);
+            }
           };
-          img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("Could not read the selected image."))}; img.src=url;
+          img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error("Could not read the selected image."));
+          };
+          img.src = url;
         });
       }
-      const upload=await sb.storage.from("student-photos").upload(path,file,{upsert:true,contentType:"image/jpeg",cacheControl:"0"});
-      if(upload.error) throw upload.error;
-      const update=await sb.rpc("set_my_profile_photo",{p_path:path});
-      if(update.error) throw update.error;
-      state.profile={...(await currentProfile())};
+      const upload = await sb.storage
+        .from("student-photos")
+        .upload(path, file, {
+          upsert: true,
+          contentType: "image/jpeg",
+          cacheControl: "0",
+        });
+      if (upload.error) throw upload.error;
+      const update = await sb.rpc("set_my_profile_photo", { p_path: path });
+      if (update.error) throw update.error;
+      state.profile = { ...(await currentProfile()) };
       saveIdentityCache();
-      await loadProfileAvatar(path,state.profile.full_name || "Administrator");
-      $("#staff-photo-action")?.querySelector("span") && ($("#staff-photo-action").querySelector("span").textContent="Replace profile photo");
-      toast(`Profile photo updated for ${state.profile.full_name || "Administrator"}.`,"success");
-      input.value="";
-    } catch(e) { toast(e.message || "Could not update profile photo.","error"); } finally { loading(false); }
+      await loadProfileAvatar(path, state.profile.full_name || "Administrator");
+      $("#staff-photo-action")?.querySelector("span") &&
+        ($("#staff-photo-action").querySelector("span").textContent =
+          "Replace profile photo");
+      toast(
+        `Profile photo updated for ${state.profile.full_name || "Administrator"}.`,
+        "success",
+      );
+      input.value = "";
+    } catch (e) {
+      toast(e.message || "Could not update profile photo.", "error");
+    } finally {
+      loading(false);
+    }
   }
 
-  async function deleteQuiz(id){
-    if(!confirm("Delete this quiz permanently? Its questions and submitted attempts will also be deleted.")) return;
-    loading(true,"Deleting quiz...");
-    try{const {error}=await sb.from("quizzes").delete().eq("id",id);if(error)throw error;toast("Quiz deleted.","success");await renderQuizManager($("#view-container"));}catch(e){toast(e.message||"Could not delete quiz.","error")}finally{loading(false)}
+  async function deleteQuiz(id) {
+    if (
+      !confirm(
+        "Delete this quiz permanently? Its questions and submitted attempts will also be deleted.",
+      )
+    )
+      return;
+    loading(true, "Deleting quiz...");
+    try {
+      const { error } = await sb.from("quizzes").delete().eq("id", id);
+      if (error) throw error;
+      toast("Quiz deleted.", "success");
+      await renderQuizManager($("#view-container"));
+    } catch (e) {
+      toast(e.message || "Could not delete quiz.", "error");
+    } finally {
+      loading(false);
+    }
   }
-  async function showQuizEditor(id,subjects){
-    let quiz=null,questions=[];
-    if(id){const {data,error}=await sb.from("quizzes").select("*,quiz_questions(*)").eq("id",id).single();if(error)return toast(error.message,"error");quiz=data;questions=(data.quiz_questions||[]).sort((a,b)=>a.position-b.position)}
-    modal(`<div class="modal-head"><h2>${quiz?"Edit quiz":"Create quiz"}</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>
-      <div class="form-grid"><div class="form-group"><label>Title</label><input id="q-title" value="${esc(quiz?.title||"")}"></div><div class="form-group"><label>Class</label><select id="q-class"><option value="10" ${quiz?.class_no===10?"selected":""}>10</option><option value="12" ${quiz?.class_no===12?"selected":""}>12</option></select></div><div class="form-group"><label>Type</label><select id="q-type">${["Weekly","Monthly","Chapter-wise"].map(x=>`<option ${quiz?.quiz_type===x?"selected":""}>${x}</option>`).join("")}</select></div><div class="form-group"><label>Subject</label><select id="q-subject">${subjects.map(s=>`<option value="${s.id}" ${quiz?.subject_id===s.id?"selected":""}>Class ${s.class_no} • ${esc(s.name)}</option>`).join("")}</select></div><div class="form-group"><label>Duration (minutes)</label><input id="q-duration" type="number" value="${quiz?.duration_minutes||30}"></div><div class="form-group"><label>Total marks</label><input id="q-total" type="number" value="${quiz ? (quiz.total_marks ?? 0) : 0}" readonly><span class="mini-label">Automatically equals the number of questions.</span></div><div class="form-group"><label>Start</label><input id="q-start" type="datetime-local" value="${localInput(quiz?.start_at)}"></div><div class="form-group"><label>End</label><input id="q-end" type="datetime-local" value="${localInput(quiz?.end_at)}"></div><div class="form-group"><label>Active</label><select id="q-active"><option value="true" ${quiz?.is_active!==false?"selected":""}>Yes</option><option value="false" ${quiz?.is_active===false?"selected":""}>No</option></select></div></div>
+  async function showQuizEditor(id, subjects) {
+    let quiz = null,
+      questions = [];
+    if (id) {
+      const { data, error } = await sb
+        .from("quizzes")
+        .select("*,quiz_questions(*)")
+        .eq("id", id)
+        .single();
+      if (error) return toast(error.message, "error");
+      quiz = data;
+      questions = (data.quiz_questions || []).sort(
+        (a, b) => a.position - b.position,
+      );
+    }
+    modal(`<div class="modal-head"><h2>${quiz ? "Edit quiz" : "Create quiz"}</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>
+      <div class="form-grid"><div class="form-group"><label>Title</label><input id="q-title" value="${esc(quiz?.title || "")}"></div><div class="form-group"><label>Class</label><select id="q-class"><option value="10" ${quiz?.class_no === 10 ? "selected" : ""}>10</option><option value="12" ${quiz?.class_no === 12 ? "selected" : ""}>12</option></select></div><div class="form-group"><label>Type</label><select id="q-type">${["Weekly", "Monthly", "Chapter-wise"].map((x) => `<option ${quiz?.quiz_type === x ? "selected" : ""}>${x}</option>`).join("")}</select></div><div class="form-group"><label>Subject</label><select id="q-subject">${subjects.map((s) => `<option value="${s.id}" ${quiz?.subject_id === s.id ? "selected" : ""}>Class ${s.class_no} • ${esc(s.name)}</option>`).join("")}</select></div><div class="form-group"><label>Duration (minutes)</label><input id="q-duration" type="number" value="${quiz?.duration_minutes || 30}"></div><div class="form-group"><label>Total marks</label><input id="q-total" type="number" value="${quiz ? (quiz.total_marks ?? 0) : 0}" readonly><span class="mini-label">Automatically equals the number of questions.</span></div><div class="form-group"><label>Start</label><input id="q-start" type="datetime-local" value="${localInput(quiz?.start_at)}"></div><div class="form-group"><label>End</label><input id="q-end" type="datetime-local" value="${localInput(quiz?.end_at)}"></div><div class="form-group"><label>Active</label><select id="q-active"><option value="true" ${quiz?.is_active !== false ? "selected" : ""}>Yes</option><option value="false" ${quiz?.is_active === false ? "selected" : ""}>No</option></select></div></div>
       <h3 class="section-title">Import questions from Excel</h3>
       <div class="admin-card" style="padding:15px;margin-bottom:15px;border:1px solid #e8e6f0">
         <p style="font-size:11px;color:#666;line-height:1.7;margin-bottom:10px">Upload an <strong>.xlsx</strong> or <strong>.xls</strong> file using the 8-column format. Hindi, Urdu and English text are supported. Importing replaces the questions currently shown below; quiz details above remain unchanged.</p>
@@ -1775,572 +3422,1839 @@
       </div>
       <div class="inline" style="justify-content:space-between;flex-wrap:wrap"><h3 class="section-title" style="margin:10px 0 13px">Questions</h3><span id="question-count" class="pill">${questions.length} questions</span></div>
       <div id="question-editor">${questions.map(questionEditor).join("")}</div><button class="small-btn" id="add-question"><i class="fa-solid fa-plus"></i> Add question manually</button>
-      <div class="modal-actions"><button class="small-btn" data-close>Cancel</button><button class="small-btn primary" id="save-quiz">${quiz?"Save changes":"Create quiz"}</button></div>`);
-    $$('[data-close]').forEach(x=>x.onclick=closeModal);let idx=questions.length;
-    const updateQuestionCount=()=>{const n=$$('[data-q-editor]').length;const badge=$("#question-count");if(badge)badge.textContent=`${n} question${n===1?"":"s"}`;const total=$("#q-total");if(total)total.value=n};
-    $("#add-question").onclick=()=>{idx++;$("#question-editor").insertAdjacentHTML("beforeend",questionEditor({position:idx,id:"",question_text:"",option_a:"",option_b:"",option_c:"",option_d:"",correct_option:"A",correct_marks:1,wrong_marks:0,explanation:""}));updateQuestionCount()};
-    $("#download-quiz-template").onclick=downloadQuizExcelTemplate;
-    $("#quiz-excel-file").onchange=async e=>{const file=e.target.files?.[0];if(file)await importQuizExcel(file);e.target.value=""};
-    $("#save-quiz").onclick=()=>saveQuiz(quiz?.id||null);updateQuestionCount();
+      <div class="modal-actions"><button class="small-btn" data-close>Cancel</button><button class="small-btn primary" id="save-quiz">${quiz ? "Save changes" : "Create quiz"}</button></div>`);
+    $$("[data-close]").forEach((x) => (x.onclick = closeModal));
+    let idx = questions.length;
+    const updateQuestionCount = () => {
+      const n = $$("[data-q-editor]").length;
+      const badge = $("#question-count");
+      if (badge) badge.textContent = `${n} question${n === 1 ? "" : "s"}`;
+      const total = $("#q-total");
+      if (total) total.value = n;
+    };
+    $("#add-question").onclick = () => {
+      idx++;
+      $("#question-editor").insertAdjacentHTML(
+        "beforeend",
+        questionEditor({
+          position: idx,
+          id: "",
+          question_text: "",
+          option_a: "",
+          option_b: "",
+          option_c: "",
+          option_d: "",
+          correct_option: "A",
+          correct_marks: 1,
+          wrong_marks: 0,
+          explanation: "",
+        }),
+      );
+      updateQuestionCount();
+    };
+    $("#download-quiz-template").onclick = downloadQuizExcelTemplate;
+    $("#quiz-excel-file").onchange = async (e) => {
+      const file = e.target.files?.[0];
+      if (file) await importQuizExcel(file);
+      e.target.value = "";
+    };
+    $("#save-quiz").onclick = () => saveQuiz(quiz?.id || null);
+    updateQuestionCount();
   }
-  function downloadQuizExcelTemplate(){
-    if(!window.XLSX)return toast("Excel support did not load. Refresh the page and try again.","error");
-    const rows=[["Question Number","Question","Option A","Option B","Option C","Option D","Correct Option","Explanation"],[1,"भारत की राजधानी क्या है?","दिल्ली","मुंबई","पटना","लखनऊ","A","दिल्ली भारत की राजधानी है।"]];
-    const ws=XLSX.utils.aoa_to_sheet(rows);ws["!cols"]=[{wch:16},{wch:42},{wch:25},{wch:25},{wch:25},{wch:25},{wch:16},{wch:42}];
-    const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Questions");XLSX.writeFile(wb,"BCC-Quiz-Questions-Template.xlsx");
+  function downloadQuizExcelTemplate() {
+    if (!window.XLSX)
+      return toast(
+        "Excel support did not load. Refresh the page and try again.",
+        "error",
+      );
+    const rows = [
+      [
+        "Question Number",
+        "Question",
+        "Option A",
+        "Option B",
+        "Option C",
+        "Option D",
+        "Correct Option",
+        "Explanation",
+      ],
+      [
+        1,
+        "भारत की राजधानी क्या है?",
+        "दिल्ली",
+        "मुंबई",
+        "पटना",
+        "लखनऊ",
+        "A",
+        "दिल्ली भारत की राजधानी है।",
+      ],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"] = [
+      { wch: 16 },
+      { wch: 42 },
+      { wch: 25 },
+      { wch: 25 },
+      { wch: 25 },
+      { wch: 25 },
+      { wch: 16 },
+      { wch: 42 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Questions");
+    XLSX.writeFile(wb, "BCC-Quiz-Questions-Template.xlsx");
   }
-  async function importQuizExcel(file){
-    const status=$("#quiz-import-status");
-    try{
-      if(!window.XLSX)throw new Error("Excel support did not load. Check your internet connection, refresh the page and try again.");
-      if(!/\.xlsx?$/i.test(file.name))throw new Error("Please upload an Excel .xlsx or .xls file.");
-      const buffer=await file.arrayBuffer();const workbook=XLSX.read(buffer,{type:"array"});const sheet=workbook.Sheets[workbook.SheetNames[0]];
-      if(!sheet)throw new Error("The Excel file has no worksheet.");
-      const rows=XLSX.utils.sheet_to_json(sheet,{header:1,defval:"",raw:false,blankrows:false});
-      if(!rows.length)throw new Error("The worksheet is empty.");
-      const normalize=v=>String(v??"").trim().toLowerCase().replace(/[._-]+/g," ").replace(/\s+/g," ");
-      const first=(rows[0]||[]).slice(0,8).map(normalize);
-      const looksHeader=first.some(v=>["question","question number","question no","question no.","option a","correct option","explanation"].includes(v));
-      const data=looksHeader?rows.slice(1):rows;
-      const imported=[],issues=[];
-      data.forEach((r,i)=>{
-        const vals=Array.from({length:8},(_,j)=>String(r?.[j]??"").trim());
-        if(vals.every(v=>!v))return;
-        const [number,question,a,b,c,d,correct,explanation]=vals;const answer=correct.toUpperCase().replace(/OPTION/g,"").trim();
-        const rowNum=i+(looksHeader?2:1);
-        if(!question){issues.push(`Row ${rowNum}: question is empty.`);return}
-        if(!a||!b||!c||!d){issues.push(`Row ${rowNum}: all four options (A–D) are required.`);return}
-        if(!["A","B","C","D"].includes(answer)){issues.push(`Row ${rowNum}: correct option must be A, B, C or D.`);return}
-        imported.push({position:imported.length+1,question_text:question,option_a:a,option_b:b,option_c:c,option_d:d,correct_option:answer,explanation,correct_marks:1,wrong_marks:0});
+  async function importQuizExcel(file) {
+    const status = $("#quiz-import-status");
+    try {
+      if (!window.XLSX)
+        throw new Error(
+          "Excel support did not load. Check your internet connection, refresh the page and try again.",
+        );
+      if (!/\.xlsx?$/i.test(file.name))
+        throw new Error("Please upload an Excel .xlsx or .xls file.");
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      if (!sheet) throw new Error("The Excel file has no worksheet.");
+      const rows = XLSX.utils.sheet_to_json(sheet, {
+        header: 1,
+        defval: "",
+        raw: false,
+        blankrows: false,
       });
-      if(!imported.length)throw new Error(issues.length?`No valid questions found. ${issues.slice(0,3).join(" ")}`:"No question rows found. Use the 8-column template.");
-      if(issues.length&&!confirm(`${imported.length} valid question(s) found, but ${issues.length} row(s) have errors and will be skipped. Continue and import valid rows?\n\n${issues.slice(0,5).join("\n")}${issues.length>5?"\n…":""}`))return;
-      $("#question-editor").innerHTML=imported.map(questionEditor).join("");
-      const total=$("#q-total");if(total)total.value=imported.length;
-      $("#question-count").textContent=`${imported.length} questions`;
-      status.textContent=`Imported ${imported.length} questions from ${file.name}.${issues.length?` Skipped ${issues.length} invalid row(s).`:" All rows passed validation."}`;
-      status.style.color=issues.length?"#9a6700":"#166534";toast(`${imported.length} questions imported into the editor. Save the quiz to store them.`,"success");
-    }catch(err){console.error(err);if(status){status.textContent=err.message||"Could not read this Excel file.";status.style.color="#b91c1c"}toast(err.message||"Could not import Excel file.","error")}
+      if (!rows.length) throw new Error("The worksheet is empty.");
+      const normalize = (v) =>
+        String(v ?? "")
+          .trim()
+          .toLowerCase()
+          .replace(/[._-]+/g, " ")
+          .replace(/\s+/g, " ");
+      const first = (rows[0] || []).slice(0, 8).map(normalize);
+      const looksHeader = first.some((v) =>
+        [
+          "question",
+          "question number",
+          "question no",
+          "question no.",
+          "option a",
+          "correct option",
+          "explanation",
+        ].includes(v),
+      );
+      const data = looksHeader ? rows.slice(1) : rows;
+      const imported = [],
+        issues = [];
+      data.forEach((r, i) => {
+        const vals = Array.from({ length: 8 }, (_, j) =>
+          String(r?.[j] ?? "").trim(),
+        );
+        if (vals.every((v) => !v)) return;
+        const [number, question, a, b, c, d, correct, explanation] = vals;
+        const answer = correct
+          .toUpperCase()
+          .replace(/OPTION/g, "")
+          .trim();
+        const rowNum = i + (looksHeader ? 2 : 1);
+        if (!question) {
+          issues.push(`Row ${rowNum}: question is empty.`);
+          return;
+        }
+        if (!a || !b || !c || !d) {
+          issues.push(`Row ${rowNum}: all four options (A–D) are required.`);
+          return;
+        }
+        if (!["A", "B", "C", "D"].includes(answer)) {
+          issues.push(`Row ${rowNum}: correct option must be A, B, C or D.`);
+          return;
+        }
+        imported.push({
+          position: imported.length + 1,
+          question_text: question,
+          option_a: a,
+          option_b: b,
+          option_c: c,
+          option_d: d,
+          correct_option: answer,
+          explanation,
+          correct_marks: 1,
+          wrong_marks: 0,
+        });
+      });
+      if (!imported.length)
+        throw new Error(
+          issues.length
+            ? `No valid questions found. ${issues.slice(0, 3).join(" ")}`
+            : "No question rows found. Use the 8-column template.",
+        );
+      if (
+        issues.length &&
+        !confirm(
+          `${imported.length} valid question(s) found, but ${issues.length} row(s) have errors and will be skipped. Continue and import valid rows?\n\n${issues.slice(0, 5).join("\n")}${issues.length > 5 ? "\n…" : ""}`,
+        )
+      )
+        return;
+      $("#question-editor").innerHTML = imported.map(questionEditor).join("");
+      const total = $("#q-total");
+      if (total) total.value = imported.length;
+      $("#question-count").textContent = `${imported.length} questions`;
+      status.textContent = `Imported ${imported.length} questions from ${file.name}.${issues.length ? ` Skipped ${issues.length} invalid row(s).` : " All rows passed validation."}`;
+      status.style.color = issues.length ? "#9a6700" : "#166534";
+      toast(
+        `${imported.length} questions imported into the editor. Save the quiz to store them.`,
+        "success",
+      );
+    } catch (err) {
+      console.error(err);
+      if (status) {
+        status.textContent = err.message || "Could not read this Excel file.";
+        status.style.color = "#b91c1c";
+      }
+      toast(err.message || "Could not import Excel file.", "error");
+    }
   }
 
-  function questionEditor(q){return `<div class="admin-card q-editor" data-q-editor style="margin-bottom:10px"><div class="form-group"><label>Question</label><textarea data-field="question_text">${esc(q.question_text||"")}</textarea></div><div class="form-grid" style="margin-top:10px">${["a","b","c","d"].map(k=>`<div class="form-group"><label>Option ${k.toUpperCase()}</label><input data-field="option_${k}" value="${esc(q[`option_${k}`]||"")}"></div>`).join("")}<div class="form-group"><label>Correct option</label><select data-field="correct_option">${["A","B","C","D"].map(x=>`<option ${q.correct_option===x?"selected":""}>${x}</option>`).join("")}</select></div><div class="form-group"><label>Correct marks</label><input type="number" value="1" readonly><span class="mini-label">Fixed default</span></div><div class="form-group"><label>Wrong marks</label><input type="number" value="0" readonly><span class="mini-label">Fixed default</span></div></div><div class="form-group" style="margin-top:10px"><label>Explanation</label><textarea data-field="explanation">${esc(q.explanation||"")}</textarea></div></div>`}
-  function localInput(v){if(!v)return "";const d=new Date(v);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)}
-  async function saveQuiz(id){
-    const editors=$$("[data-q-editor]"),qs=editors.map((box,i)=>{const o={position:i+1};$$( "[data-field]",box).forEach(x=>o[x.dataset.field]=x.value);o.correct_marks=1;o.wrong_marks=0;return o}).filter(q=>q.question_text.trim());
-    const payload={title:$("#q-title").value.trim(),class_no:Number($("#q-class").value),quiz_type:$("#q-type").value,subject_id:$("#q-subject").value,duration_minutes:Number($("#q-duration").value),total_marks:qs.length,start_at:$("#q-start").value?new Date($("#q-start").value).toISOString():null,end_at:$("#q-end").value?new Date($("#q-end").value).toISOString():null,is_active:$("#q-active").value==="true",created_by:state.profile.id};
-    if(!payload.title||!qs.length)return toast("Quiz title and at least one question are required.","error");
-    loading(true,"Saving quiz...");
-    try{let quizId=id;if(id){const {error}=await sb.from("quizzes").update(payload).eq("id",id);if(error)throw error;const {error:e}=await sb.from("quiz_questions").delete().eq("quiz_id",id);if(e)throw e}else{const {data,error}=await sb.from("quizzes").insert(payload).select().single();if(error)throw error;quizId=data.id}
-      const {error:e2}=await sb.from("quiz_questions").insert(qs.map(q=>({...q,quiz_id:quizId})));if(e2)throw e2;closeModal();toast("Quiz saved.","success");await renderQuizManager($("#view-container"))
-    }catch(e){toast(e.message,"error")}finally{loading(false)}
+  function questionEditor(q) {
+    return `<div class="admin-card q-editor" data-q-editor style="margin-bottom:10px"><div class="form-group"><label>Question</label><textarea data-field="question_text">${esc(q.question_text || "")}</textarea></div><div class="form-grid" style="margin-top:10px">${["a", "b", "c", "d"].map((k) => `<div class="form-group"><label>Option ${k.toUpperCase()}</label><input data-field="option_${k}" value="${esc(q[`option_${k}`] || "")}"></div>`).join("")}<div class="form-group"><label>Correct option</label><select data-field="correct_option">${["A", "B", "C", "D"].map((x) => `<option ${q.correct_option === x ? "selected" : ""}>${x}</option>`).join("")}</select></div><div class="form-group"><label>Correct marks</label><input type="number" value="1" readonly><span class="mini-label">Fixed default</span></div><div class="form-group"><label>Wrong marks</label><input type="number" value="0" readonly><span class="mini-label">Fixed default</span></div></div><div class="form-group" style="margin-top:10px"><label>Explanation</label><textarea data-field="explanation">${esc(q.explanation || "")}</textarea></div></div>`;
+  }
+  function localInput(v) {
+    if (!v) return "";
+    const d = new Date(v);
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000)
+      .toISOString()
+      .slice(0, 16);
+  }
+  async function saveQuiz(id) {
+    const editors = $$("[data-q-editor]"),
+      qs = editors
+        .map((box, i) => {
+          const o = { position: i + 1 };
+          $$("[data-field]", box).forEach(
+            (x) => (o[x.dataset.field] = x.value),
+          );
+          o.correct_marks = 1;
+          o.wrong_marks = 0;
+          return o;
+        })
+        .filter((q) => q.question_text.trim());
+    const payload = {
+      title: $("#q-title").value.trim(),
+      class_no: Number($("#q-class").value),
+      quiz_type: $("#q-type").value,
+      subject_id: $("#q-subject").value,
+      duration_minutes: Number($("#q-duration").value),
+      total_marks: qs.length,
+      start_at: $("#q-start").value
+        ? new Date($("#q-start").value).toISOString()
+        : null,
+      end_at: $("#q-end").value
+        ? new Date($("#q-end").value).toISOString()
+        : null,
+      is_active: $("#q-active").value === "true",
+      created_by: state.profile.id,
+    };
+    if (!payload.title || !qs.length)
+      return toast(
+        "Quiz title and at least one question are required.",
+        "error",
+      );
+    loading(true, "Saving quiz...");
+    try {
+      let quizId = id;
+      if (id) {
+        const { error } = await sb.from("quizzes").update(payload).eq("id", id);
+        if (error) throw error;
+        const { error: e } = await sb
+          .from("quiz_questions")
+          .delete()
+          .eq("quiz_id", id);
+        if (e) throw e;
+      } else {
+        const { data, error } = await sb
+          .from("quizzes")
+          .insert(payload)
+          .select()
+          .single();
+        if (error) throw error;
+        quizId = data.id;
+      }
+      const { error: e2 } = await sb
+        .from("quiz_questions")
+        .insert(qs.map((q) => ({ ...q, quiz_id: quizId })));
+      if (e2) throw e2;
+      closeModal();
+      toast("Quiz saved.", "success");
+      await renderQuizManager($("#view-container"));
+    } catch (e) {
+      toast(e.message, "error");
+    } finally {
+      loading(false);
+    }
   }
 
-  async function renderMarks(el){
+  async function renderMarks(el) {
     const [exams, staffStudents] = await Promise.all([
-      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,archived_at").order("created_at",{ascending:false}),
-      sb.from("student_profiles").select("user_id,class_no,roll_number,profiles(full_name,login_id)").order("class_no").order("roll_number")
+      sb
+        .from("academic_exam_sets")
+        .select("id,class_no,exam_name,created_at,result_declared,archived_at")
+        .order("created_at", { ascending: false }),
+      sb
+        .from("student_profiles")
+        .select("user_id,class_no,roll_number,profiles(full_name,login_id)")
+        .order("class_no")
+        .order("roll_number"),
     ]);
-    if(exams.error)throw exams.error;if(staffStudents.error)throw staffStudents.error;
-    const rows=staffStudents.data||[], allExams=(exams.data||[]).filter(e=>!e.archived_at);const counts=new Map([10,12].map(c=>[c,0]));rows.forEach(s=>counts.set(Number(s.class_no),(counts.get(Number(s.class_no))||0)+1));
-    const grouped={10:allExams.filter(x=>x.class_no===10),12:allExams.filter(x=>x.class_no===12)};
-    const declared={10:grouped[10].filter(x=>x.result_declared),12:grouped[12].filter(x=>x.result_declared)};
-    el.innerHTML=`<div class="page-head"><div><h1>Marks</h1><p>School exam marks are entered here. Quiz marks and quiz performance are available in Leaderboard.</p></div></div>
-      <div class="marks-class-grid">${[10,12].map(c=>`<article class="marks-class-card" data-marks-class="${c}"><span class="marks-class-icon"><i class="fa-solid fa-graduation-cap"></i></span><div><h2>Class ${c}</h2><p>${counts.get(c)||0} students • ${grouped[c].length} saved exam${grouped[c].length===1?'':'s'} • ${declared[c].length} declared</p></div><i class="fa-solid fa-arrow-right"></i></article>`).join('')}</div>
-      <section class="marks-exam-history"><div class="leaderboard-panel-head"><div><span class="pill">EXAM RECORDS</span><h2>Saved exams</h2><p>Open a class to create a new exam or continue an unfinished entry.</p></div></div><div class="marks-exam-grid">${[10,12].map(c=>`<div class="marks-exam-column"><h3>Class ${c}</h3>${grouped[c].map(e=>`<button class="marks-exam-item" data-open-exam="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small>${fmtDate(e.created_at)} • ${e.result_declared?'Result declared':'Result not declared'}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join('')||`<div class="marks-empty">No exam records yet.</div>`}</div>`).join('')}</div></section>
-      <section class="marks-exam-history"><div class="leaderboard-panel-head"><div><span class="pill active">EXAMS LEADERBOARD</span><h2>Declared exam leaderboards</h2><p>Open a declared exam to view the podium and the complete ranked class list.</p></div></div><div class="marks-exam-grid">${[10,12].map(c=>`<div class="marks-exam-column leaderboard-exam-column"><h3>Class ${c}</h3>${declared[c].map(e=>`<button class="marks-exam-item leaderboard-exam-card" data-admin-exam-leaderboard="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small><i class="fa-solid fa-ranking-star"></i> Result declared • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-arrow-right"></i></button>`).join('')||`<div class="marks-empty">No declared exam results yet.</div>`}</div>`).join('')}</div></section>`;
-    $$('[data-marks-class]',el).forEach(c=>c.onclick=()=>navigate('marks-class',{classNo:Number(c.dataset.marksClass)}));
-    $$('[data-open-exam]',el).forEach(b=>{const x=allExams.find(e=>e.id===b.dataset.openExam);b.onclick=()=>navigate('marks-class',{classNo:x?.class_no||10,examId:b.dataset.openExam})});
-    $$('[data-admin-exam-leaderboard]',el).forEach(b=>{const x=allExams.find(e=>e.id===b.dataset.adminExamLeaderboard);b.onclick=()=>navigate('academic-leaderboard-exam',{classNo:x?.class_no||10,examId:b.dataset.adminExamLeaderboard})});
+    if (exams.error) throw exams.error;
+    if (staffStudents.error) throw staffStudents.error;
+    const rows = staffStudents.data || [],
+      allExams = (exams.data || []).filter((e) => !e.archived_at);
+    const counts = new Map([10, 12].map((c) => [c, 0]));
+    rows.forEach((s) =>
+      counts.set(Number(s.class_no), (counts.get(Number(s.class_no)) || 0) + 1),
+    );
+    const grouped = {
+      10: allExams.filter((x) => x.class_no === 10),
+      12: allExams.filter((x) => x.class_no === 12),
+    };
+    const declared = {
+      10: grouped[10].filter((x) => x.result_declared),
+      12: grouped[12].filter((x) => x.result_declared),
+    };
+    el.innerHTML = `<div class="page-head"><div><h1>Marks</h1><p>School exam marks are entered here. Quiz marks and quiz performance are available in Leaderboard.</p></div></div>
+      <div class="marks-class-grid">${[10, 12].map((c) => `<article class="marks-class-card" data-marks-class="${c}"><span class="marks-class-icon"><i class="fa-solid fa-graduation-cap"></i></span><div><h2>Class ${c}</h2><p>${counts.get(c) || 0} students • ${grouped[c].length} saved exam${grouped[c].length === 1 ? "" : "s"} • ${declared[c].length} declared</p></div><i class="fa-solid fa-arrow-right"></i></article>`).join("")}</div>
+      <section class="marks-exam-history"><div class="leaderboard-panel-head"><div><span class="pill">EXAM RECORDS</span><h2>Saved exams</h2><p>Open a class to create a new exam or continue an unfinished entry.</p></div></div><div class="marks-exam-grid">${[10, 12].map((c) => `<div class="marks-exam-column"><h3>Class ${c}</h3>${grouped[c].map((e) => `<button class="marks-exam-item" data-open-exam="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small>${fmtDate(e.created_at)} • ${e.result_declared ? "Result declared" : "Result not declared"}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join("") || `<div class="marks-empty">No exam records yet.</div>`}</div>`).join("")}</div></section>
+      <section class="marks-exam-history"><div class="leaderboard-panel-head"><div><span class="pill active">EXAMS LEADERBOARD</span><h2>Declared exam leaderboards</h2><p>Open a declared exam to view the podium and the complete ranked class list.</p></div></div><div class="marks-exam-grid">${[10, 12].map((c) => `<div class="marks-exam-column leaderboard-exam-column"><h3>Class ${c}</h3>${declared[c].map((e) => `<button class="marks-exam-item leaderboard-exam-card" data-admin-exam-leaderboard="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small><i class="fa-solid fa-ranking-star"></i> Result declared • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-arrow-right"></i></button>`).join("") || `<div class="marks-empty">No declared exam results yet.</div>`}</div>`).join("")}</div></section>`;
+    $$("[data-marks-class]", el).forEach(
+      (c) =>
+        (c.onclick = () =>
+          navigate("marks-class", { classNo: Number(c.dataset.marksClass) })),
+    );
+    $$("[data-open-exam]", el).forEach((b) => {
+      const x = allExams.find((e) => e.id === b.dataset.openExam);
+      b.onclick = () =>
+        navigate("marks-class", {
+          classNo: x?.class_no || 10,
+          examId: b.dataset.openExam,
+        });
+    });
+    $$("[data-admin-exam-leaderboard]", el).forEach((b) => {
+      const x = allExams.find((e) => e.id === b.dataset.adminExamLeaderboard);
+      b.onclick = () =>
+        navigate("academic-leaderboard-exam", {
+          classNo: x?.class_no || 10,
+          examId: b.dataset.adminExamLeaderboard,
+        });
+    });
   }
 
-  async function renderMarksClass(el,classNo){
-    if(![10,12].includes(classNo))return navigate("marks",{},true);
-    const [{data:students,error:studentError},{data:exams,error:examError}]=await Promise.all([
-      sb.from("student_profiles").select("user_id,class_no,roll_number,profiles(full_name,login_id)").eq("class_no",classNo),
-      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",classNo).order("created_at",{ascending:false})
+  async function renderMarksClass(el, classNo) {
+    if (![10, 12].includes(classNo)) return navigate("marks", {}, true);
+    const [
+      { data: students, error: studentError },
+      { data: exams, error: examError },
+    ] = await Promise.all([
+      sb
+        .from("student_profiles")
+        .select("user_id,class_no,roll_number,profiles(full_name,login_id)")
+        .eq("class_no", classNo),
+      sb
+        .from("academic_exam_sets")
+        .select(
+          "id,class_no,exam_name,created_at,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)",
+        )
+        .eq("class_no", classNo)
+        .order("created_at", { ascending: false }),
     ]);
-    if(studentError)throw studentError;if(examError)throw examError;
-    const list=(students||[]).sort((a,b)=>String(a.roll_number||"").localeCompare(String(b.roll_number||""),undefined,{numeric:true,sensitivity:"base"}));
-    const examList=(exams||[]).filter(e=>!e.archived_at);
-    el.innerHTML=`
+    if (studentError) throw studentError;
+    if (examError) throw examError;
+    const list = (students || []).sort((a, b) =>
+      String(a.roll_number || "").localeCompare(
+        String(b.roll_number || ""),
+        undefined,
+        { numeric: true, sensitivity: "base" },
+      ),
+    );
+    const examList = (exams || []).filter((e) => !e.archived_at);
+    el.innerHTML = `
       <div class="back-row"><button class="small-btn" id="marks-back"><i class="fa-solid fa-arrow-left"></i> Back to Marks</button></div>
       <div class="page-head"><div><h1>Class ${classNo} Marks</h1><p>Students are arranged by roll number. Create an exam once, then enter each student's subject marks.</p></div><button class="small-btn primary" id="new-academic-exam"><i class="fa-solid fa-plus"></i> New Exam</button></div>
       <section class="admin-card marks-student-section"><div class="marks-entry-head"><div><span class="pill">STUDENTS</span><h2>Student list</h2><p>${list.length} students in Class ${classNo}.</p></div></div>
-        <div class="marks-student-grid">${list.map((s,i)=>`<button class="marks-student-card" data-academic-student="${esc(s.user_id)}"><span class="marks-student-number">${i+1}</span><span class="marks-student-avatar">${esc(initials(s.profiles?.full_name))}</span><span class="marks-student-info"><strong>${esc(s.profiles?.full_name||"Student")}</strong><small>Roll No. ${esc(s.roll_number||"—")} • ${classText(classNo)}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join("")||`<div class="marks-empty">No students found in this class.</div>`}</div>
+        <div class="marks-student-grid">${list.map((s, i) => `<button class="marks-student-card" data-academic-student="${esc(s.user_id)}"><span class="marks-student-number">${i + 1}</span><span class="marks-student-avatar">${esc(initials(s.profiles?.full_name))}</span><span class="marks-student-info"><strong>${esc(s.profiles?.full_name || "Student")}</strong><small>Roll No. ${esc(s.roll_number || "—")} • ${classText(classNo)}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join("") || `<div class="marks-empty">No students found in this class.</div>`}</div>
       </section>
       <section class="marks-exam-history"><div class="marks-entry-head"><div><span class="pill active">EXAMS</span><h2>Exam setups</h2><p>Continue any unfinished exam, review entries, or declare a completed result.</p></div></div>
-        <div class="marks-exam-grid single">${examList.map(e=>`<div class="marks-exam-item wide exam-admin-card"><button class="exam-admin-main" data-resume-exam="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small>${(e.academic_exam_subjects||[]).length} subjects configured • ${fmtDate(e.created_at)} • ${e.result_declared?'Result declared':'Result not declared'}</small></span><i class="fa-solid fa-arrow-right"></i></button><div class="exam-admin-actions"><div class="exam-actions-left">${e.result_declared?`<span class="small-btn declared-chip"><i class="fa-solid fa-check" style="color:var(--green)!important"></i> Declared</span>`:`<button class="small-btn declare-result-btn" data-declare-exam="${esc(e.id)}"><i class="fa-solid fa-bullhorn"></i> Declare Result</button>`}<button class="small-btn outline-academic-leaderboard" data-admin-academic-leaderboard="${esc(e.id)}"><i class="fa-solid fa-ranking-star"></i> Leaderboard</button></div><div class="exam-actions-right"><button class="small-btn exam-edit-btn" data-edit-academic-exam="${esc(e.id)}"><i class="fa-solid fa-pen"></i> Edit</button><button class="small-btn exam-delete-btn" data-delete-academic-exam="${esc(e.id)}"><i class="fa-solid fa-trash"></i> Delete</button></div></div></div>`).join("")||`<div class="marks-empty">No exam has been created for Class ${classNo} yet.</div>`}</div>
+        <div class="marks-exam-grid single">${examList.map((e) => `<div class="marks-exam-item wide exam-admin-card"><button class="exam-admin-main" data-resume-exam="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small>${(e.academic_exam_subjects || []).length} subjects configured • ${fmtDate(e.created_at)} • ${e.result_declared ? "Result declared" : "Result not declared"}</small></span><i class="fa-solid fa-arrow-right"></i></button><div class="exam-admin-actions"><div class="exam-actions-left">${e.result_declared ? `<span class="small-btn declared-chip"><i class="fa-solid fa-check" style="color:var(--green)!important"></i> Declared</span>` : `<button class="small-btn declare-result-btn" data-declare-exam="${esc(e.id)}"><i class="fa-solid fa-bullhorn"></i> Declare Result</button>`}<button class="small-btn outline-academic-leaderboard" data-admin-academic-leaderboard="${esc(e.id)}"><i class="fa-solid fa-ranking-star"></i> Leaderboard</button></div><div class="exam-actions-right"><button class="small-btn exam-edit-btn" data-edit-academic-exam="${esc(e.id)}"><i class="fa-solid fa-pen"></i> Edit</button><button class="small-btn exam-delete-btn" data-delete-academic-exam="${esc(e.id)}"><i class="fa-solid fa-trash"></i> Delete</button></div></div></div>`).join("") || `<div class="marks-empty">No exam has been created for Class ${classNo} yet.</div>`}</div>
       </section>`;
-    $("#marks-back").onclick=()=>navigate("marks");
-    $("#new-academic-exam").onclick=()=>openAcademicExamSetup(classNo);
-    $$('[data-edit-academic-exam]',el).forEach(b=>b.onclick=()=>openAcademicExamEditor(classNo,b.dataset.editAcademicExam));
-    $$('[data-delete-academic-exam]',el).forEach(b=>b.onclick=()=>archiveAcademicExam(classNo,b.dataset.deleteAcademicExam));
-    $$(`[data-academic-student]`,el).forEach(b=>b.onclick=()=>showAdminStudentAcademicOverview(classNo,b.dataset.academicStudent));
-    $$('[data-resume-exam]',el).forEach(b=>b.onclick=()=>startAcademicMarksEntry(classNo,b.dataset.resumeExam));
-    $$('[data-declare-exam]',el).forEach(b=>b.onclick=()=>declareAcademicExam(classNo,b.dataset.declareExam));
-    $$('[data-admin-academic-leaderboard]',el).forEach(b=>b.onclick=()=>navigate('academic-leaderboard-exam',{classNo,examId:b.dataset.adminAcademicLeaderboard}));
-    if(state.route.examId){const requested=state.route.examId;state.route.examId=null;await startAcademicMarksEntry(classNo,requested);}
+    $("#marks-back").onclick = () => navigate("marks");
+    $("#new-academic-exam").onclick = () => openAcademicExamSetup(classNo);
+    $$("[data-edit-academic-exam]", el).forEach(
+      (b) =>
+        (b.onclick = () =>
+          openAcademicExamEditor(classNo, b.dataset.editAcademicExam)),
+    );
+    $$("[data-delete-academic-exam]", el).forEach(
+      (b) =>
+        (b.onclick = () =>
+          archiveAcademicExam(classNo, b.dataset.deleteAcademicExam)),
+    );
+    $$(`[data-academic-student]`, el).forEach(
+      (b) =>
+        (b.onclick = () =>
+          showAdminStudentAcademicOverview(classNo, b.dataset.academicStudent)),
+    );
+    $$("[data-resume-exam]", el).forEach(
+      (b) =>
+        (b.onclick = () =>
+          startAcademicMarksEntry(classNo, b.dataset.resumeExam)),
+    );
+    $$("[data-declare-exam]", el).forEach(
+      (b) =>
+        (b.onclick = () => declareAcademicExam(classNo, b.dataset.declareExam)),
+    );
+    $$("[data-admin-academic-leaderboard]", el).forEach(
+      (b) =>
+        (b.onclick = () =>
+          navigate("academic-leaderboard-exam", {
+            classNo,
+            examId: b.dataset.adminAcademicLeaderboard,
+          })),
+    );
+    if (state.route.examId) {
+      const requested = state.route.examId;
+      state.route.examId = null;
+      await startAcademicMarksEntry(classNo, requested);
+    }
   }
 
-  async function openAcademicExamEditor(classNo,examId){
-    try{
-      const [{data:exam,error:ee},{data:students,error:se},{data:records,error:re}]=await Promise.all([
-        sb.from('academic_exam_sets').select('id,exam_name,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)').eq('id',examId).eq('class_no',classNo).single(),
-        sb.from('student_profiles').select('user_id,roll_number,profiles(full_name)').eq('class_no',classNo),
-        sb.from('student_exam_marks').select('student_id,status').eq('exam_id',examId)
+  async function openAcademicExamEditor(classNo, examId) {
+    try {
+      const [
+        { data: exam, error: ee },
+        { data: students, error: se },
+        { data: records, error: re },
+      ] = await Promise.all([
+        sb
+          .from("academic_exam_sets")
+          .select(
+            "id,exam_name,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)",
+          )
+          .eq("id", examId)
+          .eq("class_no", classNo)
+          .single(),
+        sb
+          .from("student_profiles")
+          .select("user_id,roll_number,profiles(full_name)")
+          .eq("class_no", classNo),
+        sb
+          .from("student_exam_marks")
+          .select("student_id,status")
+          .eq("exam_id", examId),
       ]);
-      if(ee||se||re)throw ee||se||re;
-      if(exam.archived_at)throw Error('Archived exams cannot be edited.');
-      const status=new Map((records||[]).map(r=>[r.student_id,r.status]));
-      const list=(students||[]).sort((a,b)=>String(a.roll_number||'').localeCompare(String(b.roll_number||''),undefined,{numeric:true}));
-      modal(`<div class="modal-head"><div><span class="pill active">EDIT MARKS</span><h2>${esc(exam.exam_name)}</h2><p class="modal-subtitle">Class ${classNo} • Select a student to correct their marks.</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div><div class="form-group"><label for="academic-edit-search">Search student name or roll number</label><input id="academic-edit-search" placeholder="Search students..."></div><div class="academic-edit-students">${list.map(st=>`<button class="academic-edit-student" data-edit-student="${esc(st.user_id)}"><span><strong>${esc(st.profiles?.full_name||'Student')}</strong><small>Roll ${esc(st.roll_number||'—')}</small></span><span class="status-chip ${status.get(st.user_id)==='completed'?'success':''}">${status.get(st.user_id)==='completed'?'Completed':'Pending'}</span><i class="fa-solid fa-chevron-right"></i></button>`).join('')}</div>`);
-      $$('[data-close-modal]').forEach(b=>b.onclick=closeModal);
-      $('#academic-edit-search').oninput=e=>{const q=e.target.value.toLowerCase();$$('.academic-edit-student').forEach(b=>b.hidden=!b.textContent.toLowerCase().includes(q))};
-      $$('[data-edit-student]').forEach(b=>b.onclick=()=>openAcademicMarksCorrection(classNo,exam,list.find(st=>st.user_id===b.dataset.editStudent)));
-    }catch(e){toast(e.message||'Unable to open editor.','error')}
-  }
-
-  async function openAcademicMarksCorrection(classNo,exam,student){
-    try{
-      const {data:record,error}=await sb.from('student_exam_marks').select('marks,included_subject_ids,status').eq('exam_id',exam.id).eq('student_id',student.user_id).maybeSingle();if(error)throw error;
-      const subjects=exam.academic_exam_subjects||[];
-      const ids=Array.isArray(record?.included_subject_ids)&&record.included_subject_ids.length?record.included_subject_ids.map(String):subjects.map(x=>String(x.subject_id));
-      const active=subjects.filter(x=>ids.includes(String(x.subject_id)));
-      modal(`<div class="modal-head"><div><span class="pill active">MARKS CORRECTION</span><h2>${esc(student.profiles?.full_name||'Student')}</h2><p class="modal-subtitle">${esc(exam.exam_name)} • Roll ${esc(student.roll_number||'—')}</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>${exam.result_declared?'<div class="notice">This result is already published. Saving corrections will update the student result and leaderboard.</div>':''}<div class="marks-input-grid">${active.map(x=>`<div class="form-group"><label>${esc(x.subject_name)}</label><div class="marks-input-with-full"><input class="academic-correction-input" data-subject-id="${esc(x.subject_id)}" type="number" min="0" max="${esc(x.full_marks)}" step="0.01" value="${record?.marks?.[x.subject_id]??''}" placeholder="Obtained marks"><span>/ ${esc(x.full_marks)}</span></div></div>`).join('')}</div><div class="form-group"><label>Reason for correction (required)</label><textarea id="academic-correction-reason" rows="2" placeholder="e.g. Corrected Mathematics marks after checking answer sheet"></textarea></div><div class="modal-actions"><button class="small-btn" id="academic-edit-back">Back to students</button><button class="small-btn primary" id="academic-correction-save"><i class="fa-solid fa-check"></i> Save Changes</button></div><div class="academic-correction-history"><h3>Correction history</h3><div id="academic-history-rows">Loading history...</div></div>`);
-      $$('[data-close-modal]').forEach(b=>b.onclick=closeModal);
-      $('#academic-edit-back').onclick=()=>openAcademicExamEditor(classNo,exam.id);
-      const {data:history,error:he}=await sb.from('academic_marks_audit').select('created_at,old_marks,new_marks,reason,actor_id').eq('exam_id',exam.id).eq('student_id',student.user_id).order('created_at',{ascending:false}).limit(30);
-      if(he)throw he;
-      $('#academic-history-rows').innerHTML=(history||[]).map(h=>`<div class="academic-history-item"><small>${esc(fmtDate(h.created_at))} • ${esc(h.reason||'Updated')}</small><div>${active.filter(x=>h.old_marks?.[x.subject_id]!==h.new_marks?.[x.subject_id]).map(x=>`${esc(x.subject_name)}: ${esc(h.old_marks?.[x.subject_id]??'—')} → ${esc(h.new_marks?.[x.subject_id]??'—')}`).join(' • ')||'Record updated'}</div></div>`).join('')||'<p class="mini-label">No corrections yet.</p>';
-      $('#academic-correction-save').onclick=async()=>{
-        const btn=$('#academic-correction-save');if(btn.disabled)return;
-        const reason=$('#academic-correction-reason').value.trim();if(!reason)return toast('Enter a reason for the correction.','error');
-        const marks={};for(const x of $$('.academic-correction-input')){if(x.value.trim()===''||!Number.isFinite(Number(x.value))||Number(x.value)<0||Number(x.value)>Number(x.max))return toast('Enter valid marks for every subject.','error');marks[x.dataset.subjectId]=Number(x.value)}
-        if(exam.result_declared&&!confirm('This exam is DECLARED. Save these corrected marks and update the published leaderboard?'))return;
-        btn.disabled=true;
-        try{const {error:saveError}=await sb.rpc('correct_academic_student_marks',{p_exam_id:exam.id,p_student_id:student.user_id,p_marks:marks,p_included_subject_ids:ids,p_reason:reason});if(saveError)throw saveError;toast('Marks corrected and history recorded.','success');await openAcademicMarksCorrection(classNo,exam,student)}catch(e){toast(e.message||'Correction failed.','error');btn.disabled=false}
+      if (ee || se || re) throw ee || se || re;
+      if (exam.archived_at) throw Error("Archived exams cannot be edited.");
+      const status = new Map(
+        (records || []).map((r) => [r.student_id, r.status]),
+      );
+      const list = (students || []).sort((a, b) =>
+        String(a.roll_number || "").localeCompare(
+          String(b.roll_number || ""),
+          undefined,
+          { numeric: true },
+        ),
+      );
+      modal(
+        `<div class="modal-head"><div><span class="pill active">EDIT MARKS</span><h2>${esc(exam.exam_name)}</h2><p class="modal-subtitle">Class ${classNo} • Select a student to correct their marks.</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div><div class="form-group"><label for="academic-edit-search">Search student name or roll number</label><input id="academic-edit-search" placeholder="Search students..."></div><div class="academic-edit-students">${list.map((st) => `<button class="academic-edit-student" data-edit-student="${esc(st.user_id)}"><span><strong>${esc(st.profiles?.full_name || "Student")}</strong><small>Roll ${esc(st.roll_number || "—")}</small></span><span class="status-chip ${status.get(st.user_id) === "completed" ? "success" : ""}">${status.get(st.user_id) === "completed" ? "Completed" : "Pending"}</span><i class="fa-solid fa-chevron-right"></i></button>`).join("")}</div>`,
+      );
+      $$("[data-close-modal]").forEach((b) => (b.onclick = closeModal));
+      $("#academic-edit-search").oninput = (e) => {
+        const q = e.target.value.toLowerCase();
+        $$(".academic-edit-student").forEach(
+          (b) => (b.hidden = !b.textContent.toLowerCase().includes(q)),
+        );
       };
-    }catch(e){toast(e.message||'Unable to load marks correction.','error')}
+      $$("[data-edit-student]").forEach(
+        (b) =>
+          (b.onclick = () =>
+            openAcademicMarksCorrection(
+              classNo,
+              exam,
+              list.find((st) => st.user_id === b.dataset.editStudent),
+            )),
+      );
+    } catch (e) {
+      toast(e.message || "Unable to open editor.", "error");
+    }
   }
 
-  async function archiveAcademicExam(classNo,examId){
-    try{
-      const {data:exam,error}=await sb.from('academic_exam_sets').select('exam_name,result_declared,archived_at').eq('id',examId).eq('class_no',classNo).single();if(error)throw error;
-      if(exam.archived_at)return toast('Exam already archived.','error');
-      modal(`<div class="modal-head"><div><h2>Archive examination?</h2><p class="modal-subtitle">${esc(exam.exam_name)} • Class ${classNo}</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div><div class="notice">${exam.result_declared?'Warning: This declared result will disappear from student leaderboards.':'This saved examination will be hidden from active exam lists.'} Marks and correction history will be retained in the database for recovery.</div><div class="form-group"><label>Type the exact exam name to confirm</label><input id="academic-archive-confirm" autocomplete="off" placeholder="${esc(exam.exam_name)}"></div><div class="modal-actions"><button class="small-btn" data-close-modal>Cancel</button><button class="small-btn exam-delete-btn" id="academic-archive-submit"><i class="fa-solid fa-trash"></i> Archive Exam</button></div>`);
-      $$('[data-close-modal]').forEach(b=>b.onclick=closeModal);
-      $('#academic-archive-submit').onclick=async()=>{if($('#academic-archive-confirm').value.trim()!==exam.exam_name)return toast('Exam name does not match.','error');if(exam.result_declared&&!confirm('Final confirmation: hide this published examination and its leaderboard?'))return;const b=$('#academic-archive-submit');b.disabled=true;try{const {error:ae}=await sb.rpc('archive_academic_exam',{p_exam_id:examId});if(ae)throw ae;closeModal();toast('Exam archived. Records preserved.','success');await renderView()}catch(e){toast(e.message||'Archive failed.','error');b.disabled=false}};
-    }catch(e){toast(e.message||'Could not archive exam.','error')}
+  async function openAcademicMarksCorrection(classNo, exam, student) {
+    try {
+      const { data: record, error } = await sb
+        .from("student_exam_marks")
+        .select("marks,included_subject_ids,status")
+        .eq("exam_id", exam.id)
+        .eq("student_id", student.user_id)
+        .maybeSingle();
+      if (error) throw error;
+      const subjects = exam.academic_exam_subjects || [];
+      const ids =
+        Array.isArray(record?.included_subject_ids) &&
+        record.included_subject_ids.length
+          ? record.included_subject_ids.map(String)
+          : subjects.map((x) => String(x.subject_id));
+      const active = subjects.filter((x) => ids.includes(String(x.subject_id)));
+      modal(
+        `<div class="modal-head"><div><span class="pill active">MARKS CORRECTION</span><h2>${esc(student.profiles?.full_name || "Student")}</h2><p class="modal-subtitle">${esc(exam.exam_name)} • Roll ${esc(student.roll_number || "—")}</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>${exam.result_declared ? '<div class="notice">This result is already published. Saving corrections will update the student result and leaderboard.</div>' : ""}<div class="marks-input-grid">${active.map((x) => `<div class="form-group"><label>${esc(x.subject_name)}</label><div class="marks-input-with-full"><input class="academic-correction-input" data-subject-id="${esc(x.subject_id)}" type="number" min="0" max="${esc(x.full_marks)}" step="0.01" value="${record?.marks?.[x.subject_id] ?? ""}" placeholder="Obtained marks"><span>/ ${esc(x.full_marks)}</span></div></div>`).join("")}</div><div class="form-group"><label>Reason for correction (required)</label><textarea id="academic-correction-reason" rows="2" placeholder="e.g. Corrected Mathematics marks after checking answer sheet"></textarea></div><div class="modal-actions"><button class="small-btn" id="academic-edit-back">Back to students</button><button class="small-btn primary" id="academic-correction-save"><i class="fa-solid fa-check"></i> Save Changes</button></div><div class="academic-correction-history"><h3>Correction history</h3><div id="academic-history-rows">Loading history...</div></div>`,
+      );
+      $$("[data-close-modal]").forEach((b) => (b.onclick = closeModal));
+      $("#academic-edit-back").onclick = () =>
+        openAcademicExamEditor(classNo, exam.id);
+      const { data: history, error: he } = await sb
+        .from("academic_marks_audit")
+        .select("created_at,old_marks,new_marks,reason,actor_id")
+        .eq("exam_id", exam.id)
+        .eq("student_id", student.user_id)
+        .order("created_at", { ascending: false })
+        .limit(30);
+      if (he) throw he;
+      $("#academic-history-rows").innerHTML =
+        (history || [])
+          .map(
+            (h) =>
+              `<div class="academic-history-item"><small>${esc(fmtDate(h.created_at))} • ${esc(h.reason || "Updated")}</small><div>${
+                active
+                  .filter(
+                    (x) =>
+                      h.old_marks?.[x.subject_id] !==
+                      h.new_marks?.[x.subject_id],
+                  )
+                  .map(
+                    (x) =>
+                      `${esc(x.subject_name)}: ${esc(h.old_marks?.[x.subject_id] ?? "—")} → ${esc(h.new_marks?.[x.subject_id] ?? "—")}`,
+                  )
+                  .join(" • ") || "Record updated"
+              }</div></div>`,
+          )
+          .join("") || '<p class="mini-label">No corrections yet.</p>';
+      $("#academic-correction-save").onclick = async () => {
+        const btn = $("#academic-correction-save");
+        if (btn.disabled) return;
+        const reason = $("#academic-correction-reason").value.trim();
+        if (!reason)
+          return toast("Enter a reason for the correction.", "error");
+        const marks = {};
+        for (const x of $$(".academic-correction-input")) {
+          if (
+            x.value.trim() === "" ||
+            !Number.isFinite(Number(x.value)) ||
+            Number(x.value) < 0 ||
+            Number(x.value) > Number(x.max)
+          )
+            return toast("Enter valid marks for every subject.", "error");
+          marks[x.dataset.subjectId] = Number(x.value);
+        }
+        if (
+          exam.result_declared &&
+          !confirm(
+            "This exam is DECLARED. Save these corrected marks and update the published leaderboard?",
+          )
+        )
+          return;
+        btn.disabled = true;
+        try {
+          const { error: saveError } = await sb.rpc(
+            "correct_academic_student_marks",
+            {
+              p_exam_id: exam.id,
+              p_student_id: student.user_id,
+              p_marks: marks,
+              p_included_subject_ids: ids,
+              p_reason: reason,
+            },
+          );
+          if (saveError) throw saveError;
+          toast("Marks corrected and history recorded.", "success");
+          await openAcademicMarksCorrection(classNo, exam, student);
+        } catch (e) {
+          toast(e.message || "Correction failed.", "error");
+          btn.disabled = false;
+        }
+      };
+    } catch (e) {
+      toast(e.message || "Unable to load marks correction.", "error");
+    }
   }
 
-  async function openAcademicExamSetup(classNo){
-    const subjects=await subjectsForClass(classNo);
-    if(!subjects.length)return toast(`No subjects are configured for Class ${classNo}.`,"error");
+  async function archiveAcademicExam(classNo, examId) {
+    try {
+      const { data: exam, error } = await sb
+        .from("academic_exam_sets")
+        .select("exam_name,result_declared,archived_at")
+        .eq("id", examId)
+        .eq("class_no", classNo)
+        .single();
+      if (error) throw error;
+      if (exam.archived_at) return toast("Exam already archived.", "error");
+      modal(
+        `<div class="modal-head"><div><h2>Archive examination?</h2><p class="modal-subtitle">${esc(exam.exam_name)} • Class ${classNo}</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div><div class="notice">${exam.result_declared ? "Warning: This declared result will disappear from student leaderboards." : "This saved examination will be hidden from active exam lists."} Marks and correction history will be retained in the database for recovery.</div><div class="form-group"><label>Type the exact exam name to confirm</label><input id="academic-archive-confirm" autocomplete="off" placeholder="${esc(exam.exam_name)}"></div><div class="modal-actions"><button class="small-btn" data-close-modal>Cancel</button><button class="small-btn exam-delete-btn" id="academic-archive-submit"><i class="fa-solid fa-trash"></i> Archive Exam</button></div>`,
+      );
+      $$("[data-close-modal]").forEach((b) => (b.onclick = closeModal));
+      $("#academic-archive-submit").onclick = async () => {
+        if ($("#academic-archive-confirm").value.trim() !== exam.exam_name)
+          return toast("Exam name does not match.", "error");
+        if (
+          exam.result_declared &&
+          !confirm(
+            "Final confirmation: hide this published examination and its leaderboard?",
+          )
+        )
+          return;
+        const b = $("#academic-archive-submit");
+        b.disabled = true;
+        try {
+          const { error: ae } = await sb.rpc("archive_academic_exam", {
+            p_exam_id: examId,
+          });
+          if (ae) throw ae;
+          closeModal();
+          toast("Exam archived. Records preserved.", "success");
+          await renderView();
+        } catch (e) {
+          toast(e.message || "Archive failed.", "error");
+          b.disabled = false;
+        }
+      };
+    } catch (e) {
+      toast(e.message || "Could not archive exam.", "error");
+    }
+  }
+
+  async function openAcademicExamSetup(classNo) {
+    const subjects = await subjectsForClass(classNo);
+    if (!subjects.length)
+      return toast(`No subjects are configured for Class ${classNo}.`, "error");
     modal(`<div class="modal-head"><h2>Set up Class ${classNo} exam</h2><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
       <p class="mini-label" style="margin-bottom:14px">Enter the exam name and full marks once. <strong>Only subjects where you enter full marks will be included in this exam.</strong> Leave a subject blank if the coaching does not teach it for this exam.</p>
       <div class="form-grid"><div class="form-group" style="grid-column:1/-1"><label>Exam name</label><input id="academic-exam-name" placeholder="e.g. First Terminal Examination"></div></div>
-      <div class="marks-full-grid">${subjects.map(s=>`<div class="form-group"><label>${esc(s.name)} — Full marks</label><input class="academic-full-mark" data-subject-id="${esc(s.id)}" data-subject-name="${esc(s.name)}" type="number" min="1" step="0.01" placeholder="Leave blank if not taught"></div>`).join("")}</div>
+      <div class="marks-full-grid">${subjects.map((s) => `<div class="form-group"><label>${esc(s.name)} — Full marks</label><input class="academic-full-mark" data-subject-id="${esc(s.id)}" data-subject-name="${esc(s.name)}" type="number" min="1" step="0.01" placeholder="Leave blank if not taught"></div>`).join("")}</div>
       <div class="modal-actions academic-create-methods"><button class="small-btn" data-close-modal>Cancel</button><button class="small-btn primary" id="create-academic-manual"><i class="fa-solid fa-keyboard"></i> Enter Manually</button><button class="small-btn academic-import-trigger" id="create-academic-import"><i class="fa-solid fa-file-arrow-up"></i> Import CSV / Excel</button></div>`);
-    $$("[data-close-modal]").forEach(b=>b.onclick=()=>$("#modal-root").innerHTML="");
-    const createExam=async(method)=>{
-      const examName=$("#academic-exam-name").value.trim(), inputs=$$(".academic-full-mark");
-      if(!examName)return toast("Enter the exam name.","error");
-      const subjectRows=inputs.filter(i=>i.value.trim()!=="").map(i=>({subject_id:i.dataset.subjectId,subject_name:i.dataset.subjectName,full_marks:Number(i.value)}));
-      if(!subjectRows.length)return toast("Enter full marks for at least one subject.","error");
-      if(subjectRows.some(x=>!Number.isFinite(x.full_marks)||x.full_marks<=0))return toast("Full marks must be greater than 0.","error");
-      loading(true,"Creating exam...");
-      try{
-        const {data:exam,error}=await sb.from("academic_exam_sets").insert({class_no:classNo,exam_name:examName,created_by:state.profile.id}).select().single();
-        if(error)throw error;
-        const {error:subError}=await sb.from("academic_exam_subjects").insert(subjectRows.map(x=>({...x,exam_id:exam.id})));
-        if(subError)throw subError;
-        $("#modal-root").innerHTML="";toast("Exam created.","success");if(method==="import")await openAcademicMarksImport(classNo,exam.id);else await startAcademicMarksEntry(classNo,exam.id);
-      }catch(e){toast(e.message||"Could not create exam.","error")}finally{loading(false)}
+    $$("[data-close-modal]").forEach(
+      (b) => (b.onclick = () => ($("#modal-root").innerHTML = "")),
+    );
+    const createExam = async (method) => {
+      const examName = $("#academic-exam-name").value.trim(),
+        inputs = $$(".academic-full-mark");
+      if (!examName) return toast("Enter the exam name.", "error");
+      const subjectRows = inputs
+        .filter((i) => i.value.trim() !== "")
+        .map((i) => ({
+          subject_id: i.dataset.subjectId,
+          subject_name: i.dataset.subjectName,
+          full_marks: Number(i.value),
+        }));
+      if (!subjectRows.length)
+        return toast("Enter full marks for at least one subject.", "error");
+      if (
+        subjectRows.some(
+          (x) => !Number.isFinite(x.full_marks) || x.full_marks <= 0,
+        )
+      )
+        return toast("Full marks must be greater than 0.", "error");
+      loading(true, "Creating exam...");
+      try {
+        const { data: exam, error } = await sb
+          .from("academic_exam_sets")
+          .insert({
+            class_no: classNo,
+            exam_name: examName,
+            created_by: state.profile.id,
+          })
+          .select()
+          .single();
+        if (error) throw error;
+        const { error: subError } = await sb
+          .from("academic_exam_subjects")
+          .insert(subjectRows.map((x) => ({ ...x, exam_id: exam.id })));
+        if (subError) throw subError;
+        $("#modal-root").innerHTML = "";
+        toast("Exam created.", "success");
+        if (method === "import")
+          await openAcademicMarksImport(classNo, exam.id);
+        else await startAcademicMarksEntry(classNo, exam.id);
+      } catch (e) {
+        toast(e.message || "Could not create exam.", "error");
+      } finally {
+        loading(false);
+      }
     };
-    $("#create-academic-manual").onclick=()=>createExam("manual");
-    $("#create-academic-import").onclick=()=>createExam("import");
+    $("#create-academic-manual").onclick = () => createExam("manual");
+    $("#create-academic-import").onclick = () => createExam("import");
   }
 
-  function academicImportNormalize(v){return String(v??'').trim().toLocaleLowerCase().replace(/\s+/g,' ')}
-  async function openAcademicMarksImport(classNo,examId){
-    const [{data:exam,error:ee},{data:students,error:se}]=await Promise.all([
-      sb.from('academic_exam_sets').select('id,exam_name,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)').eq('id',examId).single(),
-      sb.from('student_profiles').select('user_id,roll_number,profiles(full_name)').eq('class_no',classNo)
-    ]);
-    if(ee||se)throw ee||se;
-    const subjects=(exam.academic_exam_subjects||[]).slice().sort((a,b)=>String(a.subject_name).localeCompare(String(b.subject_name)));
-    const roster=(students||[]).sort((a,b)=>String(a.roll_number||'').localeCompare(String(b.roll_number||''),undefined,{numeric:true}));
-    if(!roster.length||!subjects.length)return toast('No students or exam subjects available.','error');
-    const headers=['Roll Number','Student Name',...subjects.map(x=>x.subject_name)];
+  function academicImportNormalize(v) {
+    return String(v ?? "")
+      .trim()
+      .toLocaleLowerCase()
+      .replace(/\s+/g, " ");
+  }
+  async function openAcademicMarksImport(classNo, examId) {
+    const [{ data: exam, error: ee }, { data: students, error: se }] =
+      await Promise.all([
+        sb
+          .from("academic_exam_sets")
+          .select(
+            "id,exam_name,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)",
+          )
+          .eq("id", examId)
+          .single(),
+        sb
+          .from("student_profiles")
+          .select("user_id,roll_number,profiles(full_name)")
+          .eq("class_no", classNo),
+      ]);
+    if (ee || se) throw ee || se;
+    const subjects = (exam.academic_exam_subjects || [])
+      .slice()
+      .sort((a, b) =>
+        String(a.subject_name).localeCompare(String(b.subject_name)),
+      );
+    const roster = (students || []).sort((a, b) =>
+      String(a.roll_number || "").localeCompare(
+        String(b.roll_number || ""),
+        undefined,
+        { numeric: true },
+      ),
+    );
+    if (!roster.length || !subjects.length)
+      return toast("No students or exam subjects available.", "error");
+    const headers = [
+      "Roll Number",
+      "Student Name",
+      ...subjects.map((x) => x.subject_name),
+    ];
     modal(`<div class="modal-head"><div><h2>Import marks</h2><p class="modal-subtitle">${esc(exam.exam_name)} • Class ${classNo}</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
       <p class="mini-label">Download the template, fill obtained marks only, then upload CSV, XLS or XLSX. Google Sheets: File → Download → Microsoft Excel (.xlsx) or CSV. Leave a subject cell blank if that student does not take the subject: its obtained marks AND full marks will be excluded. Enter 0 for an actual zero score. Full marks stay as configured for applicable subjects.</p>
       <div class="modal-actions"><button class="small-btn" id="academic-download-template"><i class="fa-solid fa-download"></i> Download template</button></div>
       <div class="form-group"><label>Upload spreadsheet</label><input type="file" id="academic-import-file" accept=".csv,.xls,.xlsx"></div>
       <div id="academic-import-preview" class="academic-import-preview"><p class="mini-label">No file selected yet.</p></div>
       <div class="modal-actions"><button class="small-btn" id="academic-import-cancel">Enter Manually</button><button class="small-btn done-action" id="academic-import-save" disabled><i class="fa-solid fa-check"></i> Done — Save Marks</button></div>`);
-    $$('[data-close-modal]').forEach(b=>b.onclick=closeModal);
-    $('#academic-import-cancel').onclick=()=>{closeModal();startAcademicMarksEntry(classNo,examId)};
-    $('#academic-download-template').onclick=()=>{
-      if(typeof XLSX==='undefined')return toast('Spreadsheet library unavailable.','error');
-      const rows=[headers,...roster.map(st=>[String(st.roll_number??''),st.profiles?.full_name||'',...subjects.map(()=>'')])];
-      const ws=XLSX.utils.aoa_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Marks');XLSX.writeFile(wb,`BCC_Class_${classNo}_Marks_Template.xlsx`);
+    $$("[data-close-modal]").forEach((b) => (b.onclick = closeModal));
+    $("#academic-import-cancel").onclick = () => {
+      closeModal();
+      startAcademicMarksEntry(classNo, examId);
     };
-    let validated=null;
-    $('#academic-import-file').onchange=async(ev)=>{
-      validated=null;$('#academic-import-save').disabled=true;
-      const f=ev.target.files?.[0];if(!f)return;
-      try{
-        if(typeof XLSX==='undefined')throw Error('Excel parser is unavailable. Reload the page and try again.');
-        if(!/\.(csv|xls|xlsx)$/i.test(f.name))throw Error('Upload a CSV, XLS or XLSX file.');
-        if(f.size>5*1024*1024)throw Error('File is too large (maximum 5 MB).');
-        const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
-        const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:'',raw:false});
-        if(rows.length<2)throw Error('Spreadsheet has no student marks.');
-        const head=rows[0].map(academicImportNormalize);
-        if(!['roll number','roll no','roll no.','roll_number','serial number'].includes(head[0])||!['student name','name'].includes(head[1]))throw Error('First two columns must be Roll Number and Student Name. Download the template.');
-        if(subjects.some((sub,i)=>head[i+2]!==academicImportNormalize(sub.subject_name)))throw Error('Subject columns must match the downloaded template in the same order.');
-        const byRoll=new Map(),byName=new Map();
-        for(const st of roster){const roll=academicImportNormalize(st.roll_number),name=academicImportNormalize(st.profiles?.full_name);if(roll){if(!byRoll.has(roll))byRoll.set(roll,[]);byRoll.get(roll).push(st)}if(name){if(!byName.has(name))byName.set(name,[]);byName.get(name).push(st)}}
-        const errors=[],matches=[],seen=new Set();
-        rows.slice(1).forEach((r,j)=>{
-          if(!r.some(x=>String(x??'').trim()))return;
-          const line=j+2,roll=academicImportNormalize(r[0]),name=academicImportNormalize(r[1]);
-          let candidates=roll?byRoll.get(roll)||[]:[];
-          if(candidates.length===1&&name&&academicImportNormalize(candidates[0].profiles?.full_name)!==name){errors.push(`Row ${line}: roll number and student name disagree`);return}
-          if(!candidates.length&&name)candidates=byName.get(name)||[];
-          if(candidates.length!==1){errors.push(`Row ${line}: ${candidates.length?'ambiguous':'unknown'} student`);return}
-          const st=candidates[0];if(seen.has(st.user_id)){errors.push(`Row ${line}: duplicate student`);return}seen.add(st.user_id);
-          const marks={},includedSubjectIds=[];let invalid=false;
-          for(let i=0;i<subjects.length;i++){
-            const val=String(r[i+2]??'').trim();
+    $("#academic-download-template").onclick = () => {
+      if (typeof XLSX === "undefined")
+        return toast("Spreadsheet library unavailable.", "error");
+      const rows = [
+        headers,
+        ...roster.map((st) => [
+          String(st.roll_number ?? ""),
+          st.profiles?.full_name || "",
+          ...subjects.map(() => ""),
+        ]),
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(rows),
+        wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Marks");
+      XLSX.writeFile(wb, `BCC_Class_${classNo}_Marks_Template.xlsx`);
+    };
+    let validated = null;
+    $("#academic-import-file").onchange = async (ev) => {
+      validated = null;
+      $("#academic-import-save").disabled = true;
+      const f = ev.target.files?.[0];
+      if (!f) return;
+      try {
+        if (typeof XLSX === "undefined")
+          throw Error(
+            "Excel parser is unavailable. Reload the page and try again.",
+          );
+        if (!/\.(csv|xls|xlsx)$/i.test(f.name))
+          throw Error("Upload a CSV, XLS or XLSX file.");
+        if (f.size > 5 * 1024 * 1024)
+          throw Error("File is too large (maximum 5 MB).");
+        const wb = XLSX.read(await f.arrayBuffer(), { type: "array" });
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {
+          header: 1,
+          defval: "",
+          raw: false,
+        });
+        if (rows.length < 2) throw Error("Spreadsheet has no student marks.");
+        const head = rows[0].map(academicImportNormalize);
+        if (
+          ![
+            "roll number",
+            "roll no",
+            "roll no.",
+            "roll_number",
+            "serial number",
+          ].includes(head[0]) ||
+          !["student name", "name"].includes(head[1])
+        )
+          throw Error(
+            "First two columns must be Roll Number and Student Name. Download the template.",
+          );
+        if (
+          subjects.some(
+            (sub, i) =>
+              head[i + 2] !== academicImportNormalize(sub.subject_name),
+          )
+        )
+          throw Error(
+            "Subject columns must match the downloaded template in the same order.",
+          );
+        const byRoll = new Map(),
+          byName = new Map();
+        for (const st of roster) {
+          const roll = academicImportNormalize(st.roll_number),
+            name = academicImportNormalize(st.profiles?.full_name);
+          if (roll) {
+            if (!byRoll.has(roll)) byRoll.set(roll, []);
+            byRoll.get(roll).push(st);
+          }
+          if (name) {
+            if (!byName.has(name)) byName.set(name, []);
+            byName.get(name).push(st);
+          }
+        }
+        const errors = [],
+          matches = [],
+          seen = new Set();
+        rows.slice(1).forEach((r, j) => {
+          if (!r.some((x) => String(x ?? "").trim())) return;
+          const line = j + 2,
+            roll = academicImportNormalize(r[0]),
+            name = academicImportNormalize(r[1]);
+          let candidates = roll ? byRoll.get(roll) || [] : [];
+          if (
+            candidates.length === 1 &&
+            name &&
+            academicImportNormalize(candidates[0].profiles?.full_name) !== name
+          ) {
+            errors.push(`Row ${line}: roll number and student name disagree`);
+            return;
+          }
+          if (!candidates.length && name) candidates = byName.get(name) || [];
+          if (candidates.length !== 1) {
+            errors.push(
+              `Row ${line}: ${candidates.length ? "ambiguous" : "unknown"} student`,
+            );
+            return;
+          }
+          const st = candidates[0];
+          if (seen.has(st.user_id)) {
+            errors.push(`Row ${line}: duplicate student`);
+            return;
+          }
+          seen.add(st.user_id);
+          const marks = {},
+            includedSubjectIds = [];
+          let invalid = false;
+          for (let i = 0; i < subjects.length; i++) {
+            const val = String(r[i + 2] ?? "").trim();
             // Blank = subject not taken. Do not include its full marks in the result.
-            if(val==='')continue;
-            const max=Number(subjects[i].full_marks),n=Number(val);
-            if(!Number.isFinite(n)||n<0||n>max){errors.push(`Row ${line}: invalid ${subjects[i].subject_name} marks (0–${max}, or leave blank to exclude)`);invalid=true;break}
-            marks[subjects[i].subject_id]=n;
+            if (val === "") continue;
+            const max = Number(subjects[i].full_marks),
+              n = Number(val);
+            if (!Number.isFinite(n) || n < 0 || n > max) {
+              errors.push(
+                `Row ${line}: invalid ${subjects[i].subject_name} marks (0–${max}, or leave blank to exclude)`,
+              );
+              invalid = true;
+              break;
+            }
+            marks[subjects[i].subject_id] = n;
             includedSubjectIds.push(subjects[i].subject_id);
           }
           // An empty subject list is interpreted elsewhere as all subjects; never save it.
-          if(!invalid&&!includedSubjectIds.length){errors.push(`Row ${line}: enter marks for at least one subject, or omit this student to enter later`);invalid=true}
-          if(!invalid)matches.push({exam_id:examId,student_id:st.user_id,marks,status:'completed',included_subject_ids:includedSubjectIds,updated_at:new Date().toISOString()});
+          if (!invalid && !includedSubjectIds.length) {
+            errors.push(
+              `Row ${line}: enter marks for at least one subject, or omit this student to enter later`,
+            );
+            invalid = true;
+          }
+          if (!invalid)
+            matches.push({
+              exam_id: examId,
+              student_id: st.user_id,
+              marks,
+              status: "completed",
+              included_subject_ids: includedSubjectIds,
+              updated_at: new Date().toISOString(),
+            });
         });
-        const missing=roster.filter(st=>!seen.has(st.user_id));
-        const preview=$('#academic-import-preview');
-        preview.innerHTML=`<p><strong>${matches.length}</strong> valid students • <strong>${missing.length}</strong> not in file • <strong>${errors.length}</strong> errors</p>${errors.length?`<div class="academic-import-errors">${errors.slice(0,12).map(e=>`<p>${esc(e)}</p>`).join('')}${errors.length>12?'<p>More errors exist.</p>':''}</div>`:''}<p class="mini-label">Only validated rows will be saved. Missing students remain unfinished and can be entered manually. Results are NOT declared automatically.</p>`;
-        if(!errors.length&&matches.length){validated=matches;$('#academic-import-save').disabled=false}
-      }catch(e){$('#academic-import-preview').textContent=e.message||'Could not read spreadsheet.'}
+        const missing = roster.filter((st) => !seen.has(st.user_id));
+        const preview = $("#academic-import-preview");
+        preview.innerHTML = `<p><strong>${matches.length}</strong> valid students • <strong>${missing.length}</strong> not in file • <strong>${errors.length}</strong> errors</p>${
+          errors.length
+            ? `<div class="academic-import-errors">${errors
+                .slice(0, 12)
+                .map((e) => `<p>${esc(e)}</p>`)
+                .join(
+                  "",
+                )}${errors.length > 12 ? "<p>More errors exist.</p>" : ""}</div>`
+            : ""
+        }<p class="mini-label">Only validated rows will be saved. Missing students remain unfinished and can be entered manually. Results are NOT declared automatically.</p>`;
+        if (!errors.length && matches.length) {
+          validated = matches;
+          $("#academic-import-save").disabled = false;
+        }
+      } catch (e) {
+        $("#academic-import-preview").textContent =
+          e.message || "Could not read spreadsheet.";
+      }
     };
-    $('#academic-import-save').onclick=async()=>{
-      if(!validated?.length)return;
-      const btn=$('#academic-import-save');btn.disabled=true;
-      try{
+    $("#academic-import-save").onclick = async () => {
+      if (!validated?.length) return;
+      const btn = $("#academic-import-save");
+      btn.disabled = true;
+      try {
         // Save in small batches; do not claim completion until Supabase confirms every batch.
-        for(let i=0;i<validated.length;i+=50){const {error}=await sb.from('student_exam_marks').upsert(validated.slice(i,i+50),{onConflict:'exam_id,student_id'});if(error)throw error}
-        closeModal();toast(`${validated.length} student marks imported and saved. Result is not declared.`,'success');
+        for (let i = 0; i < validated.length; i += 50) {
+          const { error } = await sb
+            .from("student_exam_marks")
+            .upsert(validated.slice(i, i + 50), {
+              onConflict: "exam_id,student_id",
+            });
+          if (error) throw error;
+        }
+        closeModal();
+        toast(
+          `${validated.length} student marks imported and saved. Result is not declared.`,
+          "success",
+        );
         await renderView();
-      }catch(e){toast(e.message||'Import failed. Some batches may have saved; reimport is safe.','error');btn.disabled=false}
+      } catch (e) {
+        toast(
+          e.message ||
+            "Import failed. Some batches may have saved; reimport is safe.",
+          "error",
+        );
+        btn.disabled = false;
+      }
     };
   }
 
-  async function chooseStudentForMarks(classNo,studentId){
-    const {data:exams,error}=await sb.from("academic_exam_sets").select("id,exam_name,created_at").eq("class_no",classNo).order("created_at",{ascending:false});
-    if(error)throw error;
-    if(!(exams||[]).length)return openAcademicExamSetup(classNo);
+  async function chooseStudentForMarks(classNo, studentId) {
+    const { data: exams, error } = await sb
+      .from("academic_exam_sets")
+      .select("id,exam_name,created_at")
+      .eq("class_no", classNo)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    if (!(exams || []).length) return openAcademicExamSetup(classNo);
     modal(`<div class="modal-head"><h2>Select exam</h2><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div><p class="mini-label">Choose the exam for this student.</p>
-      <div class="marks-exam-select-list">${exams.map(e=>`<button class="marks-exam-item" data-select-exam="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small>${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join("")}</div>`);
-    $$("[data-close-modal]").forEach(b=>b.onclick=()=>$("#modal-root").innerHTML="");
-    $$("[data-select-exam]").forEach(b=>b.onclick=()=>{$("#modal-root").innerHTML="";startAcademicMarksEntry(classNo,b.dataset.selectExam,studentId)});
+      <div class="marks-exam-select-list">${exams.map((e) => `<button class="marks-exam-item" data-select-exam="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small>${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join("")}</div>`);
+    $$("[data-close-modal]").forEach(
+      (b) => (b.onclick = () => ($("#modal-root").innerHTML = "")),
+    );
+    $$("[data-select-exam]").forEach(
+      (b) =>
+        (b.onclick = () => {
+          $("#modal-root").innerHTML = "";
+          startAcademicMarksEntry(classNo, b.dataset.selectExam, studentId);
+        }),
+    );
   }
 
   // Pending entries are kept locally until Save is clicked.
   const academicPending = new Map();
-  const pendingKey = examId => `bcc_academic_pending_${state.profile?.id || 'admin'}_${examId}`;
-  function getAcademicPending(examId){
-    if(!academicPending.has(examId)){
-      let rows={};try{rows=JSON.parse(sessionStorage.getItem(pendingKey(examId))||'{}')||{}}catch(_){}
-      academicPending.set(examId,rows);
+  const pendingKey = (examId) =>
+    `bcc_academic_pending_${state.profile?.id || "admin"}_${examId}`;
+  function getAcademicPending(examId) {
+    if (!academicPending.has(examId)) {
+      let rows = {};
+      try {
+        rows =
+          JSON.parse(sessionStorage.getItem(pendingKey(examId)) || "{}") || {};
+      } catch (_) {}
+      academicPending.set(examId, rows);
     }
     return academicPending.get(examId);
   }
-  function persistAcademicPending(examId){try{sessionStorage.setItem(pendingKey(examId),JSON.stringify(getAcademicPending(examId)))}catch(_){}}
-  function academicUnsaved(examId){return Object.keys(getAcademicPending(examId)).length>0}
-  function collectAcademicInputs(inputs,includedIds){
-    const marks={};for(const input of inputs){const raw=input.value.trim();if(raw==='')throw new Error('Enter marks for every selected subject before continuing.');const value=Number(raw),max=Number(input.max);if(!Number.isFinite(value)||value<0||value>max)throw new Error(`Marks must be between 0 and ${max}.`);marks[input.dataset.subjectId]=value;}
-    return {marks,included_subject_ids:[...includedIds]};
+  function persistAcademicPending(examId) {
+    try {
+      sessionStorage.setItem(
+        pendingKey(examId),
+        JSON.stringify(getAcademicPending(examId)),
+      );
+    } catch (_) {}
   }
-  async function saveAcademicPending(examId){
-    const pending=getAcademicPending(examId),ids=Object.keys(pending);
-    if(!ids.length)return 0;
-    const payload=ids.map(id=>({exam_id:examId,student_id:id,marks:pending[id].marks,included_subject_ids:pending[id].included_subject_ids,status:'completed',updated_at:new Date().toISOString()}));
-    const {error}=await sb.from('student_exam_marks').upsert(payload,{onConflict:'exam_id,student_id'});
-    if(error)throw error;
-    ids.forEach(id=>delete pending[id]);persistAcademicPending(examId);
+  function academicUnsaved(examId) {
+    return Object.keys(getAcademicPending(examId)).length > 0;
+  }
+  function collectAcademicInputs(inputs, includedIds) {
+    const marks = {};
+    for (const input of inputs) {
+      const raw = input.value.trim();
+      if (raw === "")
+        throw new Error(
+          "Enter marks for every selected subject before continuing.",
+        );
+      const value = Number(raw),
+        max = Number(input.max);
+      if (!Number.isFinite(value) || value < 0 || value > max)
+        throw new Error(`Marks must be between 0 and ${max}.`);
+      marks[input.dataset.subjectId] = value;
+    }
+    return { marks, included_subject_ids: [...includedIds] };
+  }
+  async function saveAcademicPending(examId) {
+    const pending = getAcademicPending(examId),
+      ids = Object.keys(pending);
+    if (!ids.length) return 0;
+    const payload = ids.map((id) => ({
+      exam_id: examId,
+      student_id: id,
+      marks: pending[id].marks,
+      included_subject_ids: pending[id].included_subject_ids,
+      status: "completed",
+      updated_at: new Date().toISOString(),
+    }));
+    const { error } = await sb
+      .from("student_exam_marks")
+      .upsert(payload, { onConflict: "exam_id,student_id" });
+    if (error) throw error;
+    ids.forEach((id) => delete pending[id]);
+    persistAcademicPending(examId);
     return ids.length;
   }
-  async function startAcademicMarksEntry(classNo,examId,startStudentId=null){
-    const [{data:exam,error:examError},{data:students,error:studentError},{data:records,error:recordError}]=await Promise.all([
-      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("id",examId).single(),
-      sb.from("student_profiles").select("user_id,class_no,roll_number,profiles(full_name,login_id)").eq("class_no",classNo),
-      sb.from("student_exam_marks").select("student_id,status,included_subject_ids").eq("exam_id",examId)
+  async function startAcademicMarksEntry(
+    classNo,
+    examId,
+    startStudentId = null,
+  ) {
+    const [
+      { data: exam, error: examError },
+      { data: students, error: studentError },
+      { data: records, error: recordError },
+    ] = await Promise.all([
+      sb
+        .from("academic_exam_sets")
+        .select(
+          "id,class_no,exam_name,created_at,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)",
+        )
+        .eq("id", examId)
+        .single(),
+      sb
+        .from("student_profiles")
+        .select("user_id,class_no,roll_number,profiles(full_name,login_id)")
+        .eq("class_no", classNo),
+      sb
+        .from("student_exam_marks")
+        .select("student_id,status,included_subject_ids")
+        .eq("exam_id", examId),
     ]);
-    if(examError)throw examError;if(studentError)throw studentError;if(recordError)throw recordError;if(exam.archived_at)return toast("This exam is archived.","error");
-    const list=(students||[]).sort((a,b)=>String(a.roll_number||"").localeCompare(String(b.roll_number||""),undefined,{numeric:true,sensitivity:"base"}));
-    const subjects=exam.academic_exam_subjects||[],recordMap=new Map((records||[]).map(r=>[r.student_id,r]));
-    if(!list.length)return toast("No students found.","error");
-    let idx;if(startStudentId){idx=list.findIndex(s=>s.user_id===startStudentId);if(idx<0)idx=0}else{idx=list.findIndex(s=>recordMap.get(s.user_id)?.status!=="completed");}
-    const pending=getAcademicPending(examId);
-    if(!startStudentId && Object.keys(pending).length){idx=list.findIndex(s=>recordMap.get(s.user_id)?.status!=='completed' && !pending[s.user_id]);if(idx<0)idx=list.findIndex(s=>recordMap.get(s.user_id)?.status!=='completed');}
-    if(idx<0){if(exam.result_declared){toast("This exam is already declared. Open Leaderboard to view its results.","success");return;}await showAcademicExamFinished(classNo,exam,list.length);return;}
-    await showAcademicStudentCard({classNo,exam,list,subjects,index:idx});
+    if (examError) throw examError;
+    if (studentError) throw studentError;
+    if (recordError) throw recordError;
+    if (exam.archived_at) return toast("This exam is archived.", "error");
+    const list = (students || []).sort((a, b) =>
+      String(a.roll_number || "").localeCompare(
+        String(b.roll_number || ""),
+        undefined,
+        { numeric: true, sensitivity: "base" },
+      ),
+    );
+    const subjects = exam.academic_exam_subjects || [],
+      recordMap = new Map((records || []).map((r) => [r.student_id, r]));
+    if (!list.length) return toast("No students found.", "error");
+    let idx;
+    if (startStudentId) {
+      idx = list.findIndex((s) => s.user_id === startStudentId);
+      if (idx < 0) idx = 0;
+    } else {
+      idx = list.findIndex(
+        (s) => recordMap.get(s.user_id)?.status !== "completed",
+      );
+    }
+    const pending = getAcademicPending(examId);
+    if (!startStudentId && Object.keys(pending).length) {
+      idx = list.findIndex(
+        (s) =>
+          recordMap.get(s.user_id)?.status !== "completed" &&
+          !pending[s.user_id],
+      );
+      if (idx < 0)
+        idx = list.findIndex(
+          (s) => recordMap.get(s.user_id)?.status !== "completed",
+        );
+    }
+    if (idx < 0) {
+      if (exam.result_declared) {
+        toast(
+          "This exam is already declared. Open Leaderboard to view its results.",
+          "success",
+        );
+        return;
+      }
+      await showAcademicExamFinished(classNo, exam, list.length);
+      return;
+    }
+    await showAcademicStudentCard({
+      classNo,
+      exam,
+      list,
+      subjects,
+      index: idx,
+    });
   }
 
-  async function showAcademicExamFinished(classNo,exam,totalStudents){
-    const {data:latest,error}=await sb.from('academic_exam_sets').select('result_declared').eq('id',exam.id).single();
-    if(error)throw error;
-    const declared=!!latest.result_declared;
+  async function showAcademicExamFinished(classNo, exam, totalStudents) {
+    const { data: latest, error } = await sb
+      .from("academic_exam_sets")
+      .select("result_declared")
+      .eq("id", exam.id)
+      .single();
+    if (error) throw error;
+    const declared = !!latest.result_declared;
     modal(`<div class="modal-head"><div><span class="pill active">EXAM COMPLETED</span><h2>${esc(exam.exam_name)}</h2></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
-      <div class="academic-finish-body"><img src="assets/logo.png" alt="BCC logo" class="academic-finish-logo"><div class="academic-finish-icon"><i class="fa-solid fa-circle-check"></i></div><h2>All student marks saved!</h2><p>${esc(exam.exam_name)} • Class ${classNo}</p><p><strong>${totalStudents}</strong> students completed • <strong>${(exam.academic_exam_subjects||[]).length}</strong> configured subjects</p><span class="status-chip ${declared?'success':''}">${declared?'✓ Result Declared':'Result saved — not declared'}</span></div>
-      <div class="modal-actions academic-finish-actions">${declared?`<button class="small-btn primary" id="academic-finish-leaderboard"><i class="fa-solid fa-ranking-star"></i> Leaderboard</button>`:`<button class="small-btn declare-result-btn" id="academic-finish-declare"><i class="fa-solid fa-bullhorn"></i> Declare Result</button>`}<button class="small-btn" id="academic-finish-skip" class="finish-skip-btn">${declared?'Close':'Skip for Now'}</button></div>`);
-    $$('[data-close-modal]').forEach(b=>b.onclick=closeModal);
-    $('#academic-finish-skip').onclick=async()=>{closeModal();await renderView()};
-    if(declared)$('#academic-finish-leaderboard').onclick=()=>{closeModal();navigate('academic-leaderboard-exam',{classNo,examId:exam.id})};
-    else $('#academic-finish-declare').onclick=async()=>{const ok=await declareAcademicExam(classNo,exam.id);if(ok)closeModal()};
+      <div class="academic-finish-body"><img src="assets/logo.png" alt="BCC logo" class="academic-finish-logo"><div class="academic-finish-icon"><i class="fa-solid fa-circle-check"></i></div><h2>All student marks saved!</h2><p>${esc(exam.exam_name)} • Class ${classNo}</p><p><strong>${totalStudents}</strong> students completed • <strong>${(exam.academic_exam_subjects || []).length}</strong> configured subjects</p><span class="status-chip ${declared ? "success" : ""}">${declared ? "✓ Result Declared" : "Result saved — not declared"}</span></div>
+      <div class="modal-actions academic-finish-actions">${declared ? `<button class="small-btn primary" id="academic-finish-leaderboard"><i class="fa-solid fa-ranking-star"></i> Leaderboard</button>` : `<button class="small-btn declare-result-btn" id="academic-finish-declare"><i class="fa-solid fa-bullhorn"></i> Declare Result</button>`}<button class="small-btn" id="academic-finish-skip" class="finish-skip-btn">${declared ? "Close" : "Skip for Now"}</button></div>`);
+    $$("[data-close-modal]").forEach((b) => (b.onclick = closeModal));
+    $("#academic-finish-skip").onclick = async () => {
+      closeModal();
+      await renderView();
+    };
+    if (declared)
+      $("#academic-finish-leaderboard").onclick = () => {
+        closeModal();
+        navigate("academic-leaderboard-exam", { classNo, examId: exam.id });
+      };
+    else
+      $("#academic-finish-declare").onclick = async () => {
+        const ok = await declareAcademicExam(classNo, exam.id);
+        if (ok) closeModal();
+      };
   }
 
-  async function saveAcademicStudentMarks(examId,studentId,inputs,status,includedSubjectIds=null){
-    const marks={};
-    for(const i of inputs){const raw=i.value.trim();if(raw==="")throw new Error("Enter marks for every selected subject before saving.");const v=Number(raw),max=Number(i.max);if(!Number.isFinite(v)||v<0||v>max)throw new Error(`Marks must be between 0 and ${max}.`);marks[i.dataset.subjectId]=v}
-    const payload={exam_id:examId,student_id:studentId,marks,status,updated_at:new Date().toISOString()};
-    if(Array.isArray(includedSubjectIds))payload.included_subject_ids=includedSubjectIds;
-    const {error}=await sb.from("student_exam_marks").upsert(payload,{onConflict:"exam_id,student_id"});if(error)throw error;
+  async function saveAcademicStudentMarks(
+    examId,
+    studentId,
+    inputs,
+    status,
+    includedSubjectIds = null,
+  ) {
+    const marks = {};
+    for (const i of inputs) {
+      const raw = i.value.trim();
+      if (raw === "")
+        throw new Error(
+          "Enter marks for every selected subject before saving.",
+        );
+      const v = Number(raw),
+        max = Number(i.max);
+      if (!Number.isFinite(v) || v < 0 || v > max)
+        throw new Error(`Marks must be between 0 and ${max}.`);
+      marks[i.dataset.subjectId] = v;
+    }
+    const payload = {
+      exam_id: examId,
+      student_id: studentId,
+      marks,
+      status,
+      updated_at: new Date().toISOString(),
+    };
+    if (Array.isArray(includedSubjectIds))
+      payload.included_subject_ids = includedSubjectIds;
+    const { error } = await sb
+      .from("student_exam_marks")
+      .upsert(payload, { onConflict: "exam_id,student_id" });
+    if (error) throw error;
   }
 
-  async function updateStudentFM(exam,studentId,subjects,currentIds){
-    const defaultIds=subjects.map(s=>String(s.subject_id));
-    const selected=new Set(Array.isArray(currentIds)&&currentIds.length?currentIds.map(String):defaultIds);
+  async function updateStudentFM(exam, studentId, subjects, currentIds) {
+    const defaultIds = subjects.map((s) => String(s.subject_id));
+    const selected = new Set(
+      Array.isArray(currentIds) && currentIds.length
+        ? currentIds.map(String)
+        : defaultIds,
+    );
     modal(`<div class="modal-head"><div><span class="pill active">FM UPDATE</span><h2>Subjects for this student</h2><p class="modal-subtitle">Uncheck a subject only if this student is not taking it. Full marks for the exam remain unchanged for other students.</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
-      <div class="fm-update-list">${subjects.map(s=>`<label class="fm-update-row"><span><strong>${esc(s.subject_name)}</strong><small>Full marks: ${esc(s.full_marks)}</small></span><input type="checkbox" class="fm-subject-toggle" data-subject-id="${esc(s.subject_id)}" ${selected.has(String(s.subject_id))?"checked":""}></label>`).join("")}</div>
+      <div class="fm-update-list">${subjects.map((s) => `<label class="fm-update-row"><span><strong>${esc(s.subject_name)}</strong><small>Full marks: ${esc(s.full_marks)}</small></span><input type="checkbox" class="fm-subject-toggle" data-subject-id="${esc(s.subject_id)}" ${selected.has(String(s.subject_id)) ? "checked" : ""}></label>`).join("")}</div>
       <div class="notice fm-update-note">Only the checked subjects will appear in this student's marks card and calculation. The next student will automatically start with all exam subjects.</div>
       <div class="modal-actions"><button class="small-btn" data-close-modal>Cancel</button><button class="small-btn fm-update-action" id="save-fm-update"><i class="fa-solid fa-sliders"></i> Update FM</button></div>`);
-    $$('[data-close-modal]').forEach(b=>b.onclick=closeModal);
-    $('#save-fm-update').onclick=async()=>{
-      const ids=$$('.fm-subject-toggle').filter(x=>x.checked).map(x=>x.dataset.subjectId);
-      if(!ids.length)return toast('Keep at least one subject for this student.','error');
-      const existing=await sb.from('student_exam_marks').select('marks,status').eq('exam_id',exam.id).eq('student_id',studentId).maybeSingle();
-      if(existing.error)throw existing.error;
-      const marks=existing.data?.marks||{};Object.keys(marks).forEach(k=>{if(!ids.includes(String(k)))delete marks[k]});
-      const status=existing.data?.status||'draft';
-      const {error}=await sb.from('student_exam_marks').upsert({exam_id:exam.id,student_id:studentId,marks,status,included_subject_ids:ids,updated_at:new Date().toISOString()},{onConflict:'exam_id,student_id'});
-      if(error)throw error;closeModal();toast('FM updated for this student.','success');await startAcademicMarksEntry(exam.class_no,exam.id,studentId);
+    $$("[data-close-modal]").forEach((b) => (b.onclick = closeModal));
+    $("#save-fm-update").onclick = async () => {
+      const ids = $$(".fm-subject-toggle")
+        .filter((x) => x.checked)
+        .map((x) => x.dataset.subjectId);
+      if (!ids.length)
+        return toast("Keep at least one subject for this student.", "error");
+      const existing = await sb
+        .from("student_exam_marks")
+        .select("marks,status")
+        .eq("exam_id", exam.id)
+        .eq("student_id", studentId)
+        .maybeSingle();
+      if (existing.error) throw existing.error;
+      const marks = existing.data?.marks || {};
+      Object.keys(marks).forEach((k) => {
+        if (!ids.includes(String(k))) delete marks[k];
+      });
+      const status = existing.data?.status || "draft";
+      const { error } = await sb
+        .from("student_exam_marks")
+        .upsert(
+          {
+            exam_id: exam.id,
+            student_id: studentId,
+            marks,
+            status,
+            included_subject_ids: ids,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "exam_id,student_id" },
+        );
+      if (error) throw error;
+      closeModal();
+      toast("FM updated for this student.", "success");
+      await startAcademicMarksEntry(exam.class_no, exam.id, studentId);
     };
   }
 
-  async function showAcademicStudentCard({classNo,exam,list,subjects,index}){
-    const student=list[index];
-    const {data:existing,error}=await sb.from('student_exam_marks').select('marks,status,updated_at,included_subject_ids').eq('exam_id',exam.id).eq('student_id',student.user_id).maybeSingle();
-    if(error)throw error;
-    const allSubjectIds=subjects.map(s=>String(s.subject_id));
-    const draftEntry=getAcademicPending(exam.id)[student.user_id];
-    const storedIds=draftEntry?.included_subject_ids||existing?.included_subject_ids;
-    const includedIds=Array.isArray(storedIds)&&storedIds.length?storedIds.map(String):allSubjectIds;
-    const activeSubjects=subjects.filter(s=>includedIds.includes(String(s.subject_id)));
-    const draft=getAcademicPending(exam.id)[student.user_id];
-    const saved=draft?.marks||existing?.marks||{},completed=existing?.status==='completed',next=index+1<list.length?index+1:null,prev=index>0?index-1:null;
-    modal(`<div class="modal-head"><div><span class="pill active">${esc(exam.exam_name)}</span><h2>${esc(student.profiles?.full_name||'Student')}</h2><p class="modal-subtitle">Roll No. ${esc(student.roll_number||'—')} • Class ${classNo} • Student ${index+1} of ${list.length}</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
-      <div class="marks-student-meta"><span><strong>${esc(student.profiles?.full_name||'Student')}</strong></span><span>Roll No. ${esc(student.roll_number||'—')}</span><span>${classText(classNo)}</span><span>${activeSubjects.length} subject${activeSubjects.length===1?'':'s'}</span>${completed?'<span class="status-chip success">Completed</span>':'<span class="status-chip">Pending / Draft</span>'}</div>
-      <div class="marks-input-grid">${activeSubjects.map(s=>`<div class="form-group"><label>${esc(s.subject_name)}</label><div class="marks-input-with-full"><input class="academic-mark-input" data-subject-id="${esc(s.subject_id)}" type="number" min="0" max="${esc(s.full_marks)}" step="0.01" value="${saved[s.subject_id]!=null?esc(saved[s.subject_id]):''}" placeholder="0"><span>/ ${esc(s.full_marks)}</span></div></div>`).join('')}</div>
-      <div class="marks-total-preview"><span>Total: <strong id="academic-total-preview">0</strong> / ${activeSubjects.reduce((n,s)=>n+Number(s.full_marks||0),0)}</span><span id="academic-percent-preview">0.00%</span></div>
-      <div class="modal-actions marks-entry-actions"><button class="small-btn" id="marks-prev" ${prev===null?'disabled':''}><i class="fa-solid fa-arrow-left"></i> Previous</button><button class="small-btn fm-update-action" id="marks-fm-update"><i class="fa-solid fa-sliders"></i> FM Update</button><span class="marks-entry-spacer"></span><button class="small-btn academic-save-btn" id="marks-save"><i class="fa-solid fa-floppy-disk"></i> Save</button><button class="small-btn academic-next-btn" id="marks-next"><i class="fa-solid fa-arrow-right"></i> Next</button></div>`);
-    $$('[data-close-modal]').forEach(b=>b.onclick=()=>{if(academicUnsaved(exam.id)&&!confirm('Unsaved marks are stored only in this browser until you click Save. Close anyway?'))return;closeModal()});
-    const inputs=$$('.academic-mark-input');
-    const updatePreview=()=>{let total=0;inputs.forEach(i=>{const v=Number(i.value);if(Number.isFinite(v)&&v>=0)total+=v});const full=activeSubjects.reduce((n,s)=>n+Number(s.full_marks||0),0);$('#academic-total-preview').textContent=total.toFixed(2).replace(/\.00$/,'');$('#academic-percent-preview').textContent=full?`${((total/full)*100).toFixed(2)}%`:'0.00%'};
-    inputs.forEach(i=>i.addEventListener('input',updatePreview));updatePreview();
-    const cacheCurrent=()=>{const values=inputs.map(i=>i.value.trim());if(values.every(v=>v===''))return false;const entry=collectAcademicInputs(inputs,includedIds);getAcademicPending(exam.id)[student.user_id]=entry;persistAcademicPending(exam.id);return true;};
-    const moveTo=async target=>{try{cacheCurrent();await showAcademicStudentCard({classNo,exam,list,subjects,index:target})}catch(e){toast(e.message||'Invalid marks.','error')}};
-    $('#marks-prev').onclick=()=>{if(prev!==null)moveTo(prev)};
-    $('#marks-fm-update').onclick=()=>{if(academicUnsaved(exam.id)&&!confirm('Unsaved marks are waiting. Save them before updating subjects?'))return;updateStudentFM(exam,student.user_id,subjects,includedIds)};
-    $('#marks-next').onclick=async()=>{
-      try{cacheCurrent();if(next!==null)await showAcademicStudentCard({classNo,exam,list,subjects,index:next});else toast('No more students. Click Save to save all entered marks.','info')}
-      catch(e){toast(e.message||'Invalid marks.','error')}
+  async function showAcademicStudentCard({
+    classNo,
+    exam,
+    list,
+    subjects,
+    index,
+  }) {
+    const student = list[index];
+    const { data: existing, error } = await sb
+      .from("student_exam_marks")
+      .select("marks,status,updated_at,included_subject_ids")
+      .eq("exam_id", exam.id)
+      .eq("student_id", student.user_id)
+      .maybeSingle();
+    if (error) throw error;
+    const allSubjectIds = subjects.map((s) => String(s.subject_id));
+    const draftEntry = getAcademicPending(exam.id)[student.user_id];
+    const storedIds =
+      draftEntry?.included_subject_ids || existing?.included_subject_ids;
+    const includedIds =
+      Array.isArray(storedIds) && storedIds.length
+        ? storedIds.map(String)
+        : allSubjectIds;
+    const activeSubjects = subjects.filter((s) =>
+      includedIds.includes(String(s.subject_id)),
+    );
+    const draft = getAcademicPending(exam.id)[student.user_id];
+    const saved = draft?.marks || existing?.marks || {},
+      completed = existing?.status === "completed",
+      next = index + 1 < list.length ? index + 1 : null,
+      prev = index > 0 ? index - 1 : null;
+    modal(`<div class="modal-head"><div><span class="pill active">${esc(exam.exam_name)}</span><h2>${esc(student.profiles?.full_name || "Student")}</h2><p class="modal-subtitle">Roll No. ${esc(student.roll_number || "—")} • Class ${classNo} • Student ${index + 1} of ${list.length}</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
+      <div class="marks-student-meta"><span><strong>${esc(student.profiles?.full_name || "Student")}</strong></span><span>Roll No. ${esc(student.roll_number || "—")}</span><span>${classText(classNo)}</span><span>${activeSubjects.length} subject${activeSubjects.length === 1 ? "" : "s"}</span>${completed ? '<span class="status-chip success">Completed</span>' : '<span class="status-chip">Pending / Draft</span>'}</div>
+      <div class="marks-input-grid">${activeSubjects.map((s) => `<div class="form-group"><label>${esc(s.subject_name)}</label><div class="marks-input-with-full"><input class="academic-mark-input" data-subject-id="${esc(s.subject_id)}" type="number" min="0" max="${esc(s.full_marks)}" step="0.01" value="${saved[s.subject_id] != null ? esc(saved[s.subject_id]) : ""}" placeholder="0"><span>/ ${esc(s.full_marks)}</span></div></div>`).join("")}</div>
+      <div class="marks-total-preview"><span>Total: <strong id="academic-total-preview">0</strong> / ${activeSubjects.reduce((n, s) => n + Number(s.full_marks || 0), 0)}</span><span id="academic-percent-preview">0.00%</span></div>
+      <div class="modal-actions marks-entry-actions"><button class="small-btn" id="marks-prev" ${prev === null ? "disabled" : ""}><i class="fa-solid fa-arrow-left"></i> Previous</button><button class="small-btn fm-update-action" id="marks-fm-update"><i class="fa-solid fa-sliders"></i> FM Update</button><span class="marks-entry-spacer"></span><button class="small-btn academic-save-btn" id="marks-save"><i class="fa-solid fa-floppy-disk"></i> Save</button><button class="small-btn academic-next-btn" id="marks-next"><i class="fa-solid fa-arrow-right"></i> Next</button></div>`);
+    $$("[data-close-modal]").forEach(
+      (b) =>
+        (b.onclick = () => {
+          if (
+            academicUnsaved(exam.id) &&
+            !confirm(
+              "Unsaved marks are stored only in this browser until you click Save. Close anyway?",
+            )
+          )
+            return;
+          closeModal();
+        }),
+    );
+    const inputs = $$(".academic-mark-input");
+    const updatePreview = () => {
+      let total = 0;
+      inputs.forEach((i) => {
+        const v = Number(i.value);
+        if (Number.isFinite(v) && v >= 0) total += v;
+      });
+      const full = activeSubjects.reduce(
+        (n, s) => n + Number(s.full_marks || 0),
+        0,
+      );
+      $("#academic-total-preview").textContent = total
+        .toFixed(2)
+        .replace(/\.00$/, "");
+      $("#academic-percent-preview").textContent = full
+        ? `${((total / full) * 100).toFixed(2)}%`
+        : "0.00%";
     };
-    $('#marks-save').onclick=async()=>{
-      const button=$('#marks-save');if(button.disabled)return;
-      try{
-        cacheCurrent();button.disabled=true;button.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
-        const count=await saveAcademicPending(exam.id);
-        toast(`${count} student${count===1?'':'s'} saved successfully.`,'success');
-        const {data:progress,error}=await sb.from('student_exam_marks').select('student_id,status').eq('exam_id',exam.id);
-        if(error)throw error;
-        const complete=new Set((progress||[]).filter(r=>r.status==='completed').map(r=>r.student_id));
-        if(list.every(st=>complete.has(st.user_id)))await showAcademicExamFinished(classNo,exam,list.length);
-        else {button.disabled=false;button.innerHTML='<i class="fa-solid fa-floppy-disk"></i> Save';}
-      }catch(e){toast(e.message||'Save failed. Your pending entries are retained; please retry.','error');button.disabled=false;button.innerHTML='<i class="fa-solid fa-floppy-disk"></i> Save';}
+    inputs.forEach((i) => i.addEventListener("input", updatePreview));
+    updatePreview();
+    const cacheCurrent = () => {
+      const values = inputs.map((i) => i.value.trim());
+      if (values.every((v) => v === "")) return false;
+      const entry = collectAcademicInputs(inputs, includedIds);
+      getAcademicPending(exam.id)[student.user_id] = entry;
+      persistAcademicPending(exam.id);
+      return true;
+    };
+    const moveTo = async (target) => {
+      try {
+        cacheCurrent();
+        await showAcademicStudentCard({
+          classNo,
+          exam,
+          list,
+          subjects,
+          index: target,
+        });
+      } catch (e) {
+        toast(e.message || "Invalid marks.", "error");
+      }
+    };
+    $("#marks-prev").onclick = () => {
+      if (prev !== null) moveTo(prev);
+    };
+    $("#marks-fm-update").onclick = () => {
+      if (
+        academicUnsaved(exam.id) &&
+        !confirm(
+          "Unsaved marks are waiting. Save them before updating subjects?",
+        )
+      )
+        return;
+      updateStudentFM(exam, student.user_id, subjects, includedIds);
+    };
+    $("#marks-next").onclick = async () => {
+      try {
+        cacheCurrent();
+        if (next !== null)
+          await showAcademicStudentCard({
+            classNo,
+            exam,
+            list,
+            subjects,
+            index: next,
+          });
+        else
+          toast(
+            "No more students. Click Save to save all entered marks.",
+            "info",
+          );
+      } catch (e) {
+        toast(e.message || "Invalid marks.", "error");
+      }
+    };
+    $("#marks-save").onclick = async () => {
+      const button = $("#marks-save");
+      if (button.disabled) return;
+      try {
+        cacheCurrent();
+        button.disabled = true;
+        button.innerHTML =
+          '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+        const count = await saveAcademicPending(exam.id);
+        toast(
+          `${count} student${count === 1 ? "" : "s"} saved successfully.`,
+          "success",
+        );
+        const { data: progress, error } = await sb
+          .from("student_exam_marks")
+          .select("student_id,status")
+          .eq("exam_id", exam.id);
+        if (error) throw error;
+        const complete = new Set(
+          (progress || [])
+            .filter((r) => r.status === "completed")
+            .map((r) => r.student_id),
+        );
+        if (list.every((st) => complete.has(st.user_id)))
+          await showAcademicExamFinished(classNo, exam, list.length);
+        else {
+          button.disabled = false;
+          button.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save';
+        }
+      } catch (e) {
+        toast(
+          e.message ||
+            "Save failed. Your pending entries are retained; please retry.",
+          "error",
+        );
+        button.disabled = false;
+        button.innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Save';
+      }
     };
   }
 
-  async function declareAcademicExam(classNo,examId){
-    if(!confirm('Declare this exam result? Students will be able to see this exam leaderboard after declaration.'))return false;
-    loading(true,'Declaring result...');
-    try{
-      const {data:rows,error:rowError}=await sb.from('student_exam_marks').select('student_id,status').eq('exam_id',examId);
-      if(rowError)throw rowError;
-      const {data:students, error:studentError}=await sb.from('student_profiles').select('user_id').eq('class_no',classNo);
-      if(studentError)throw studentError;
-      const completedIds=new Set((rows||[]).filter(r=>r.status==='completed').map(r=>r.student_id));
-      const pending=(students||[]).filter(s=>!completedIds.has(s.user_id)).length;
-      if(pending>0){toast(`${pending} student${pending===1?'':'s'} still need completed marks. Finish all entries before declaring.`, 'error');return false;}
-      const {error}=await sb.from('academic_exam_sets').update({result_declared:true}).eq('id',examId).eq('class_no',classNo);
-      if(error)throw error;
-      toast('Result declared. The exam leaderboard is now visible to students.','success');
+  async function declareAcademicExam(classNo, examId) {
+    if (
+      !confirm(
+        "Declare this exam result? Students will be able to see this exam leaderboard after declaration.",
+      )
+    )
+      return false;
+    loading(true, "Declaring result...");
+    try {
+      const { data: rows, error: rowError } = await sb
+        .from("student_exam_marks")
+        .select("student_id,status")
+        .eq("exam_id", examId);
+      if (rowError) throw rowError;
+      const { data: students, error: studentError } = await sb
+        .from("student_profiles")
+        .select("user_id")
+        .eq("class_no", classNo);
+      if (studentError) throw studentError;
+      const completedIds = new Set(
+        (rows || [])
+          .filter((r) => r.status === "completed")
+          .map((r) => r.student_id),
+      );
+      const pending = (students || []).filter(
+        (s) => !completedIds.has(s.user_id),
+      ).length;
+      if (pending > 0) {
+        toast(
+          `${pending} student${pending === 1 ? "" : "s"} still need completed marks. Finish all entries before declaring.`,
+          "error",
+        );
+        return false;
+      }
+      const { error } = await sb
+        .from("academic_exam_sets")
+        .update({ result_declared: true })
+        .eq("id", examId)
+        .eq("class_no", classNo);
+      if (error) throw error;
+      toast(
+        "Result declared. The exam leaderboard is now visible to students.",
+        "success",
+      );
       await renderView();
-    }catch(e){toast(e.message||'Could not declare result.','error')}finally{loading(false)}
+    } catch (e) {
+      toast(e.message || "Could not declare result.", "error");
+    } finally {
+      loading(false);
+    }
   }
 
-  async function fetchAcademicExamLeaderboard(examId){
-    const {data,error}=await sb.rpc('get_academic_exam_leaderboard',{p_exam_id:examId});
-    if(error)throw error;
-    return await addPhotoUrls(data||[]);
+  async function fetchAcademicExamLeaderboard(examId) {
+    const { data, error } = await sb.rpc("get_academic_exam_leaderboard", {
+      p_exam_id: examId,
+    });
+    if (error) throw error;
+    return await addPhotoUrls(data || []);
   }
 
-  async function renderStudentAcademicLeaderboard(el,classNo,examId){
-    if(!examId)return navigate('student-marks',{},true);
-    const {data:exam,error}=await sb.from('academic_exam_sets').select('id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)').eq('id',examId).eq('class_no',classNo).single();
-    if(error)throw error;
-    if(exam.archived_at||!exam.result_declared)return navigate('student-marks',{},true);
-    const rows=await fetchAcademicExamLeaderboard(examId),me=rows.find(r=>r.student_id===state.profile.id);
-    el.innerHTML=`<div class="back-row"><button class="small-btn" id="student-academic-back"><i class="fa-solid fa-arrow-left"></i> Back to Marks</button></div>
+  async function renderStudentAcademicLeaderboard(el, classNo, examId) {
+    if (!examId) return navigate("student-marks", {}, true);
+    const { data: exam, error } = await sb
+      .from("academic_exam_sets")
+      .select(
+        "id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)",
+      )
+      .eq("id", examId)
+      .eq("class_no", classNo)
+      .single();
+    if (error) throw error;
+    if (exam.archived_at || !exam.result_declared)
+      return navigate("student-marks", {}, true);
+    const rows = await fetchAcademicExamLeaderboard(examId),
+      me = rows.find((r) => r.student_id === state.profile.id);
+    el.innerHTML = `<div class="back-row"><button class="small-btn" id="student-academic-back"><i class="fa-solid fa-arrow-left"></i> Back to Marks</button></div>
       <div class="page-head"><div><h1>${esc(exam.exam_name)} Leaderboard</h1><p>${classText(classNo)} • Declared academic result • Ranked by percentage.</p></div></div>
-      <section class="academic-leaderboard-page"><div class="academic-leaderboard-hero"><span class="academic-ribbon"><i class="fa-solid fa-trophy"></i> EXAM LEADERBOARD</span><h2>${esc(exam.exam_name)}</h2><p>${rows.length} completed student result${rows.length===1?'':'s'} in ${classText(classNo)}.</p></div>
-      ${academicPodium(rows,state.profile.id,false)}
-      ${me?`<div class="marks-current-rank academic-current-rank"><span><i class="fa-solid fa-ranking-star"></i> Your rank</span><strong>${rankLabel(me.rank)}</strong><small>${Number(me.percentage||0).toFixed(2)}% • ${esc(me.total_score)} / ${esc(me.total_full_marks)}</small></div>`:''}
-      ${academicRankList(rows,state.profile.id,false)}</section>`;
-    $('#student-academic-back').onclick=()=>navigate('student-marks');
+      <section class="academic-leaderboard-page"><div class="academic-leaderboard-hero"><span class="academic-ribbon"><i class="fa-solid fa-trophy"></i> EXAM LEADERBOARD</span><h2>${esc(exam.exam_name)}</h2><p>${rows.length} completed student result${rows.length === 1 ? "" : "s"} in ${classText(classNo)}.</p></div>
+      ${academicPodium(rows, state.profile.id, false)}
+      ${me ? `<div class="marks-current-rank academic-current-rank"><span><i class="fa-solid fa-ranking-star"></i> Your rank</span><strong>${rankLabel(me.rank)}</strong><small>${Number(me.percentage || 0).toFixed(2)}% • ${esc(me.total_score)} / ${esc(me.total_full_marks)}</small></div>` : ""}
+      ${academicRankList(rows, state.profile.id, false)}</section>`;
+    $("#student-academic-back").onclick = () => navigate("student-marks");
   }
 
-  async function renderAcademicLeaderboard(el,classNo){
-    if(![10,12].includes(classNo))return navigate('marks',{},true);
-    const {data:exams,error}=await sb.from('academic_exam_sets').select('id,class_no,exam_name,created_at,result_declared,archived_at').eq('class_no',classNo).eq('result_declared',true).order('created_at',{ascending:false});
-    if(error)throw error;
-    el.innerHTML=`<div class="back-row"><button class="small-btn" id="academic-leaderboard-back"><i class="fa-solid fa-arrow-left"></i> Back to Marks</button></div><div class="page-head"><div><h1>Class ${classNo} Exam Leaderboards</h1><p>Declared academic examinations with podium and complete ranked student list.</p></div></div><section class="marks-exam-history"><div class="marks-exam-grid single">${(exams||[]).filter(e=>!e.archived_at).map(e=>`<button class="marks-exam-item wide leaderboard-exam-card" data-academic-exam-card="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small><i class="fa-solid fa-circle-check"></i> Result declared • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-arrow-right"></i></button>`).join('')||`<div class="marks-empty">No declared exam results for Class ${classNo} yet.</div>`}</div></section>`;
-    $('#academic-leaderboard-back').onclick=()=>navigate('marks');
-    $$('[data-academic-exam-card]',el).forEach(b=>b.onclick=()=>navigate('academic-leaderboard-exam',{classNo,examId:b.dataset.academicExamCard}));
+  async function renderAcademicLeaderboard(el, classNo) {
+    if (![10, 12].includes(classNo)) return navigate("marks", {}, true);
+    const { data: exams, error } = await sb
+      .from("academic_exam_sets")
+      .select("id,class_no,exam_name,created_at,result_declared,archived_at")
+      .eq("class_no", classNo)
+      .eq("result_declared", true)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    el.innerHTML = `<div class="back-row"><button class="small-btn" id="academic-leaderboard-back"><i class="fa-solid fa-arrow-left"></i> Back to Marks</button></div><div class="page-head"><div><h1>Class ${classNo} Exam Leaderboards</h1><p>Declared academic examinations with podium and complete ranked student list.</p></div></div><section class="marks-exam-history"><div class="marks-exam-grid single">${
+      (exams || [])
+        .filter((e) => !e.archived_at)
+        .map(
+          (e) =>
+            `<button class="marks-exam-item wide leaderboard-exam-card" data-academic-exam-card="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small><i class="fa-solid fa-circle-check"></i> Result declared • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-arrow-right"></i></button>`,
+        )
+        .join("") ||
+      `<div class="marks-empty">No declared exam results for Class ${classNo} yet.</div>`
+    }</div></section>`;
+    $("#academic-leaderboard-back").onclick = () => navigate("marks");
+    $$("[data-academic-exam-card]", el).forEach(
+      (b) =>
+        (b.onclick = () =>
+          navigate("academic-leaderboard-exam", {
+            classNo,
+            examId: b.dataset.academicExamCard,
+          })),
+    );
   }
 
-  async function renderAcademicLeaderboardExam(el,classNo,examId){
-    if(!examId)return navigate('academic-leaderboard',{classNo},true);
-    const {data:exam,error}=await sb.from('academic_exam_sets').select('id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)').eq('id',examId).eq('class_no',classNo).single();
-    if(error)throw error;
-    if(exam.archived_at||!exam.result_declared)return navigate('academic-leaderboard',{classNo},true);
-    if(exam.archived_at)return navigate("marks",{},true);const rows=await fetchAcademicExamLeaderboard(examId);
-    el.innerHTML=`<div class="back-row"><button class="small-btn" id="academic-exam-back"><i class="fa-solid fa-arrow-left"></i> Back to Exam Leaderboards</button></div><div class="page-head"><div><h1>${esc(exam.exam_name)} Leaderboard</h1><p>Class ${classNo} • All students ranked by percentage.</p></div></div><section class="academic-leaderboard-page admin-view"><div class="academic-leaderboard-hero"><span class="academic-ribbon"><i class="fa-solid fa-crown"></i> DECLARED RESULT</span><h2>${esc(exam.exam_name)}</h2><p>${rows.length} student result${rows.length===1?'':'s'} • ${fmtDate(exam.created_at)}</p></div>${academicPodium(rows,null,true)}${academicRankList(rows,null,true)}</section>`;
-    $('#academic-exam-back').onclick=()=>navigate('academic-leaderboard',{classNo});
+  async function renderAcademicLeaderboardExam(el, classNo, examId) {
+    if (!examId) return navigate("academic-leaderboard", { classNo }, true);
+    const { data: exam, error } = await sb
+      .from("academic_exam_sets")
+      .select(
+        "id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)",
+      )
+      .eq("id", examId)
+      .eq("class_no", classNo)
+      .single();
+    if (error) throw error;
+    if (exam.archived_at || !exam.result_declared)
+      return navigate("academic-leaderboard", { classNo }, true);
+    if (exam.archived_at) return navigate("marks", {}, true);
+    const rows = await fetchAcademicExamLeaderboard(examId);
+    el.innerHTML = `<div class="back-row"><button class="small-btn" id="academic-exam-back"><i class="fa-solid fa-arrow-left"></i> Back to Exam Leaderboards</button></div><div class="page-head"><div><h1>${esc(exam.exam_name)} Leaderboard</h1><p>Class ${classNo} • All students ranked by percentage.</p></div></div><section class="academic-leaderboard-page admin-view"><div class="academic-leaderboard-hero"><span class="academic-ribbon"><i class="fa-solid fa-crown"></i> DECLARED RESULT</span><h2>${esc(exam.exam_name)}</h2><p>${rows.length} student result${rows.length === 1 ? "" : "s"} • ${fmtDate(exam.created_at)}</p></div>${academicPodium(rows, null, true)}${academicRankList(rows, null, true)}</section>`;
+    $("#academic-exam-back").onclick = () =>
+      navigate("academic-leaderboard", { classNo });
   }
 
-  async function renderStudentMarks(el){
-    const {data:exams,error:examError}=await sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",state.classNo).order("created_at",{ascending:false});
-    if(examError)throw examError;const examList=exams||[],declaredExams=examList.filter(e=>e.result_declared),latest=declaredExams[0]||null;
-    if(!examList.length){
-      el.innerHTML=`<div class="page-head"><div><h1>Marks</h1><p>${classText(state.classNo)} academic marks and examination performance.</p></div></div><section class="marks-student-leaderboard"><div class="marks-student-rank-head"><div><span class="pill active">LATEST EXAM LEADERBOARD</span><h2>Your class position</h2><p>The leaderboard will appear automatically after an academic result is declared.</p></div></div><div class="marks-empty student-marks-empty-card"><i class="fa-solid fa-ranking-star"></i><strong>No academic exam has been added yet.</strong><span>Your rank and the top students will appear here after your teacher declares a result.</span></div></section><section class="marks-exam-cards"><div class="marks-student-rank-head"><div><span class="pill">EXAMS</span><h2>Your exam records</h2><p>Exam cards will appear here when your teacher creates them.</p></div></div><div class="student-exam-grid empty-exam-placeholders">${[1,2,3].map(i=>`<div class="student-exam-card empty-exam-card"><span class="exam-card-icon"><i class="fa-solid fa-file-lines"></i></span><span><strong>Exam ${i}</strong><small>Not added yet</small></span></div>`).join('')}</div></section><section class="marks-exam-cards"><div class="marks-student-rank-head"><div><span class="pill active">EXAMS LEADERBOARD</span><h2>Declared exam leaderboards</h2></div></div><div class="student-exam-grid"><div class="marks-empty">No declared exam results yet.</div></div></section>`;return;
+  async function renderStudentMarks(el) {
+    const { data: exams, error: examError } = await sb
+      .from("academic_exam_sets")
+      .select(
+        "id,class_no,exam_name,created_at,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)",
+      )
+      .eq("class_no", state.classNo)
+      .order("created_at", { ascending: false });
+    if (examError) throw examError;
+    const examList = exams || [],
+      declaredExams = examList.filter((e) => e.result_declared),
+      latest = declaredExams[0] || null;
+    if (!examList.length) {
+      el.innerHTML = `<div class="page-head"><div><h1>Marks</h1><p>${classText(state.classNo)} academic marks and examination performance.</p></div></div><section class="marks-student-leaderboard"><div class="marks-student-rank-head"><div><span class="pill active">LATEST EXAM LEADERBOARD</span><h2>Your class position</h2><p>The leaderboard will appear automatically after an academic result is declared.</p></div></div><div class="marks-empty student-marks-empty-card"><i class="fa-solid fa-ranking-star"></i><strong>No academic exam has been added yet.</strong><span>Your rank and the top students will appear here after your teacher declares a result.</span></div></section><section class="marks-exam-cards"><div class="marks-student-rank-head"><div><span class="pill">EXAMS</span><h2>Your exam records</h2><p>Exam cards will appear here when your teacher creates them.</p></div></div><div class="student-exam-grid empty-exam-placeholders">${[1, 2, 3].map((i) => `<div class="student-exam-card empty-exam-card"><span class="exam-card-icon"><i class="fa-solid fa-file-lines"></i></span><span><strong>Exam ${i}</strong><small>Not added yet</small></span></div>`).join("")}</div></section><section class="marks-exam-cards"><div class="marks-student-rank-head"><div><span class="pill active">EXAMS LEADERBOARD</span><h2>Declared exam leaderboards</h2></div></div><div class="student-exam-grid"><div class="marks-empty">No declared exam results yet.</div></div></section>`;
+      return;
     }
-    let latestRows=[];let latestMe=null;
-    if(latest){latestRows=await fetchAcademicExamLeaderboard(latest.id);latestMe=latestRows.find(r=>r.student_id===state.profile.id)||null;}
-    el.innerHTML=`<div class="page-head"><div><h1>Marks</h1><p>${classText(state.classNo)} academic marks and examination performance.</p></div></div>
-      <section class="marks-student-leaderboard"><div class="marks-student-rank-head"><div><span class="pill active">LATEST EXAM LEADERBOARD</span><h2>${latest?esc(latest.exam_name):'No declared exam yet'}</h2><p>${latest?'Rank is calculated from each student’s applicable subjects and percentage.':'The leaderboard will appear automatically after your teacher declares an exam result.'}</p></div></div>${latest?`${academicPodium(latestRows,state.profile.id,false)}${latestMe?`<div class="marks-current-rank"><span><i class="fa-solid fa-ranking-star"></i> Your current rank in ${esc(latest.exam_name)}</span><strong>${rankLabel(latestMe.rank)}</strong><small>${Number(latestMe.percentage||0).toFixed(2)}% overall</small></div>`:''}`:`<div class="marks-empty student-marks-empty-card"><i class="fa-solid fa-ranking-star"></i><strong>No declared exam result yet.</strong><span>Your class podium will appear here after the result is declared.</span></div>`}</section>
-      <section class="marks-exam-cards"><div class="marks-student-rank-head"><div><span class="pill">EXAMS</span><h2>Your exam records</h2><p>Tap any exam to see subject-wise marks, percentage and full marks.</p></div></div><div class="student-exam-grid">${examList.map(e=>`<button class="student-exam-card" data-student-exam="${esc(e.id)}"><span class="exam-card-icon"><i class="fa-solid fa-file-lines"></i></span><span><strong>${esc(e.exam_name)}</strong><small>${(e.academic_exam_subjects||[]).length} subjects • ${e.result_declared?'Result declared':'Result not declared'} • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join('')}</div></section>
-      <section class="marks-exam-cards"><div class="marks-student-rank-head"><div><span class="pill active">EXAMS LEADERBOARD</span><h2>Declared exam leaderboards</h2><p>Open an exam to see the top three podium and ranks 4–10, with your position highlighted when needed.</p></div></div><div class="student-exam-grid">${declaredExams.map(e=>`<button class="student-exam-card leaderboard-exam-card" data-student-academic-leaderboard="${esc(e.id)}"><span class="exam-card-icon leaderboard-icon"><i class="fa-solid fa-ranking-star"></i></span><span><strong>${esc(e.exam_name)} Leaderboard</strong><small>Result declared • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join('')||`<div class="marks-empty">No declared exam results yet.</div>`}</div></section>`;
-    $$('[data-student-exam]',el).forEach(b=>b.onclick=()=>openStudentExamDetail(b.dataset.studentExam));
-    $$('[data-student-academic-leaderboard]',el).forEach(b=>b.onclick=()=>navigate('student-academic-leaderboard',{examId:b.dataset.studentAcademicLeaderboard}));
+    let latestRows = [];
+    let latestMe = null;
+    if (latest) {
+      latestRows = await fetchAcademicExamLeaderboard(latest.id);
+      latestMe =
+        latestRows.find((r) => r.student_id === state.profile.id) || null;
+    }
+    el.innerHTML = `<div class="page-head"><div><h1>Marks</h1><p>${classText(state.classNo)} academic marks and examination performance.</p></div></div>
+      <section class="marks-student-leaderboard"><div class="marks-student-rank-head"><div><span class="pill active">LATEST EXAM LEADERBOARD</span><h2>${latest ? esc(latest.exam_name) : "No declared exam yet"}</h2><p>${latest ? "Rank is calculated from each student’s applicable subjects and percentage." : "The leaderboard will appear automatically after your teacher declares an exam result."}</p></div></div>${latest ? `${academicPodium(latestRows, state.profile.id, false)}${latestMe ? `<div class="marks-current-rank"><span><i class="fa-solid fa-ranking-star"></i> Your current rank in ${esc(latest.exam_name)}</span><strong>${rankLabel(latestMe.rank)}</strong><small>${Number(latestMe.percentage || 0).toFixed(2)}% overall</small></div>` : ""}` : `<div class="marks-empty student-marks-empty-card"><i class="fa-solid fa-ranking-star"></i><strong>No declared exam result yet.</strong><span>Your class podium will appear here after the result is declared.</span></div>`}</section>
+      <section class="marks-exam-cards"><div class="marks-student-rank-head"><div><span class="pill">EXAMS</span><h2>Your exam records</h2><p>Tap any exam to see subject-wise marks, percentage and full marks.</p></div></div><div class="student-exam-grid">${examList.map((e) => `<button class="student-exam-card" data-student-exam="${esc(e.id)}"><span class="exam-card-icon"><i class="fa-solid fa-file-lines"></i></span><span><strong>${esc(e.exam_name)}</strong><small>${(e.academic_exam_subjects || []).length} subjects • ${e.result_declared ? "Result declared" : "Result not declared"} • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join("")}</div></section>
+      <section class="marks-exam-cards"><div class="marks-student-rank-head"><div><span class="pill active">EXAMS LEADERBOARD</span><h2>Declared exam leaderboards</h2><p>Open an exam to see the top three podium and ranks 4–10, with your position highlighted when needed.</p></div></div><div class="student-exam-grid">${declaredExams.map((e) => `<button class="student-exam-card leaderboard-exam-card" data-student-academic-leaderboard="${esc(e.id)}"><span class="exam-card-icon leaderboard-icon"><i class="fa-solid fa-ranking-star"></i></span><span><strong>${esc(e.exam_name)} Leaderboard</strong><small>Result declared • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join("") || `<div class="marks-empty">No declared exam results yet.</div>`}</div></section>`;
+    $$("[data-student-exam]", el).forEach(
+      (b) => (b.onclick = () => openStudentExamDetail(b.dataset.studentExam)),
+    );
+    $$("[data-student-academic-leaderboard]", el).forEach(
+      (b) =>
+        (b.onclick = () =>
+          navigate("student-academic-leaderboard", {
+            examId: b.dataset.studentAcademicLeaderboard,
+          })),
+    );
   }
 
-  async function openStudentExamDetail(examId){
-    const [{data:exam,error:examError},{data:record,error:recordError}]=await Promise.all([sb.from('academic_exam_sets').select('id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)').eq('id',examId).single(),sb.from('student_exam_marks').select('marks,status,updated_at,included_subject_ids').eq('exam_id',examId).eq('student_id',state.profile.id).maybeSingle()]);
-    if(examError)throw examError;if(recordError)throw recordError;if(!record||record.status!=='completed')return toast('Your marks for this exam are not published yet.','error');
-    if(!exam.result_declared)return toast('This exam result has not been declared yet.','error');
-    const t=academicTotals(exam,record);
-    const ranked=await fetchAcademicExamLeaderboard(examId);const mine=ranked.find(r=>r.student_id===state.profile.id);const rank=mine?.rank||0;
-    const subs=t.subjects,marks=record.marks||{};
-    modal(`<div class="modal-head"><div><span class="pill active">${esc(exam.exam_name)}</span><h2>${esc(state.profile.full_name)}</h2><p class="modal-subtitle">${classText(state.classNo)} • Detailed marks</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div><div class="marks-detail-summary"><div><span>Total marks</span><strong>${t.total} / ${t.full}</strong></div><div><span>Percentage</span><strong>${t.full?((t.total/t.full)*100).toFixed(2):'0.00'}%</strong></div><div><span>Class rank</span><strong>${rank>0?rankLabel(rank):'—'}</strong></div><div><span>Subjects counted</span><strong>${subs.length}</strong></div></div><div class="table-card"><table class="data-table marks-detail-table"><thead><tr><th>Subject</th><th>Marks</th><th>Full marks</th><th>Percentage</th></tr></thead><tbody>${subs.map(s=>{const m=Number(marks[s.subject_id]||0),fm=Number(s.full_marks||0);return `<tr><td><strong>${esc(s.subject_name)}</strong></td><td>${m}</td><td>${fm}</td><td>${fm?((m/fm)*100).toFixed(2):'0.00'}%</td></tr>`}).join('')}</tbody></table></div><div class="modal-actions"><button class="small-btn primary" data-close-modal>Done</button></div>`);
-    $$('[data-close-modal]').forEach(b=>b.onclick=closeModal);
-  }
-
-  async function renderAdminAcademicExamSummary(classNo){
-    const {data:exams,error}=await sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",classNo).order("created_at",{ascending:false});
-    if(error)throw error;const container=$("#admin-academic-exams");if(!container)return;
-    container.innerHTML=(exams||[]).map(e=>`<button class="marks-exam-item wide" data-admin-exam="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small>${(e.academic_exam_subjects||[]).length} subjects • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-chevron-right"></i></button>`).join("")||`<div class="marks-empty">No school exam records yet.</div>`;
-    $$("[data-admin-exam]",container).forEach(b=>b.onclick=()=>showAdminExamStudentPerformance(b.dataset.adminExam,classNo));
-  }
-
-  async function showAdminExamStudentPerformance(examId,classNo){
-    const [{data:exam,error:examError},{data:students,error:studentError},{data:records,error:recordError}]=await Promise.all([
-      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("id",examId).single(),
-      sb.from("student_profiles").select("user_id,roll_number,profiles(full_name,login_id)").eq("class_no",classNo),
-      sb.from("student_exam_marks").select("student_id,marks,status,updated_at").eq("exam_id",examId)
+  async function openStudentExamDetail(examId) {
+    const [
+      { data: exam, error: examError },
+      { data: record, error: recordError },
+    ] = await Promise.all([
+      sb
+        .from("academic_exam_sets")
+        .select(
+          "id,class_no,exam_name,created_at,result_declared,academic_exam_subjects(subject_id,subject_name,full_marks)",
+        )
+        .eq("id", examId)
+        .single(),
+      sb
+        .from("student_exam_marks")
+        .select("marks,status,updated_at,included_subject_ids")
+        .eq("exam_id", examId)
+        .eq("student_id", state.profile.id)
+        .maybeSingle(),
     ]);
-    if(examError)throw examError;if(studentError)throw studentError;if(recordError)throw recordError;if(exam.archived_at)return toast("This exam is archived.","error");
-    const map=new Map((records||[]).map(r=>[r.student_id,r])),rows=(students||[]).sort((a,b)=>String(a.roll_number||"").localeCompare(String(b.roll_number||""),undefined,{numeric:true}));
+    if (examError) throw examError;
+    if (recordError) throw recordError;
+    if (!record || record.status !== "completed")
+      return toast("Your marks for this exam are not published yet.", "error");
+    if (!exam.result_declared)
+      return toast("This exam result has not been declared yet.", "error");
+    const t = academicTotals(exam, record);
+    const ranked = await fetchAcademicExamLeaderboard(examId);
+    const mine = ranked.find((r) => r.student_id === state.profile.id);
+    const rank = mine?.rank || 0;
+    const subs = t.subjects,
+      marks = record.marks || {};
+    modal(
+      `<div class="modal-head"><div><span class="pill active">${esc(exam.exam_name)}</span><h2>${esc(state.profile.full_name)}</h2><p class="modal-subtitle">${classText(state.classNo)} • Detailed marks</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div><div class="marks-detail-summary"><div><span>Total marks</span><strong>${t.total} / ${t.full}</strong></div><div><span>Percentage</span><strong>${t.full ? ((t.total / t.full) * 100).toFixed(2) : "0.00"}%</strong></div><div><span>Class rank</span><strong>${rank > 0 ? rankLabel(rank) : "—"}</strong></div><div><span>Subjects counted</span><strong>${subs.length}</strong></div></div><div class="table-card"><table class="data-table marks-detail-table"><thead><tr><th>Subject</th><th>Marks</th><th>Full marks</th><th>Percentage</th></tr></thead><tbody>${subs
+        .map((s) => {
+          const m = Number(marks[s.subject_id] || 0),
+            fm = Number(s.full_marks || 0);
+          return `<tr><td><strong>${esc(s.subject_name)}</strong></td><td>${m}</td><td>${fm}</td><td>${fm ? ((m / fm) * 100).toFixed(2) : "0.00"}%</td></tr>`;
+        })
+        .join(
+          "",
+        )}</tbody></table></div><div class="modal-actions"><button class="small-btn primary" data-close-modal>Done</button></div>`,
+    );
+    $$("[data-close-modal]").forEach((b) => (b.onclick = closeModal));
+  }
+
+  async function renderAdminAcademicExamSummary(classNo) {
+    const { data: exams, error } = await sb
+      .from("academic_exam_sets")
+      .select(
+        "id,class_no,exam_name,created_at,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)",
+      )
+      .eq("class_no", classNo)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    const container = $("#admin-academic-exams");
+    if (!container) return;
+    container.innerHTML =
+      (exams || [])
+        .map(
+          (e) =>
+            `<button class="marks-exam-item wide" data-admin-exam="${esc(e.id)}"><span><strong>${esc(e.exam_name)}</strong><small>${(e.academic_exam_subjects || []).length} subjects • ${fmtDate(e.created_at)}</small></span><i class="fa-solid fa-chevron-right"></i></button>`,
+        )
+        .join("") ||
+      `<div class="marks-empty">No school exam records yet.</div>`;
+    $$("[data-admin-exam]", container).forEach(
+      (b) =>
+        (b.onclick = () =>
+          showAdminExamStudentPerformance(b.dataset.adminExam, classNo)),
+    );
+  }
+
+  async function showAdminExamStudentPerformance(examId, classNo) {
+    const [
+      { data: exam, error: examError },
+      { data: students, error: studentError },
+      { data: records, error: recordError },
+    ] = await Promise.all([
+      sb
+        .from("academic_exam_sets")
+        .select(
+          "id,class_no,exam_name,created_at,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)",
+        )
+        .eq("id", examId)
+        .single(),
+      sb
+        .from("student_profiles")
+        .select("user_id,roll_number,profiles(full_name,login_id)")
+        .eq("class_no", classNo),
+      sb
+        .from("student_exam_marks")
+        .select("student_id,marks,status,updated_at")
+        .eq("exam_id", examId),
+    ]);
+    if (examError) throw examError;
+    if (studentError) throw studentError;
+    if (recordError) throw recordError;
+    if (exam.archived_at) return toast("This exam is archived.", "error");
+    const map = new Map((records || []).map((r) => [r.student_id, r])),
+      rows = (students || []).sort((a, b) =>
+        String(a.roll_number || "").localeCompare(
+          String(b.roll_number || ""),
+          undefined,
+          { numeric: true },
+        ),
+      );
     modal(`<div class="modal-head"><div><span class="pill active">${esc(exam.exam_name)}</span><h2>Class ${classNo} student performance</h2><p class="modal-subtitle">Click a student to open complete subject-wise marks.</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
-      <div class="marks-student-grid">${rows.map((s,i)=>{const r=map.get(s.user_id),marks=r?.marks||{},subs=includedAcademicSubjects(exam,r),total=subs.reduce((a,x)=>a+Number(marks[x.subject_id]||0),0),full=subs.reduce((a,x)=>a+Number(x.full_marks||0),0);return `<button class="marks-student-card" data-admin-student="${esc(s.user_id)}"><span class="marks-student-number">${i+1}</span><span class="marks-student-avatar">${esc(initials(s.profiles?.full_name))}</span><span class="marks-student-info"><strong>${esc(s.profiles?.full_name||"Student")}</strong><small>Roll No. ${esc(s.roll_number||"—")} • ${r?.status==="completed"?`${total}/${full} • ${full?((total/full)*100).toFixed(2):"0.00"}%`:"Not completed"}</small></span><i class="fa-solid fa-chevron-right"></i></button>`}).join("")}</div>`);
-    $$("[data-close-modal]").forEach(b=>b.onclick=()=>$("#modal-root").innerHTML="");
-    $$("[data-admin-student]").forEach(b=>b.onclick=()=>showAdminStudentExamDetail(exam,b.dataset.adminStudent,rows));
+      <div class="marks-student-grid">${rows
+        .map((s, i) => {
+          const r = map.get(s.user_id),
+            marks = r?.marks || {},
+            subs = includedAcademicSubjects(exam, r),
+            total = subs.reduce(
+              (a, x) => a + Number(marks[x.subject_id] || 0),
+              0,
+            ),
+            full = subs.reduce((a, x) => a + Number(x.full_marks || 0), 0);
+          return `<button class="marks-student-card" data-admin-student="${esc(s.user_id)}"><span class="marks-student-number">${i + 1}</span><span class="marks-student-avatar">${esc(initials(s.profiles?.full_name))}</span><span class="marks-student-info"><strong>${esc(s.profiles?.full_name || "Student")}</strong><small>Roll No. ${esc(s.roll_number || "—")} • ${r?.status === "completed" ? `${total}/${full} • ${full ? ((total / full) * 100).toFixed(2) : "0.00"}%` : "Not completed"}</small></span><i class="fa-solid fa-chevron-right"></i></button>`;
+        })
+        .join("")}</div>`);
+    $$("[data-close-modal]").forEach(
+      (b) => (b.onclick = () => ($("#modal-root").innerHTML = "")),
+    );
+    $$("[data-admin-student]").forEach(
+      (b) =>
+        (b.onclick = () =>
+          showAdminStudentExamDetail(exam, b.dataset.adminStudent, rows)),
+    );
   }
 
-  async function showAdminStudentAcademicOverview(classNo,studentId){
-    const [{data:student,error:studentError},{data:exams,error:examError}]=await Promise.all([
-      sb.from("student_profiles").select("user_id,class_no,roll_number,batch,phone,photo_path,profiles(full_name,login_id)").eq("user_id",studentId).eq("class_no",classNo).single(),
-      sb.from("academic_exam_sets").select("id,class_no,exam_name,created_at,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)").eq("class_no",classNo).order("created_at",{ascending:false})
+  async function showAdminStudentAcademicOverview(classNo, studentId) {
+    const [
+      { data: student, error: studentError },
+      { data: exams, error: examError },
+    ] = await Promise.all([
+      sb
+        .from("student_profiles")
+        .select(
+          "user_id,class_no,roll_number,batch,phone,photo_path,profiles(full_name,login_id)",
+        )
+        .eq("user_id", studentId)
+        .eq("class_no", classNo)
+        .single(),
+      sb
+        .from("academic_exam_sets")
+        .select(
+          "id,class_no,exam_name,created_at,result_declared,archived_at,academic_exam_subjects(subject_id,subject_name,full_marks)",
+        )
+        .eq("class_no", classNo)
+        .order("created_at", { ascending: false }),
     ]);
-    if(studentError)throw studentError;if(examError)throw examError;
-    const profile=(await addPhotoUrls([student]))[0]||student;
-    const examList=(exams||[]).filter(e=>!e.archived_at);
-    let records=[];
-    if(examList.length){const {data,error}=await sb.from("student_exam_marks").select("exam_id,student_id,marks,status,updated_at").in("exam_id",examList.map(e=>e.id));if(error)throw error;records=data||[];}
-    const recordMap=new Map(records.map(r=>[r.exam_id,r]));
-    const stats=examList.map((exam,index)=>{const r=recordMap.get(exam.id),marks=r?.marks||{},subjects=includedAcademicSubjects(exam,r),full=subjects.reduce((n,s)=>n+Number(s.full_marks||0),0),total=subjects.reduce((n,s)=>n+Number(marks[s.subject_id]||0),0),percentage=full?total/full*100:null;return {exam,r,marks,subjects,full,total,percentage,index};});
-    const completed=stats.filter(x=>x.r?.status==="completed"&&x.percentage!=null);
-    const rankings=new Map();
-    for(const x of completed){
-      const {data:classRecords,error}=await sb.from("student_exam_marks").select("student_id,marks,status,included_subject_ids").eq("exam_id",x.exam.id).eq("status","completed");
-      if(error)throw error;
-      const ranked=(classRecords||[]).map(rec=>{const rt=academicTotals(x.exam,rec);return {student_id:rec.student_id,pct:rt.percentage||0}}).sort((a,b)=>b.pct-a.pct);
-      const mine=ranked.findIndex(r=>r.student_id===studentId);rankings.set(x.exam.id,mine>=0?mine+1:null);
+    if (studentError) throw studentError;
+    if (examError) throw examError;
+    const profile = (await addPhotoUrls([student]))[0] || student;
+    const examList = (exams || []).filter((e) => !e.archived_at);
+    let records = [];
+    if (examList.length) {
+      const { data, error } = await sb
+        .from("student_exam_marks")
+        .select("exam_id,student_id,marks,status,updated_at")
+        .in(
+          "exam_id",
+          examList.map((e) => e.id),
+        );
+      if (error) throw error;
+      records = data || [];
     }
-    const latest=completed[0]||null,previous=completed[1]||null,overallAvg=completed.length?completed.reduce((n,x)=>n+x.percentage,0)/completed.length:0,latestChange=latest&&previous?latest.percentage-previous.percentage:null;
-    const performance=overallAvg>=75?"Strong performance":overallAvg>=50?"Good progress":overallAvg>=35?"Needs attention":"Needs support";
-    const photo=profile.photo_url?`<img class="admin-academic-profile-photo" src="${esc(profile.photo_url)}" alt="">`:esc(initials(profile.profiles?.full_name));
-    modal(`<div class="modal-head"><div><span class="pill active">ACADEMIC PROFILE</span><h2>${esc(profile.profiles?.full_name||"Student")}</h2><p class="modal-subtitle">Class ${classNo} • Roll No. ${esc(profile.roll_number||"—")}</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
-      <div class="admin-academic-profile-head"><span class="admin-academic-profile-avatar">${photo}</span><div><strong>${esc(profile.profiles?.full_name||"Student")}</strong><span>Roll No. ${esc(profile.roll_number||"—")} • ${classText(classNo)} • Batch ${esc(profile.batch||"—")}</span><span><i class="fa-solid fa-phone"></i> ${esc(profile.phone||"No phone number")}</span></div></div>
-      <div class="marks-detail-summary admin-academic-summary"><div><span>Average percentage</span><strong>${overallAvg.toFixed(2)}%</strong></div><div><span>Exams completed</span><strong>${completed.length} / ${examList.length}</strong></div><div><span>Latest rank</span><strong>${latest?rankLabel(rankings.get(latest.exam.id)):"—"}</strong></div><div><span>Performance</span><strong>${performance}</strong></div></div>
-      ${latestChange!=null?`<div class="academic-progress-banner ${latestChange>0?"improved":latestChange<0?"declined":"same"}"><i class="fa-solid ${latestChange>0?"fa-arrow-trend-up":latestChange<0?"fa-arrow-trend-down":"fa-minus"}"></i><div><strong>${latestChange>0?"Improved":latestChange<0?"Declined":"No change"} by ${Math.abs(latestChange).toFixed(2)} percentage points</strong><span>${esc(latest.exam.exam_name)} compared with ${esc(previous.exam.exam_name)}.</span></div></div>`:""}
-      <div class="admin-academic-exam-details">${stats.map(x=>{const older=stats.slice(x.index+1).find(y=>y.r?.status==="completed"&&y.percentage!=null),change=x.percentage!=null&&older?x.percentage-older.percentage:null;return `<section class="admin-academic-exam-card"><div class="admin-academic-exam-head"><div><span class="pill">${esc(x.exam.exam_name)}</span><h3>${x.r?.status==="completed"?`${x.total} / ${x.full} • ${x.percentage.toFixed(2)}%`:`Not completed`}</h3><small>${fmtDate(x.exam.created_at)} • Rank ${x.r?.status==="completed"?rankLabel(rankings.get(x.exam.id)):"—"}</small></div>${change!=null?`<span class="trend ${change>0?"up":change<0?"down":"neutral"}"><i class="fa-solid ${change>0?"fa-arrow-up":change<0?"fa-arrow-down":"fa-minus"}"></i> ${change>0?"+":""}${change.toFixed(2)}%</span>`:""}</div><div class="table-card"><table class="data-table marks-detail-table"><thead><tr><th>Subject</th><th>Marks</th><th>Full marks</th><th>Percentage</th></tr></thead><tbody>${x.subjects.map(s=>{const m=Number(x.marks[s.subject_id]||0),fm=Number(s.full_marks||0);return `<tr><td><strong>${esc(s.subject_name)}</strong></td><td>${x.r?.status==="completed"?m:"—"}</td><td>${fm}</td><td>${x.r?.status==="completed"&&fm?((m/fm)*100).toFixed(2)+"%":"—"}</td></tr>`}).join("")}</tbody></table></div></section>`}).join("")||`<div class="marks-empty">No academic exams have been created for this class yet.</div>`}</div>
+    const recordMap = new Map(records.map((r) => [r.exam_id, r]));
+    const stats = examList.map((exam, index) => {
+      const r = recordMap.get(exam.id),
+        marks = r?.marks || {},
+        subjects = includedAcademicSubjects(exam, r),
+        full = subjects.reduce((n, s) => n + Number(s.full_marks || 0), 0),
+        total = subjects.reduce(
+          (n, s) => n + Number(marks[s.subject_id] || 0),
+          0,
+        ),
+        percentage = full ? (total / full) * 100 : null;
+      return { exam, r, marks, subjects, full, total, percentage, index };
+    });
+    const completed = stats.filter(
+      (x) => x.r?.status === "completed" && x.percentage != null,
+    );
+    const rankings = new Map();
+    for (const x of completed) {
+      const { data: classRecords, error } = await sb
+        .from("student_exam_marks")
+        .select("student_id,marks,status,included_subject_ids")
+        .eq("exam_id", x.exam.id)
+        .eq("status", "completed");
+      if (error) throw error;
+      const ranked = (classRecords || [])
+        .map((rec) => {
+          const rt = academicTotals(x.exam, rec);
+          return { student_id: rec.student_id, pct: rt.percentage || 0 };
+        })
+        .sort((a, b) => b.pct - a.pct);
+      const mine = ranked.findIndex((r) => r.student_id === studentId);
+      rankings.set(x.exam.id, mine >= 0 ? mine + 1 : null);
+    }
+    const latest = completed[0] || null,
+      previous = completed[1] || null,
+      overallAvg = completed.length
+        ? completed.reduce((n, x) => n + x.percentage, 0) / completed.length
+        : 0,
+      latestChange =
+        latest && previous ? latest.percentage - previous.percentage : null;
+    const performance =
+      overallAvg >= 75
+        ? "Strong performance"
+        : overallAvg >= 50
+          ? "Good progress"
+          : overallAvg >= 35
+            ? "Needs attention"
+            : "Needs support";
+    const photo = profile.photo_url
+      ? `<img class="admin-academic-profile-photo" src="${esc(profile.photo_url)}" alt="">`
+      : esc(initials(profile.profiles?.full_name));
+    modal(`<div class="modal-head"><div><span class="pill active">ACADEMIC PROFILE</span><h2>${esc(profile.profiles?.full_name || "Student")}</h2><p class="modal-subtitle">Class ${classNo} • Roll No. ${esc(profile.roll_number || "—")}</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
+      <div class="admin-academic-profile-head"><span class="admin-academic-profile-avatar">${photo}</span><div><strong>${esc(profile.profiles?.full_name || "Student")}</strong><span>Roll No. ${esc(profile.roll_number || "—")} • ${classText(classNo)} • Batch ${esc(profile.batch || "—")}</span><span><i class="fa-solid fa-phone"></i> ${esc(profile.phone || "No phone number")}</span></div></div>
+      <div class="marks-detail-summary admin-academic-summary"><div><span>Average percentage</span><strong>${overallAvg.toFixed(2)}%</strong></div><div><span>Exams completed</span><strong>${completed.length} / ${examList.length}</strong></div><div><span>Latest rank</span><strong>${latest ? rankLabel(rankings.get(latest.exam.id)) : "—"}</strong></div><div><span>Performance</span><strong>${performance}</strong></div></div>
+      ${latestChange != null ? `<div class="academic-progress-banner ${latestChange > 0 ? "improved" : latestChange < 0 ? "declined" : "same"}"><i class="fa-solid ${latestChange > 0 ? "fa-arrow-trend-up" : latestChange < 0 ? "fa-arrow-trend-down" : "fa-minus"}"></i><div><strong>${latestChange > 0 ? "Improved" : latestChange < 0 ? "Declined" : "No change"} by ${Math.abs(latestChange).toFixed(2)} percentage points</strong><span>${esc(latest.exam.exam_name)} compared with ${esc(previous.exam.exam_name)}.</span></div></div>` : ""}
+      <div class="admin-academic-exam-details">${
+        stats
+          .map((x) => {
+            const older = stats
+                .slice(x.index + 1)
+                .find(
+                  (y) => y.r?.status === "completed" && y.percentage != null,
+                ),
+              change =
+                x.percentage != null && older
+                  ? x.percentage - older.percentage
+                  : null;
+            return `<section class="admin-academic-exam-card"><div class="admin-academic-exam-head"><div><span class="pill">${esc(x.exam.exam_name)}</span><h3>${x.r?.status === "completed" ? `${x.total} / ${x.full} • ${x.percentage.toFixed(2)}%` : `Not completed`}</h3><small>${fmtDate(x.exam.created_at)} • Rank ${x.r?.status === "completed" ? rankLabel(rankings.get(x.exam.id)) : "—"}</small></div>${change != null ? `<span class="trend ${change > 0 ? "up" : change < 0 ? "down" : "neutral"}"><i class="fa-solid ${change > 0 ? "fa-arrow-up" : change < 0 ? "fa-arrow-down" : "fa-minus"}"></i> ${change > 0 ? "+" : ""}${change.toFixed(2)}%</span>` : ""}</div><div class="table-card"><table class="data-table marks-detail-table"><thead><tr><th>Subject</th><th>Marks</th><th>Full marks</th><th>Percentage</th></tr></thead><tbody>${x.subjects
+              .map((s) => {
+                const m = Number(x.marks[s.subject_id] || 0),
+                  fm = Number(s.full_marks || 0);
+                return `<tr><td><strong>${esc(s.subject_name)}</strong></td><td>${x.r?.status === "completed" ? m : "—"}</td><td>${fm}</td><td>${x.r?.status === "completed" && fm ? ((m / fm) * 100).toFixed(2) + "%" : "—"}</td></tr>`;
+              })
+              .join("")}</tbody></table></div></section>`;
+          })
+          .join("") ||
+        `<div class="marks-empty">No academic exams have been created for this class yet.</div>`
+      }</div>
       <div class="modal-actions"><button class="small-btn primary" data-close-modal>Done</button></div>`);
-    $$(`[data-close-modal]`).forEach(b=>b.onclick=()=>closeModal());
+    $$(`[data-close-modal]`).forEach((b) => (b.onclick = () => closeModal()));
   }
 
-  async function showAdminStudentExamDetail(exam,studentId,rows){
-    const student=rows.find(s=>s.user_id===studentId);
-    const {data:record,error}=await sb.from("student_exam_marks").select("marks,status,updated_at,included_subject_ids").eq("exam_id",exam.id).eq("student_id",studentId).maybeSingle();
-    if(error)throw error;const marks=record?.marks||{},subs=includedAcademicSubjects(exam,record),total=subs.reduce((a,s)=>a+Number(marks[s.subject_id]||0),0),full=subs.reduce((a,s)=>a+Number(s.full_marks||0),0);
-    modal(`<div class="modal-head"><div><span class="pill active">${esc(exam.exam_name)}</span><h2>${esc(student?.profiles?.full_name||"Student")}</h2><p class="modal-subtitle">Roll No. ${esc(student?.roll_number||"—")} • Class ${exam.class_no}</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
-      <div class="marks-detail-summary"><div><span>Total marks</span><strong>${total} / ${full}</strong></div><div><span>Percentage</span><strong>${full?((total/full)*100).toFixed(2):"0.00"}%</strong></div><div><span>Status</span><strong>${record?.status==="completed"?"Completed":"Pending"}</strong></div></div>
-      <div class="table-card"><table class="data-table marks-detail-table"><thead><tr><th>Subject</th><th>Marks</th><th>Full marks</th><th>Percentage</th></tr></thead><tbody>${subs.map(s=>{const m=Number(marks[s.subject_id]||0),fm=Number(s.full_marks||0);return `<tr><td><strong>${esc(s.subject_name)}</strong></td><td>${m}</td><td>${fm}</td><td>${fm?((m/fm)*100).toFixed(2):"0.00"}%</td></tr>`}).join("")}</tbody></table></div>
+  async function showAdminStudentExamDetail(exam, studentId, rows) {
+    const student = rows.find((s) => s.user_id === studentId);
+    const { data: record, error } = await sb
+      .from("student_exam_marks")
+      .select("marks,status,updated_at,included_subject_ids")
+      .eq("exam_id", exam.id)
+      .eq("student_id", studentId)
+      .maybeSingle();
+    if (error) throw error;
+    const marks = record?.marks || {},
+      subs = includedAcademicSubjects(exam, record),
+      total = subs.reduce((a, s) => a + Number(marks[s.subject_id] || 0), 0),
+      full = subs.reduce((a, s) => a + Number(s.full_marks || 0), 0);
+    modal(`<div class="modal-head"><div><span class="pill active">${esc(exam.exam_name)}</span><h2>${esc(student?.profiles?.full_name || "Student")}</h2><p class="modal-subtitle">Roll No. ${esc(student?.roll_number || "—")} • Class ${exam.class_no}</p></div><button class="close-btn" data-close-modal><i class="fa-solid fa-xmark"></i></button></div>
+      <div class="marks-detail-summary"><div><span>Total marks</span><strong>${total} / ${full}</strong></div><div><span>Percentage</span><strong>${full ? ((total / full) * 100).toFixed(2) : "0.00"}%</strong></div><div><span>Status</span><strong>${record?.status === "completed" ? "Completed" : "Pending"}</strong></div></div>
+      <div class="table-card"><table class="data-table marks-detail-table"><thead><tr><th>Subject</th><th>Marks</th><th>Full marks</th><th>Percentage</th></tr></thead><tbody>${subs
+        .map((s) => {
+          const m = Number(marks[s.subject_id] || 0),
+            fm = Number(s.full_marks || 0);
+          return `<tr><td><strong>${esc(s.subject_name)}</strong></td><td>${m}</td><td>${fm}</td><td>${fm ? ((m / fm) * 100).toFixed(2) : "0.00"}%</td></tr>`;
+        })
+        .join("")}</tbody></table></div>
       <div class="modal-actions"><button class="small-btn primary" data-close-modal>Done</button></div>`);
-    $$("[data-close-modal]").forEach(b=>b.onclick=()=>$("#modal-root").innerHTML="");
+    $$("[data-close-modal]").forEach(
+      (b) => (b.onclick = () => ($("#modal-root").innerHTML = "")),
+    );
   }
 
+  function empty(icon, title, text) {
+    return `<div class="empty-state"><i class="${icon}"></i><h3>${title}</h3><p>${text}</p></div>`;
+  }
+  function emptyInline(t) {
+    return `<div class="empty-state"><p>${t}</p></div>`;
+  }
 
-  function empty(icon,title,text){return `<div class="empty-state"><i class="${icon}"></i><h3>${title}</h3><p>${text}</p></div>`}
-  function emptyInline(t){return `<div class="empty-state"><p>${t}</p></div>`}
-
-  function closeProfileMenu(){const m=$("#profile-menu");m.classList.add("hidden");$("#profile-button").setAttribute("aria-expanded","false")}
-  function toggleProfile(){const m=$("#profile-menu"),show=m.classList.contains("hidden");m.classList.toggle("hidden",!show);$("#profile-button").setAttribute("aria-expanded",String(show))}
+  function closeProfileMenu() {
+    const m = $("#profile-menu");
+    m.classList.add("hidden");
+    $("#profile-button").setAttribute("aria-expanded", "false");
+  }
+  function toggleProfile() {
+    const m = $("#profile-menu"),
+      show = m.classList.contains("hidden");
+    m.classList.toggle("hidden", !show);
+    $("#profile-button").setAttribute("aria-expanded", String(show));
+  }
   function saveIdentityCache() {
     try {
       if (!state.session?.user?.id || !state.profile) return;
-      sessionStorage.setItem("bcc_identity_cache", JSON.stringify({
-        userId: state.session.user.id,
-        profile: state.profile,
-        student: state.student || null
-      }));
+      sessionStorage.setItem(
+        "bcc_identity_cache",
+        JSON.stringify({
+          userId: state.session.user.id,
+          profile: state.profile,
+          student: state.student || null,
+        }),
+      );
     } catch (_) {}
   }
 
@@ -2350,7 +5264,9 @@
       if (!raw) return null;
       const cached = JSON.parse(raw);
       return cached?.userId === userId && cached?.profile ? cached : null;
-    } catch (_) { return null; }
+    } catch (_) {
+      return null;
+    }
   }
 
   async function refreshIdentityInBackground() {
@@ -2358,35 +5274,81 @@
       const freshProfile = await currentProfile();
       if (!freshProfile) return;
       let freshStudent = null;
-      if (freshProfile.role === "student") freshStudent = await getStudentProfile();
-      const changed = JSON.stringify(freshProfile) !== JSON.stringify(state.profile) || JSON.stringify(freshStudent) !== JSON.stringify(state.student);
+      if (freshProfile.role === "student")
+        freshStudent = await getStudentProfile();
+      const changed =
+        JSON.stringify(freshProfile) !== JSON.stringify(state.profile) ||
+        JSON.stringify(freshStudent) !== JSON.stringify(state.student);
       state.profile = freshProfile;
       state.student = freshStudent;
       state.classNo = freshStudent?.class_no ?? null;
       saveIdentityCache();
-      if (changed && document.visibilityState !== "hidden") await enterApp({ preserveRoute: true, skipStudentFetch: true });
-    } catch (e) { console.warn("Background identity refresh failed", e); }
+      if (changed && document.visibilityState !== "hidden")
+        await enterApp({ preserveRoute: true, skipStudentFetch: true });
+    } catch (e) {
+      console.warn("Background identity refresh failed", e);
+    }
   }
 
-  async function setup(){
+  async function setup() {
     window.addEventListener("popstate", handlePopState);
-    $$(".portal-tab").forEach(b=>b.onclick=()=>{$$(".portal-tab").forEach(x=>x.classList.remove("active"));b.classList.add("active");state.portal=b.dataset.portal;$("#login-hint").textContent=state.portal==="student"?"Student login: use the Student ID given by BCC.":"Teacher login: enter your Teacher ID (e.g. BCCA001) and password given by BCC."});
-    $("#login-form").onsubmit=e=>{e.preventDefault();login()};
-    $$("[data-toggle-password]").forEach(b=>b.onclick=()=>{const i=$(b.dataset.togglePassword);i.type=i.type==="password"?"text":"password";b.innerHTML=`<i class="fa-regular fa-eye${i.type==="password"?"":"-slash"}"></i>`});
-    $$(".logout-btn").forEach(b=>b.onclick=logout);
-    $("#staff-photo-action")?.addEventListener("click",()=>$("#staff-photo-file")?.click());
-    $("#staff-photo-file")?.addEventListener("change",uploadStaffPhoto);
-    $("#profile-button").onclick=e=>{e.stopPropagation();toggleProfile()};document.addEventListener("click",e=>{if(!e.target.closest(".profile-menu-wrap"))closeProfileMenu()});
-    $("#sidebar-open").onclick=()=>toggleSidebar(true);$("#sidebar-close").onclick=()=>toggleSidebar(false);$("#mobile-overlay").onclick=()=>toggleSidebar(false);
-    $$(".nav-item[data-view]").forEach(b=>b.onclick=()=>navigate(b.dataset.view));
-    if(!hasConfig){showLoginScreen();toast("Configure config.js with your Supabase project before logging in.","error");return;}
-    if(sb){
-      try{
-        const {data}=await sb.auth.getSession();
-        if(data.session){
-          state.session=data.session;
+    $$(".portal-tab").forEach(
+      (b) =>
+        (b.onclick = () => {
+          $$(".portal-tab").forEach((x) => x.classList.remove("active"));
+          b.classList.add("active");
+          state.portal = b.dataset.portal;
+          $("#login-hint").textContent =
+            state.portal === "student"
+              ? "Student login: use the Student ID given by BCC."
+              : "Teacher login: enter your Teacher ID (e.g. BCCA001) and password given by BCC.";
+        }),
+    );
+    $("#login-form").onsubmit = (e) => {
+      e.preventDefault();
+      login();
+    };
+    $$("[data-toggle-password]").forEach(
+      (b) =>
+        (b.onclick = () => {
+          const i = $(b.dataset.togglePassword);
+          i.type = i.type === "password" ? "text" : "password";
+          b.innerHTML = `<i class="fa-regular fa-eye${i.type === "password" ? "" : "-slash"}"></i>`;
+        }),
+    );
+    $$(".logout-btn").forEach((b) => (b.onclick = logout));
+    $("#staff-photo-action")?.addEventListener("click", () =>
+      $("#staff-photo-file")?.click(),
+    );
+    $("#staff-photo-file")?.addEventListener("change", uploadStaffPhoto);
+    $("#profile-button").onclick = (e) => {
+      e.stopPropagation();
+      toggleProfile();
+    };
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".profile-menu-wrap")) closeProfileMenu();
+    });
+    $("#sidebar-open").onclick = () => toggleSidebar(true);
+    $("#sidebar-close").onclick = () => toggleSidebar(false);
+    $("#mobile-overlay").onclick = () => toggleSidebar(false);
+    $$(".nav-item[data-view]").forEach(
+      (b) => (b.onclick = () => navigate(b.dataset.view)),
+    );
+    if (!hasConfig) {
+      showLoginScreen();
+      toast(
+        "Configure config.js with your Supabase project before logging in.",
+        "error",
+      );
+      return;
+    }
+    if (sb) {
+      try {
+        const { data } = await sb.auth.getSession();
+        if (data.session) {
+          state.session = data.session;
           const cached = readIdentityCache(data.session.user.id);
-          if(cached){
+          if (cached) {
             state.profile = cached.profile;
             state.student = cached.student;
             state.classNo = cached.student?.class_no ?? null;
@@ -2396,30 +5358,56 @@
             refreshIdentityInBackground();
             return;
           }
-          state.profile=await currentProfile();
-          if(state.profile){await enterApp();return;}
+          state.profile = await currentProfile();
+          if (state.profile) {
+            await enterApp();
+            return;
+          }
         }
-      }catch(e){console.error(e);try{await sb.auth.signOut()}catch(_){} }
+      } catch (e) {
+        console.error(e);
+        try {
+          await sb.auth.signOut();
+        } catch (_) {}
+      }
       showLoginScreen();
     } else showLoginScreen();
   }
-  function showLoginScreen(){
+  function showLoginScreen() {
     $("#boot-screen")?.classList.add("hidden");
     $("#login-screen")?.classList.remove("hidden");
     $("#app-shell")?.classList.add("hidden");
   }
-  function toggleSidebar(open){
-    const mobile=window.matchMedia("(max-width:900px) and (pointer: coarse), (max-width:760px)").matches;
-    if(!mobile){ $("#sidebar").classList.remove("open"); $("#mobile-overlay").classList.remove("open"); return; }
-    $("#sidebar").classList.toggle("open",open);
-    $("#mobile-overlay").classList.toggle("open",open);
+  function toggleSidebar(open) {
+    const mobile = window.matchMedia(
+      "(max-width:900px) and (pointer: coarse), (max-width:760px)",
+    ).matches;
+    if (!mobile) {
+      $("#sidebar").classList.remove("open");
+      $("#mobile-overlay").classList.remove("open");
+      return;
+    }
+    $("#sidebar").classList.toggle("open", open);
+    $("#mobile-overlay").classList.toggle("open", open);
   }
-  function syncResponsiveLayout(){
-    const mobile=window.matchMedia("(max-width:900px) and (pointer: coarse), (max-width:760px)").matches;
-    if(!mobile){ $("#sidebar").classList.remove("open"); $("#mobile-overlay").classList.remove("open"); }
-    document.body.classList.toggle("is-mobile",mobile);
+  function syncResponsiveLayout() {
+    const mobile = window.matchMedia(
+      "(max-width:900px) and (pointer: coarse), (max-width:760px)",
+    ).matches;
+    if (!mobile) {
+      $("#sidebar").classList.remove("open");
+      $("#mobile-overlay").classList.remove("open");
+    }
+    document.body.classList.toggle("is-mobile", mobile);
   }
-  window.addEventListener("resize",syncResponsiveLayout,{passive:true});
-  window.addEventListener("orientationchange",()=>setTimeout(syncResponsiveLayout,80),{passive:true});
-  document.addEventListener("DOMContentLoaded",()=>{syncResponsiveLayout();setup();});
+  window.addEventListener("resize", syncResponsiveLayout, { passive: true });
+  window.addEventListener(
+    "orientationchange",
+    () => setTimeout(syncResponsiveLayout, 80),
+    { passive: true },
+  );
+  document.addEventListener("DOMContentLoaded", () => {
+    syncResponsiveLayout();
+    setup();
+  });
 })();
