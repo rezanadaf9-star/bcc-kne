@@ -1360,7 +1360,7 @@ body::-webkit-scrollbar,
 .marks-entry-actions #marks-prev:hover:not(:disabled){background:var(--navy)!important;color:#fff!important;}
 .marks-entry-actions #marks-fm-update:hover:not(:disabled){background:var(--red)!important;color:#fff!important;}
 .marks-entry-actions #marks-save:hover:not(:disabled){background:var(--green)!important;color:#fff!important;}
-.marks-entry-actions #marks-next:hover:not(:disabled){background:#ffe600!important;color:var(--navy)!important;}
+.marks-entry-actions #marks-next:hover:not(:disabled){background:#a17d00!important;color:var(--navy)!important;}
 /* Existing markup places the Next arrow first; display it after the label without changing JS. */
 .marks-entry-actions #marks-next i{order:2;}
 .marks-entry-actions #marks-prev:disabled,
@@ -1392,8 +1392,8 @@ body::-webkit-scrollbar,
   transform:scale(1.045);
 }
 .marks-entry-actions #marks-next:hover:not(:disabled) {
-  background:#ffe600!important;
-  border-color:#ffe600!important;
+  background:#a17d00!important;
+  border-color:#a17d00!important;
   color:#fff!important;
 }
 .marks-entry-actions #marks-next:hover:not(:disabled) i,

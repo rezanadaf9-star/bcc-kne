@@ -3,7 +3,7 @@
 
   // Paste the raw GitHub Releases APK URL here when it is ready.
   const BCC_APP_APK_URL =
-    "https://github.com/rezanadaf9-star/bcc-kne-App/releases/download/v1.1.11/app-release.apk";
+    "https://github.com/rezanadaf9-star/bcc-kne-App/releases/download/v1.1.12/app-release.apk";
 
   const C = window.BCC_CONFIG || {};
   const hasConfig =
