@@ -16,6 +16,19 @@ Deno.serve(async req=>{
     const id=String(body.user_id||"");if(!id||typeof body.is_active!=="boolean")return json({error:"Teacher and status are required."},400);
     const {error}=await adminClient.from("profiles").update({is_active:body.is_active}).eq("id",id).eq("role","teacher");if(error)return json({error:error.message},400);return json({ok:true,is_active:body.is_active});
   }
+  if(body.action==="reset-student-password"){
+    const id=String(body.user_id||""),password=String(body.password||""),adminPassword=String(body.admin_password||"");
+    if(!id||password.length<8||!adminPassword)return json({error:"Student, new password (8+ characters), and admin verification are required."},400);
+    if(id===authData.user.id)return json({error:"Cannot reset your own password through student management."},400);
+    const {error:verifyError}=await userClient.auth.signInWithPassword({email:authData.user.email||"",password:adminPassword});
+    if(verifyError)return json({error:"Administrator password verification failed."},403);
+    const {data:target,error:targetError}=await adminClient.from("profiles").select("id,role,login_id").eq("id",id).single();
+    if(targetError||target?.role!=="student")return json({error:"Student account not found."},404);
+    const {error:updateError}=await adminClient.auth.admin.updateUserById(id,{password});
+    if(updateError)return json({error:updateError.message},400);
+    const {error:auditError}=await adminClient.from("bcc_student_password_reset_audit").insert({admin_id:authData.user.id,student_id:id});
+    return json({ok:true,login_id:target.login_id,audit_warning:auditError?"Audit entry could not be saved. Check migration and logs.":undefined});
+  }
   if(body.action==="reset-password"){
     const id=String(body.user_id||""),password=String(body.password||"");if(!id||password.length<8)return json({error:"Teacher and a password of at least 8 characters are required."},400);
     const {data:profile,error:profileError}=await adminClient.from("profiles").select("id,role,login_id").eq("id",id).single();if(profileError||!profile||profile.role!=="teacher")return json({error:"Teacher account not found."},404);

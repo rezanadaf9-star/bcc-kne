@@ -1705,18 +1705,21 @@
       .eq("id", id)
       .single();
     if (error) return toast(error.message, "error");
-    const url = await signedUrl(data.file_path, 3600);
+    const external = isExternal(data.file_path);
+    const url = external ? "external" : await signedUrl(data.file_path, 3600);
     if (!url) return toast("Could not open file.", "error");
     const ext = (
       data.file_type ||
       data.file_path.split(".").pop() ||
       ""
     ).toLowerCase();
-    const viewer = ext.includes("pdf")
-      ? `<iframe class="pdf-frame" src="${esc(url)}"></iframe>`
-      : `<img class="image-preview" src="${esc(url)}" alt="${esc(data.title)}">`;
+    const viewer = external
+      ? externalViewerHtml(data.file_path, data.file_type)
+      : ext.includes("pdf")
+        ? `<iframe class="pdf-frame" src="${esc(url)}"></iframe>`
+        : `<img class="image-preview" src="${esc(url)}" alt="${esc(data.title)}">`;
     modal(
-      `<div class="modal-head"><h2>${esc(data.title)}</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>${viewer}<div class="modal-actions"><button class="small-btn" data-download="${esc(data.file_path)}" data-name="${esc(data.title)}">Download</button></div>`,
+      `<div class="modal-head"><h2>${esc(data.title)}</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>${viewer}<div class="modal-actions">${external ? externalOpenButton(data.file_path) : ""}<button class="small-btn" data-download="${esc(data.file_path)}" data-name="${esc(data.title)}">Download</button></div>`,
     );
     $("[data-close]").onclick = closeModal;
     $("[data-download]").onclick = () =>
@@ -1767,15 +1770,17 @@
       .eq("id", id)
       .single();
     if (error) return toast(error.message, "error");
-    const url = await signedUrl(data.file_path, 3600);
+    const external = isExternal(data.file_path);
+    const url = external ? "external" : await signedUrl(data.file_path, 3600);
     if (!url) return toast("Could not open file.", "error");
     const ext = (data.file_path || "").split(".").pop().toLowerCase();
-    const viewer =
-      ext === "pdf"
+    const viewer = external
+      ? externalViewerHtml(data.file_path, "")
+      : ext === "pdf"
         ? `<iframe class="pdf-frame" src="${esc(url)}"></iframe>`
         : `<img class="image-preview" src="${esc(url)}" alt="">`;
     modal(
-      `<div class="modal-head"><h2>${esc(data.title)}</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>${viewer}<div class="modal-actions"><button class="small-btn" data-download="${esc(data.file_path)}" data-name="${esc(data.title)}">Download</button></div>`,
+      `<div class="modal-head"><h2>${esc(data.title)}</h2><button class="close-btn" data-close><i class="fa-solid fa-xmark"></i></button></div>${viewer}<div class="modal-actions">${external ? externalOpenButton(data.file_path) : ""}<button class="small-btn" data-download="${esc(data.file_path)}" data-name="${esc(data.title)}">Download</button></div>`,
     );
     $("[data-close]").onclick = closeModal;
     $("[data-download]").onclick = () =>
@@ -3003,7 +3008,17 @@
     $("#content-extra").innerHTML =
       type === "lecture"
         ? `<div class="form-grid"><div class="form-group"><label>Source</label><select id="lecture-source"><option value="youtube">YouTube URL</option><option value="upload">Upload video</option></select></div><div class="form-group"><label>Live lecture?</label><select id="lecture-live"><option value="false">No</option><option value="true">Yes</option></select></div><div class="form-group" style="grid-column:1/-1"><label>YouTube URL (if source is YouTube)</label><input id="lecture-youtube" placeholder="https://www.youtube.com/watch?v=..."></div><div class="form-group" style="grid-column:1/-1"><label>Video file (if source is upload)</label><input id="lecture-file" type="file" accept="video/*"></div><div class="form-group" style="grid-column:1/-1"><label>Description</label><textarea id="lecture-description"></textarea></div></div>`
-        : `<div class="form-grid"><div class="form-group"><label>File (PDF/JPG/PNG)</label><input id="content-file" type="file" accept=".pdf,image/jpeg,image/png"></div><div class="form-group"><label>${type === "homework" ? "Due date" : "File type"}</label>${type === "homework" ? `<input id="hw-due" type="date">` : `<select id="note-file-type"><option value="pdf">PDF</option><option value="jpg">JPG</option><option value="png">PNG</option></select>`}</div>${type === "homework" ? `<div class="form-group" style="grid-column:1/-1"><label>Instructions</label><textarea id="hw-instructions"></textarea></div>` : ""}</div>`;
+        : `<div class="form-grid"><div class="form-group"><label>Source</label><select id="file-source"><option value="link">Paste a link (Google Drive / OneDrive / other) - saves storage</option><option value="upload">Upload file to BCC storage</option></select></div><div class="form-group" id="file-link-wrap" style="grid-column:1/-1"><label>File link</label><input id="content-link" type="url" placeholder="https://drive.google.com/file/d/.../view?usp=sharing"><p class="mini-label" style="margin-top:6px">Google Drive: Share &rarr; General access &rarr; <b>Anyone with the link</b> (Viewer). Students cannot open private files. Google Drive PDFs/images show inside the portal and app; OneDrive and other links open in a new tab.</p></div><div class="form-group hidden" id="file-upload-wrap" style="grid-column:1/-1"><label>File (PDF/JPG/PNG)</label><input id="content-file" type="file" accept=".pdf,image/jpeg,image/png"></div><div class="form-group"><label>${type === "homework" ? "Due date" : "File type"}</label>${type === "homework" ? `<input id="hw-due" type="date">` : `<select id="note-file-type"><option value="pdf">PDF</option><option value="jpg">JPG</option><option value="png">PNG</option></select>`}</div>${type === "homework" ? `<div class="form-group" style="grid-column:1/-1"><label>Instructions</label><textarea id="hw-instructions"></textarea></div>` : ""}</div>`;
+  const srcSel = $("#file-source");
+    if (srcSel) {
+      const sync = () => {
+        const link = srcSel.value === "link";
+        $("#file-link-wrap").classList.toggle("hidden", !link);
+        $("#file-upload-wrap").classList.toggle("hidden", link);
+      };
+      srcSel.onchange = sync;
+      sync();
+    }
   }
   async function saveContent() {
     const type = $("#content-type").value,
@@ -3043,10 +3058,18 @@
           });
         if (error) throw error;
       } else {
-        const f = $("#content-file").files[0];
-        if (!f) throw new Error("Choose a file.");
-        const path = `${type}s/${classNo}/${Date.now()}-${slug(f.name)}`;
-        const fp = await uploadFile(f, path);
+        let fp;
+        if ($("#file-source").value === "link") {
+          const link = $("#content-link").value.trim();
+          if (!parseExternalLink(link))
+            throw new Error("Paste a valid http/https file link.");
+          fp = link;
+        } else {
+          const f = $("#content-file").files[0];
+          if (!f) throw new Error("Choose a file.");
+          const path = `${type}s/${classNo}/${Date.now()}-${slug(f.name)}`;
+          fp = await uploadFile(f, path);
+        }
         if (type === "note") {
           const { error } = await sb
             .from("notes")
@@ -3076,6 +3099,7 @@
       }
       toast("Content saved.", "success");
       $("#content-title").value = "";
+      if ($("#content-link")) $("#content-link").value = "";
       await renderRecentContent();
     } catch (e) {
       toast(e.message || "Could not save content.", "error");
@@ -3200,7 +3224,7 @@
     try {
       const { error } = await sb.from(table).delete().eq("id", id);
       if (error) throw error;
-      if (path) {
+      if (path && !isExternal(path)) {
         const { error: e } = await sb.storage
           .from("bcc-content")
           .remove([path]);
@@ -3215,6 +3239,73 @@
     }
   }
 
+  /* ---------- external links (Google Drive / OneDrive / Dropbox / direct) for notes & homework ---------- */
+  function isExternal(p) {
+    return /^https?:\/\//i.test(String(p || "").trim());
+  }
+  function parseExternalLink(raw) {
+    const url = String(raw || "").trim();
+    let u;
+    try {
+      u = new URL(url);
+    } catch {
+      return null;
+    }
+    if (!/^https?:$/.test(u.protocol)) return null;
+    const host = u.hostname.toLowerCase();
+    const out = { kind: "other", url, view: null, download: url, open: url };
+    if (host === "drive.google.com") {
+      const m = u.pathname.match(/\/file\/d\/([\w-]{10,})/);
+      const id = m ? m[1] : u.searchParams.get("id");
+      if (id) {
+        out.kind = "embed";
+        out.view = `https://drive.google.com/file/d/${id}/preview`;
+        out.download = `https://drive.google.com/uc?export=download&id=${id}`;
+        out.open = `https://drive.google.com/file/d/${id}/view`;
+      }
+    } else if (host === "docs.google.com") {
+      const m = u.pathname.match(/^\/(document|presentation|spreadsheets)\/d\/([\w-]{10,})/);
+      if (m) {
+        const fmt = m[1] === "spreadsheets" ? "xlsx" : "pdf";
+        out.kind = "embed";
+        out.view = `https://docs.google.com/${m[1]}/d/${m[2]}/preview`;
+        out.download = `https://docs.google.com/${m[1]}/d/${m[2]}/export?format=${fmt}`;
+        out.open = `https://docs.google.com/${m[1]}/d/${m[2]}/view`;
+      }
+    } else if (host === "onedrive.live.com" && u.pathname.toLowerCase().startsWith("/embed")) {
+      out.kind = "embed";
+      out.view = url;
+    } else if (host.endsWith("dropbox.com")) {
+      u.searchParams.delete("dl");
+      u.searchParams.set("raw", "1");
+      out.kind = "direct";
+      out.view = u.toString();
+      out.download = u.toString();
+    } else if (/\.(jpe?g|png|webp|gif|pdf)$/i.test(u.pathname)) {
+      out.kind = "direct";
+      out.view = url;
+    }
+    return out;
+  }
+  function externalViewerHtml(path, hint) {
+    const i = parseExternalLink(path);
+    if (!i) return `<div class="player-placeholder"><div><i class="fa-solid fa-link-slash"></i><p>This link is not valid.</p></div></div>`;
+    if (i.kind === "embed")
+      return `<iframe class="pdf-frame" src="${esc(i.view)}" allow="autoplay" referrerpolicy="no-referrer"></iframe>`;
+    if (i.kind === "direct") {
+      const isPdf = /pdf/i.test(hint || "") || /\.pdf($|\?)/i.test(i.url);
+      return isPdf
+        ? `<iframe class="pdf-frame" src="${esc(i.view)}"></iframe>`
+        : `<img class="image-preview" src="${esc(i.view)}" alt="">`;
+    }
+    return `<div class="player-placeholder" style="background:#f6f5fb;color:#66617e;border-radius:15px"><div><i class="fa-solid fa-up-right-from-square"></i><p>This file opens in a new tab. Use the button below.</p></div></div>`;
+  }
+  function externalOpenButton(path) {
+    const i = parseExternalLink(path);
+    return i
+      ? `<a class="small-btn primary" href="${esc(i.open)}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-block">Open in new tab</a>`
+      : "";
+  }
   async function uploadFile(file, path) {
     const { error } = await sb.storage
       .from("bcc-content")
@@ -3234,6 +3325,12 @@
     return data?.signedUrl || null;
   }
   async function downloadFile(path, name) {
+    if (isExternal(path)) {
+      const i = parseExternalLink(path);
+      if (!i) return toast("This link is not valid.", "error");
+      window.open(i.download, "_blank", "noopener,noreferrer");
+      return;
+    }
     const url = await signedUrl(path, 300);
     if (!url)
       return toast(
