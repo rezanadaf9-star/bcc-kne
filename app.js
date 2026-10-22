@@ -80,8 +80,66 @@
       .join("")
       .slice(0, 2)
       .toUpperCase();
+  const photoPathCache = new Map();
+  async function lookupPhotoPaths(ids) {
+    const need = [...new Set(ids.filter(Boolean))].filter(
+      (id) => !photoPathCache.has(id),
+    );
+    if (need.length) {
+      let found = null;
+      try {
+        // Server helper (see LEADERBOARD_PHOTOS_FIX.sql): returns only avatar paths.
+        const { data, error } = await sb.rpc("get_user_photo_paths", {
+          p_ids: need,
+        });
+        if (error) throw error;
+        found = data || [];
+      } catch (e) {
+        // Fallback 1: tables (works for admin/teacher accounts).
+        const m = new Map();
+        try {
+          const [a, b] = await Promise.all([
+            sb.from("student_profiles").select("user_id,photo_path").in("user_id", need),
+            sb.from("profiles").select("id,photo_path").in("id", need),
+          ]);
+          (b.data || []).forEach((r) => r.photo_path && m.set(r.id, r.photo_path));
+          (a.data || []).forEach((r) => r.photo_path && m.set(r.user_id, r.photo_path));
+        } catch (_) {}
+        // Fallback 2: the cumulative class leaderboard already carries photo paths.
+        if (need.some((id) => !m.has(id))) {
+          const lists = await Promise.all(
+            [10, 12].map((c) =>
+              sb.rpc("get_class_leaderboard", { p_class_no: c }).then(
+                (r) => r.data || [],
+                () => [],
+              ),
+            ),
+          );
+          lists.flat().forEach((r) => {
+            if (r.photo_path && r.student_id && !m.has(r.student_id))
+              m.set(r.student_id, r.photo_path);
+          });
+        }
+        found = [...m].map(([user_id, photo_path]) => ({ user_id, photo_path }));
+      }
+      need.forEach((id) => photoPathCache.set(id, ""));
+      found.forEach((r) => photoPathCache.set(r.user_id, r.photo_path || ""));
+    }
+    return photoPathCache;
+  }
   async function addPhotoUrls(rows) {
-    const list = rows || [];
+    let list = rows || [];
+    const missing = list
+      .filter((r) => !r.photo_path && (r.student_id || r.user_id))
+      .map((r) => r.student_id || r.user_id);
+    if (missing.length) {
+      const cache = await lookupPhotoPaths(missing);
+      list = list.map((r) =>
+        !r.photo_path && (r.student_id || r.user_id)
+          ? { ...r, photo_path: cache.get(r.student_id || r.user_id) || null }
+          : r,
+      );
+    }
     const paths = [...new Set(list.map((r) => r.photo_path).filter(Boolean))];
     if (!paths.length) return list;
     try {
@@ -2973,7 +3031,7 @@
         <div class="form-grid"><div class="form-group"><label>Class</label><select id="content-class"><option value="10">Class 10</option><option value="12">Class 12</option></select></div><div class="form-group"><label>Content type</label><select id="content-type"><option value="note">Note</option><option value="homework">Homework</option><option value="lecture">Lecture</option></select></div><div class="form-group"><label>Subject</label><select id="content-subject"></select></div><div class="form-group"><label>Title</label><input id="content-title"></div></div>
         <div id="content-extra" style="margin-top:13px"></div><div class="modal-actions"><button class="small-btn primary" id="save-content">Save content</button></div>
       </div>
-      <div class="admin-card"><h3>Recent content</h3><div id="recent-content" class="list-stack" style="margin-top:12px"></div></div></div>
+      <div class="admin-card"><h3>Uploaded content</h3><div id="recent-content" class="list-stack" style="margin-top:12px"></div></div></div>
       <div class="admin-card notebook-admin-card" style="margin-top:16px"><h3><i class="fa-solid fa-wand-magic-sparkles"></i> AI Study Hub / NotebookLM</h3><p class="mini-label" style="margin:4px 0 15px">Publish a NotebookLM or Gemini resource link for Class 10 or Class 12 Arts students.</p>
         <div class="form-grid"><div class="form-group"><label>Class</label><select id="nl-class"><option value="10">Class 10</option><option value="12">Class 12</option></select></div><div class="form-group"><label>Subject</label><select id="nl-subject"></select></div><div class="form-group"><label>Resource type</label><select id="nl-type"><option value="notes">Notes &amp; summaries</option><option value="lecture">Lecture</option><option value="doubt">Doubt solving</option><option value="ai">AI study assistant</option></select></div><div class="form-group"><label>Title</label><input id="nl-title" placeholder="e.g. History Chapter 1 AI Notes"></div><div class="form-group" style="grid-column:1/-1"><label>NotebookLM / Gemini URL</label><input id="nl-url" type="url" placeholder="https://notebooklm.google.com/... or your Gemini resource link"></div><div class="form-group" style="grid-column:1/-1"><label>Description</label><textarea id="nl-description" placeholder="What should students use this resource for?"></textarea></div></div>
         <div class="modal-actions"><button class="small-btn primary" id="save-notebooklm"><i class="fa-solid fa-paper-plane"></i> Publish AI resource</button></div>
@@ -3174,37 +3232,33 @@
   }
 
   async function renderRecentContent() {
+    const cols = "id,title,created_at,class_no,file_path,subjects(name)";
     const [l, n, h] = await Promise.all([
-      sb
-        .from("lectures")
-        .select("id,title,created_at,class_no,file_path,subjects(name)")
-        .order("created_at", { ascending: false })
-        .limit(5),
-      sb
-        .from("notes")
-        .select("id,title,created_at,class_no,file_path,subjects(name)")
-        .order("created_at", { ascending: false })
-        .limit(5),
-      sb
-        .from("homework")
-        .select("id,title,created_at,class_no,file_path,subjects(name)")
-        .order("created_at", { ascending: false })
-        .limit(5),
+      sb.from("lectures").select(cols).order("created_at", { ascending: false }).limit(100),
+      sb.from("notes").select(cols).order("created_at", { ascending: false }).limit(100),
+      sb.from("homework").select(cols).order("created_at", { ascending: false }).limit(100),
     ]);
-    const rows = [
-      ...(l.data || []).map((x) => ({ ...x, type: "Lecture" })),
-      ...(n.data || []).map((x) => ({ ...x, type: "Note" })),
-      ...(h.data || []).map((x) => ({ ...x, type: "Homework" })),
-    ]
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-      .slice(0, 8);
-    $("#recent-content").innerHTML =
-      rows
-        .map(
-          (x) =>
-            `<div class="list-item"><div class="list-main"><strong>${esc(x.title)}</strong><span>${x.type} • Class ${x.class_no} • ${esc(x.subjects?.name || "")}</span></div><button class="small-btn danger" data-delete-content="${esc(x.id)}" data-content-type="${x.type.toLowerCase()}" data-content-path="${esc(x.file_path || "")}"><i class="fa-solid fa-trash"></i> Delete</button></div>`,
-        )
-        .join("") || emptyInline("No content yet.");
+    const groups = [
+      { key: "lecture", label: "Lectures", icon: "fa-circle-play", cls: "ct-lecture", rows: l.data || [] },
+      { key: "note", label: "Notes", icon: "fa-file-lines", cls: "ct-note", rows: n.data || [] },
+      { key: "homework", label: "Homework", icon: "fa-pen-to-square", cls: "ct-homework", rows: h.data || [] },
+    ];
+    $("#recent-content").innerHTML = groups
+      .map(
+        (g) => `<section class="content-group ${g.cls}">
+          <div class="content-group-head"><span class="content-badge"><i class="fa-solid ${g.icon}"></i> ${g.label}</span><span class="content-count">${g.rows.length}</span></div>
+          <div class="content-group-list">${
+            g.rows.length
+              ? g.rows
+                  .map(
+                    (x) => `<div class="content-row"><div class="list-main"><strong>${esc(x.title)}</strong><span>Class ${esc(x.class_no)}${x.subjects?.name ? " • " + esc(x.subjects.name) : ""} • ${esc(fmtDate(x.created_at))}${g.key !== "lecture" && isExternal(x.file_path) ? ' • <b class="content-tag">Link</b>' : ""}</span></div><button class="small-btn danger" data-delete-content="${esc(x.id)}" data-content-type="${g.key}" data-content-path="${esc(x.file_path || "")}">Delete</button></div>`,
+                  )
+                  .join("")
+              : `<p class="mini-label" style="margin:6px 2px">No ${g.label.toLowerCase()} yet.</p>`
+          }</div>
+        </section>`,
+      )
+      .join("");
     $$("[data-delete-content]").forEach(
       (b) =>
         (b.onclick = () =>
