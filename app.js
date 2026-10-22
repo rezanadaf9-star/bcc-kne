@@ -3251,7 +3251,7 @@
             g.rows.length
               ? g.rows
                   .map(
-                    (x) => `<div class="content-row"><div class="list-main"><strong>${esc(x.title)}</strong><span>Class ${esc(x.class_no)}${x.subjects?.name ? " • " + esc(x.subjects.name) : ""} • ${esc(fmtDate(x.created_at))}${g.key !== "lecture" && isExternal(x.file_path) ? ' • <b class="content-tag">Link</b>' : ""}</span></div><button class="small-btn danger" data-delete-content="${esc(x.id)}" data-content-type="${g.key}" data-content-path="${esc(x.file_path || "")}">Delete</button></div>`,
+                    (x) => `<div class="content-row"><div class="list-main"><strong title="${esc(x.title)}">${esc(x.title)}</strong><span><b class="class-chip class-${esc(x.class_no)}">Class ${esc(x.class_no)}</b>${x.subjects?.name ? " " + esc(x.subjects.name) : ""} • ${esc(fmtDate(x.created_at))}${g.key !== "lecture" && isExternal(x.file_path) ? ' • <b class="content-tag">Link</b>' : ""}</span></div><button class="small-btn danger" data-delete-content="${esc(x.id)}" data-content-type="${g.key}" data-content-path="${esc(x.file_path || "")}">Delete</button></div>`,
                   )
                   .join("")
               : `<p class="mini-label" style="margin:6px 2px">No ${g.label.toLowerCase()} yet.</p>`

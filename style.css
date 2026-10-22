@@ -1428,3 +1428,12 @@ body::-webkit-scrollbar,
 .ct-lecture{--cg:#4f46e5;--cg-bg:#f1f0ff;--cg-line:#d9d6fb}
 .ct-note{--cg:#16a34a;--cg-bg:#eaf8ef;--cg-line:#c6ebd3}
 .ct-homework{--cg:#ea580c;--cg-bg:#fff2e8;--cg-line:#fbd5b8}
+
+/* 5 rows visible per group, rest scrolls; class shown as a coloured chip */
+.content-group-list{max-height:362px}
+.content-row{height:66px;box-sizing:border-box;padding:8px 12px}
+.content-row .list-main strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
+.content-row .list-main span{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.class-chip{display:inline-block;color:#fff;font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;letter-spacing:.2px;flex-shrink:0}
+.class-chip.class-10{background:#0284c7}
+.class-chip.class-12{background:#db2777}
